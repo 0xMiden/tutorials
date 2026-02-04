@@ -8,10 +8,10 @@ export.get_price
     # => [PAIR]
 
     # This is the procedure root of the `get_median` procedure
-    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
+    push.0xe3aa90b3eeca91470e0d9ff1f37d74047c230c81dd88505701b926db11303004
     # => [GET_MEDIAN_HASH, PAIR]
 
-    push.939716883672832.2172042075194638080
+    push.4116674871048819456.1405377866143230208
     # => [oracle_id_prefix, oracle_id_suffix, GET_MEDIAN_HASH, PAIR]
 
     exec.tx::execute_foreign_procedure
