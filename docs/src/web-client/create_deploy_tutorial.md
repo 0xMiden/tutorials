@@ -3,6 +3,8 @@ title: 'Creating Accounts and Deploying Faucets'
 sidebar_position: 2
 ---
 
+import { CodeSdkTabs } from '@site/src/components';
+
 _Using the Miden WebClient in TypeScript to create accounts and deploy faucets_
 
 ## Overview
@@ -28,7 +30,7 @@ Before we dive into code, a quick refresher:
 
 - **Public accounts**: The account's data and code are stored on-chain and are openly visible, including its assets.
 - **Private accounts**: The account's state and logic are off-chain, only known to its owner.
-- **Public notes**: The note's state is visible to anyone - perfect for scenarios where transparency is desired.
+- **Public notes**: The note's state is visible to anyone - perfect for scenarios where transparency is desired.
 - **Private notes**: The note's state is stored off-chain, you will need to share the note data with the relevant parties (via email or Telegram) for them to be able to consume the note.
 
 > **Important**: In Miden, "accounts" and "smart contracts" can be used interchangeably due to native account abstraction. Every account is programmable and can contain custom logic.
@@ -51,10 +53,12 @@ It is useful to think of notes on Miden as "cryptographic cashier's checks" that
    cd miden-web-app
    ```
 
-3. Install the Miden WebClient SDK:
-   ```bash
-   yarn add @miden-sdk/miden-sdk@0.13.0
-   ```
+3. Install the Miden SDK:
+
+<CodeSdkTabs example={{
+  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.13.0` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.13.0` },
+}} reactFilename="" tsFilename="" />
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
 
@@ -71,17 +75,48 @@ It is useful to think of notes on Miden as "cryptographic cashier's checks" that
 
 The WebClient is your gateway to interact with the Miden blockchain. It handles state synchronization, transaction creation, and proof generation. Let's set it up.
 
-### Create `lib/createMintConsume.ts`
+### Create the library file
 
-First, we'll create a separate file for our blockchain logic. In the project root, create a folder `lib/` and inside it `createMintConsume.ts`:
+First, we'll create a separate file for our blockchain logic. In the project root, create a folder `lib/` and inside it the library file:
 
 ```bash
 mkdir -p lib
-touch lib/createMintConsume.ts
 ```
 
-```ts
-// lib/createMintConsume.ts
+{/* prettier-ignore */}
+<CodeSdkTabs example={{
+  react: { code: `// lib/react/createMintConsume.tsx
+'use client';
+
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
+
+function CreateMintConsumeInner() {
+.const { isReady } = useMiden();
+.const { createWallet } = useCreateWallet();
+.const { createFaucet } = useCreateFaucet();
+
+.const run = async () => {
+..// We'll add our logic here
+..console.log('Ready to go!');
+.};
+
+.return (
+..<div>
+...<button onClick={run} disabled={!isReady}>
+....{isReady ? 'Start' : 'Initializing…'}
+...</button>
+..</div>
+.);
+}
+
+export default function CreateMintConsume() {
+.return (
+..<MidenProvider config={{ rpcUrl: 'devnet', prover: 'local' }}>
+...<CreateMintConsumeInner />
+..</MidenProvider>
+.);
+}` },
+  typescript: { code: `// lib/createMintConsume.ts
 export async function createMintConsume(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('webClient() can only run in the browser');
@@ -89,7 +124,7 @@ export async function createMintConsume(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { WebClient, AccountStorageMode, AccountId, NoteType } =
+  const { WebClient } =
     await import('@miden-sdk/miden-sdk');
 
   // Connect to Miden testnet RPC endpoint
@@ -103,18 +138,33 @@ export async function createMintConsume(): Promise<void> {
 
   // At this point, your client is connected and synchronized
   // Ready to create accounts and deploy contracts!
-}
-```
+}` },
+}} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
 > Since we will be handling proof generation in the browser, it will be slower than proof generation handled by the Rust client. Check out the [tutorial on delegated proving](./creating_multiple_notes_tutorial.md#what-is-delegated-proving) to speed up proof generation in the browser.
 
 ## Step 3: Create the User Interface
 
-Now let's create a simple UI that will trigger our blockchain interactions. We'll replace the default Next.js page with a button that calls our `createMintConsume()` function.
+Now let's create a simple UI that will trigger our blockchain interactions. We'll replace the default Next.js page with a button that calls our function.
 
-Edit `app/page.tsx` to call `createMintConsume()` on a button click:
+Edit `app/page.tsx`:
+
+If you're using the **React SDK**, the page simply renders your self-contained component:
 
 ```tsx
+// app/page.tsx
+'use client';
+import CreateMintConsume from '../lib/react/createMintConsume';
+
+export default function Home() {
+  return <CreateMintConsume />;
+}
+```
+
+If you're using the **TypeScript SDK**, the page manages state and calls the library function directly:
+
+```tsx
+// app/page.tsx
 'use client';
 import { useState } from 'react';
 import { createMintConsume } from '../lib/createMintConsume';
@@ -154,11 +204,17 @@ export default function Home() {
 
 Now we'll create Alice's account. Let's create a **public** account so we can easily track her transactions.
 
-Back in `lib/createMintConsume.ts`, extend the `createMintConsume()` function:
+Back in the library file, extend the function:
 
-<!-- prettier-ignore-start -->
-```ts
-// lib/createMintConsume.ts
+{/* prettier-ignore */}
+<CodeSdkTabs example={{
+  react: { code: `const run = async () => {
+.// 1. Create Alice's wallet (public, mutable)
+.console.log('Creating account for Alice…');
+.const alice = await createWallet({ storageMode: 'public' });
+.console.log('Alice ID:', alice.id().toString());
+};` },
+  typescript: { code: `// lib/createMintConsume.ts
 export async function createMintConsume(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('webClient() can only run in the browser');
@@ -184,9 +240,8 @@ export async function createMintConsume(): Promise<void> {
     AuthScheme.AuthRpoFalcon512   // Auth Scheme: RPO Falcon 512
   );
   console.log('Alice ID:', alice.id().toString());
-}
-```
-<!-- prettier-ignore-end -->
+}` },
+}} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
 ## Step 5: Deploy a Fungible Faucet
 
@@ -194,9 +249,20 @@ A faucet in Miden is a special type of account that can mint new tokens. Think o
 
 Add this code after creating Alice's account:
 
-<!-- prettier-ignore-start -->
-```ts
-// 3. Deploy a fungible faucet
+{/* prettier-ignore */}
+<CodeSdkTabs example={{
+  react: { code: `// 2. Deploy a fungible faucet
+console.log('Creating faucet…');
+const faucet = await createFaucet({
+.tokenSymbol: 'MID',         // Token symbol (like ETH, BTC, etc.)
+.decimals: 8,                // Decimals (8 means 1 MID = 100,000,000 base units)
+.maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
+.storageMode: 'public',      // Public: faucet operations are transparent
+});
+console.log('Faucet account ID:', faucet.id().toString());
+
+console.log('Setup complete.');` },
+  typescript: { code: `// 3. Deploy a fungible faucet
 // A faucet is an account that can mint new tokens
 console.log('Creating faucet…');
 const faucetAccount = await client.newFaucet(
@@ -209,9 +275,8 @@ const faucetAccount = await client.newFaucet(
 );
 console.log('Faucet account ID:', faucetAccount.id().toString());
 
-console.log('Setup complete.');
-```
-<!-- prettier-ignore-end -->
+console.log('Setup complete.');` },
+}} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
 ### Understanding Faucet Parameters:
 
@@ -232,10 +297,55 @@ In this tutorial, we've successfully:
 3. Created a wallet account for Alice
 4. Deployed a fungible faucet that can mint custom tokens
 
-Your final `lib/createMintConsume.ts` should look like:
+Your final library file should look like:
 
-```ts
-// lib/createMintConsume.ts
+{/* prettier-ignore */}
+<CodeSdkTabs example={{
+  react: { code: `'use client';
+
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
+
+function CreateMintConsumeInner() {
+.const { isReady } = useMiden();
+.const { createWallet } = useCreateWallet();
+.const { createFaucet } = useCreateFaucet();
+
+.const run = async () => {
+..// 1. Create Alice's wallet (public, mutable)
+..console.log('Creating account for Alice…');
+..const alice = await createWallet({ storageMode: 'public' });
+..console.log('Alice ID:', alice.id().toString());
+
+..// 2. Deploy a fungible faucet
+..console.log('Creating faucet…');
+..const faucet = await createFaucet({
+...tokenSymbol: 'MID',
+...decimals: 8,
+...maxSupply: BigInt(1_000_000),
+...storageMode: 'public',
+..});
+..console.log('Faucet ID:', faucet.id().toString());
+
+..console.log('Setup complete.');
+.};
+
+.return (
+..<div>
+...<button onClick={run} disabled={!isReady}>
+....{isReady ? 'Start' : 'Initializing…'}
+...</button>
+..</div>
+.);
+}
+
+export default function CreateMintConsume() {
+.return (
+..<MidenProvider config={{ rpcUrl: 'devnet', prover: 'local' }}>
+...<CreateMintConsumeInner />
+..</MidenProvider>
+.);
+}` },
+  typescript: { code: `// lib/createMintConsume.ts
 export async function createMintConsume(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('webClient() can only run in the browser');
@@ -243,7 +353,7 @@ export async function createMintConsume(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { WebClient, AccountStorageMode, AuthScheme, NoteType, Address } =
+  const { WebClient, AccountStorageMode, AuthScheme } =
     await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'https://rpc.testnet.miden.io';
@@ -275,8 +385,8 @@ export async function createMintConsume(): Promise<void> {
   console.log('Faucet ID:', faucet.id().toString());
 
   console.log('Setup complete.');
-}
-```
+}` },
+}} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
 ### Running the example
 

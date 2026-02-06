@@ -1,0 +1,82 @@
+/* CodeSdkTabs Component Styles */
+
+.codeContainer {
+  margin: 1rem 0;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  overflow: hidden;
+  background: var(--ifm-background-color);
+}
+
+.tabContainer {
+  background: var(--ifm-color-emphasis-100);
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.tabButtons {
+  display: flex;
+  gap: 0;
+}
+
+.tabButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--ifm-color-content-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.tabButton:hover {
+  color: var(--ifm-color-primary);
+  background: var(--ifm-color-emphasis-200);
+}
+
+.tabButton.active {
+  color: var(--ifm-color-primary);
+  background: var(--ifm-color-emphasis-200);
+  border-bottom: 2px solid var(--ifm-color-primary);
+}
+
+.codeSection {
+  position: relative;
+  margin: 0;
+}
+
+.codeSection pre {
+  margin: 0;
+  border-radius: 0;
+  border: none;
+}
+
+/* Remove any extra bottom spacing from the theme code block */
+.codeSection :global(.theme-code-block) {
+  margin-bottom: 0 !important;
+}
+
+.outputSection {
+  border-top: 1px solid var(--ifm-color-emphasis-300);
+  background: var(--ifm-color-emphasis-50);
+}
+
+.outputHeader {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ifm-color-content-secondary);
+  background: var(--ifm-color-emphasis-100);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.outputSection pre {
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  background: var(--ifm-color-emphasis-50) !important;
+}
