@@ -157,7 +157,7 @@ Create the library file and add the following code:
 mkdir -p lib
 ```
 
-Copy and paste the following code into the library file:
+Copy and paste the following code into `lib/react/unauthenticatedNoteTransfer.tsx` (React) or `lib/unauthenticatedNoteTransfer.ts` (TypeScript):
 
 {/* prettier-ignore */}
 <CodeSdkTabs example={{
