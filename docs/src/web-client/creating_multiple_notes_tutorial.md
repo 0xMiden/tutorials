@@ -205,7 +205,7 @@ console.log('Latest block:', (await client.syncState()).blockNum());
 
 Add the code snippet below to the function. This code creates a wallet and faucet, mints tokens from the faucet for the wallet, and then consumes the minted tokens.
 
-{/_ prettier-ignore _/}
+{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// 1. Create Alice's wallet
 console.log('Creating account for Alice…');
@@ -305,7 +305,7 @@ await client.applyTransaction(txResult, submissionHeight);
 
 Add the following code to the function. This code defines three recipient addresses, builds three P2ID notes with 100 `MID` each, and then creates all three notes in the same transaction.
 
-{/_ prettier-ignore _/}
+{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// 5. Send 100 MID to three recipients in a single transaction
 await sendMany({
@@ -357,7 +357,7 @@ console.log('All notes created ✅');` },
 
 Your library file should now look like this:
 
-{/_ prettier-ignore _/}
+{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
