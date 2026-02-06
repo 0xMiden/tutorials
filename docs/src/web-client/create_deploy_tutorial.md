@@ -83,9 +83,9 @@ First, we'll create a separate file for our blockchain logic. In the project roo
 mkdir -p lib
 ```
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `// lib/react/createMintConsume.tsx
+react: { code: `// lib/react/createMintConsume.tsx
 'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
@@ -115,29 +115,29 @@ export default function CreateMintConsume() {
 ...<CreateMintConsumeInner />
 ..</MidenProvider>
 .);
-}` },
-  typescript: { code: `// lib/createMintConsume.ts
+}`},
+  typescript: { code:`// lib/createMintConsume.ts
 export async function createMintConsume(): Promise<void> {
-  if (typeof window === 'undefined') {
-    console.warn('webClient() can only run in the browser');
-    return;
-  }
+if (typeof window === 'undefined') {
+console.warn('webClient() can only run in the browser');
+return;
+}
 
-  // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { WebClient } =
-    await import('@miden-sdk/miden-sdk');
+// dynamic import → only in the browser, so WASM is loaded client‑side
+const { WebClient } =
+await import('@miden-sdk/miden-sdk');
 
-  // Connect to Miden testnet RPC endpoint
-  const nodeEndpoint = 'https://rpc.testnet.miden.io';
-  const client = await WebClient.createClient(nodeEndpoint);
+// Connect to Miden testnet RPC endpoint
+const nodeEndpoint = 'https://rpc.testnet.miden.io';
+const client = await WebClient.createClient(nodeEndpoint);
 
-  // 1. Sync with the latest blockchain state
-  // This fetches the latest block header and state commitments
-  const state = await client.syncState();
-  console.log('Latest block number:', state.blockNum());
+// 1. Sync with the latest blockchain state
+// This fetches the latest block header and state commitments
+const state = await client.syncState();
+console.log('Latest block number:', state.blockNum());
 
-  // At this point, your client is connected and synchronized
-  // Ready to create accounts and deploy contracts!
+// At this point, your client is connected and synchronized
+// Ready to create accounts and deploy contracts!
 }` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
@@ -206,40 +206,40 @@ Now we'll create Alice's account. Let's create a **public** account so we can ea
 
 Back in your library file, extend the function:
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `const run = async () => {
+react: { code: `const run = async () => {
 .// 1. Create Alice's wallet (public, mutable)
 .console.log('Creating account for Alice…');
 .const alice = await createWallet({ storageMode: 'public' });
 .console.log('Alice ID:', alice.id().toString());
 };` },
-  typescript: { code: `// lib/createMintConsume.ts
+typescript: { code: `// lib/createMintConsume.ts
 export async function createMintConsume(): Promise<void> {
-  if (typeof window === 'undefined') {
-    console.warn('webClient() can only run in the browser');
-    return;
-  }
+if (typeof window === 'undefined') {
+console.warn('webClient() can only run in the browser');
+return;
+}
 
-  const { WebClient, AccountStorageMode, AuthScheme } = await import(
-    "@miden-sdk/miden-sdk"
-  );
+const { WebClient, AccountStorageMode, AuthScheme } = await import(
+"@miden-sdk/miden-sdk"
+);
 
-  const nodeEndpoint = 'https://rpc.testnet.miden.io';
-  const client = await WebClient.createClient(nodeEndpoint);
+const nodeEndpoint = 'https://rpc.testnet.miden.io';
+const client = await WebClient.createClient(nodeEndpoint);
 
-  // 1. Sync with the latest blockchain state
-  const state = await client.syncState();
-  console.log('Latest block number:', state.blockNum());
+// 1. Sync with the latest blockchain state
+const state = await client.syncState();
+console.log('Latest block number:', state.blockNum());
 
-  // 2. Create Alice's account
-  console.log('Creating account for Alice…');
-  const alice = await client.newWallet(
-    AccountStorageMode.public(),  // Public: account state is visible on-chain
-    true,                         // Mutable: account code can be upgraded later
-    AuthScheme.AuthRpoFalcon512   // Auth Scheme: RPO Falcon 512
-  );
-  console.log('Alice ID:', alice.id().toString());
+// 2. Create Alice's account
+console.log('Creating account for Alice…');
+const alice = await client.newWallet(
+AccountStorageMode.public(), // Public: account state is visible on-chain
+true, // Mutable: account code can be upgraded later
+AuthScheme.AuthRpoFalcon512 // Auth Scheme: RPO Falcon 512
+);
+console.log('Alice ID:', alice.id().toString());
 }` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
@@ -249,29 +249,29 @@ A faucet in Miden is a special type of account that can mint new tokens. Think o
 
 Add this code after creating Alice's account:
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `// 2. Deploy a fungible faucet
+react: { code: `// 2. Deploy a fungible faucet
 console.log('Creating faucet…');
 const faucet = await createFaucet({
-.tokenSymbol: 'MID',         // Token symbol (like ETH, BTC, etc.)
-.decimals: 8,                // Decimals (8 means 1 MID = 100,000,000 base units)
+.tokenSymbol: 'MID', // Token symbol (like ETH, BTC, etc.)
+.decimals: 8, // Decimals (8 means 1 MID = 100,000,000 base units)
 .maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
-.storageMode: 'public',      // Public: faucet operations are transparent
+.storageMode: 'public', // Public: faucet operations are transparent
 });
 console.log('Faucet account ID:', faucet.id().toString());
 
-console.log('Setup complete.');` },
-  typescript: { code: `// 3. Deploy a fungible faucet
+console.log('Setup complete.');`},
+  typescript: { code:`// 3. Deploy a fungible faucet
 // A faucet is an account that can mint new tokens
 console.log('Creating faucet…');
 const faucetAccount = await client.newFaucet(
-  AccountStorageMode.public(),  // Public: faucet operations are transparent
-  false,                        // Immutable: faucet rules cannot be changed
-  "MID",                        // Token symbol (like ETH, BTC, etc.)
-  8,                            // Decimals (8 means 1 MID = 100,000,000 base units)
-  BigInt(1_000_000),            // Max supply: total tokens that can ever be minted
-  AuthScheme.AuthRpoFalcon512   // Auth Scheme: RPO Falcon 512
+AccountStorageMode.public(), // Public: faucet operations are transparent
+false, // Immutable: faucet rules cannot be changed
+"MID", // Token symbol (like ETH, BTC, etc.)
+8, // Decimals (8 means 1 MID = 100,000,000 base units)
+BigInt(1_000_000), // Max supply: total tokens that can ever be minted
+AuthScheme.AuthRpoFalcon512 // Auth Scheme: RPO Falcon 512
 );
 console.log('Faucet account ID:', faucetAccount.id().toString());
 
@@ -299,9 +299,9 @@ In this tutorial, we've successfully:
 
 Your final `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript) should look like:
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `'use client';
+react: { code: `'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
 
@@ -344,47 +344,47 @@ export default function CreateMintConsume() {
 ...<CreateMintConsumeInner />
 ..</MidenProvider>
 .);
-}` },
-  typescript: { code: `// lib/createMintConsume.ts
+}`},
+  typescript: { code:`// lib/createMintConsume.ts
 export async function createMintConsume(): Promise<void> {
-  if (typeof window === 'undefined') {
-    console.warn('webClient() can only run in the browser');
-    return;
-  }
+if (typeof window === 'undefined') {
+console.warn('webClient() can only run in the browser');
+return;
+}
 
-  // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { WebClient, AccountStorageMode, AuthScheme } =
-    await import('@miden-sdk/miden-sdk');
+// dynamic import → only in the browser, so WASM is loaded client‑side
+const { WebClient, AccountStorageMode, AuthScheme } =
+await import('@miden-sdk/miden-sdk');
 
-  const nodeEndpoint = 'https://rpc.testnet.miden.io';
-  const client = await WebClient.createClient(nodeEndpoint);
+const nodeEndpoint = 'https://rpc.testnet.miden.io';
+const client = await WebClient.createClient(nodeEndpoint);
 
-  // 1. Sync with the latest blockchain state
-  const state = await client.syncState();
-  console.log('Latest block number:', state.blockNum());
+// 1. Sync with the latest blockchain state
+const state = await client.syncState();
+console.log('Latest block number:', state.blockNum());
 
-  // 2. Create Alice's account
-  console.log('Creating account for Alice…');
-  const alice = await client.newWallet(
-    AccountStorageMode.public(),
-    true,
-    AuthScheme.AuthRpoFalcon512,
-  );
-  console.log('Alice ID:', alice.id().toString());
+// 2. Create Alice's account
+console.log('Creating account for Alice…');
+const alice = await client.newWallet(
+AccountStorageMode.public(),
+true,
+AuthScheme.AuthRpoFalcon512,
+);
+console.log('Alice ID:', alice.id().toString());
 
-  // 3. Deploy a fungible faucet
-  console.log('Creating faucet…');
-  const faucet = await client.newFaucet(
-    AccountStorageMode.public(),
-    false,
-    'MID',
-    8,
-    BigInt(1_000_000),
-    AuthScheme.AuthRpoFalcon512,
-  );
-  console.log('Faucet ID:', faucet.id().toString());
+// 3. Deploy a fungible faucet
+console.log('Creating faucet…');
+const faucet = await client.newFaucet(
+AccountStorageMode.public(),
+false,
+'MID',
+8,
+BigInt(1_000_000),
+AuthScheme.AuthRpoFalcon512,
+);
+console.log('Faucet ID:', faucet.id().toString());
 
-  console.log('Setup complete.');
+console.log('Setup complete.');
 }` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 

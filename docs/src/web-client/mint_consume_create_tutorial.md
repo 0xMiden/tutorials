@@ -38,29 +38,29 @@ Let's mint some tokens for Alice. When we mint from a faucet, it creates a note 
 
 Add this to the end of your `createMintConsume` function:
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `// 3. Mint 1000 tokens to Alice
+react: { code: `// 3. Mint 1000 tokens to Alice
 console.log('Minting tokens to Alice...');
 const mintResult = await mint({
-.faucetId,                     // Faucet account (who mints the tokens)
-.targetAccountId: aliceId,     // Target account (who receives the tokens)
-.amount: BigInt(1000),         // Amount to mint (in base units)
-.noteType: 'public',           // Note visibility (public = onchain)
+.faucetId, // Faucet account (who mints the tokens)
+.targetAccountId: aliceId, // Target account (who receives the tokens)
+.amount: BigInt(1000), // Amount to mint (in base units)
+.noteType: 'public', // Note visibility (public = onchain)
 });
 console.log('Mint tx:', mintResult.transactionId);
 
 // Wait for the mint transaction to be committed
-await waitForCommit(mintResult.transactionId);` },
-  typescript: { code: `// 4. Mint tokens from the faucet to Alice
+await waitForCommit(mintResult.transactionId);`},
+  typescript: { code:`// 4. Mint tokens from the faucet to Alice
 await client.syncState();
 
 console.log("Minting tokens to Alice...");
 const mintTxRequest = client.newMintTransactionRequest(
-  alice.id(),           // Target account (who receives the tokens)
-  faucet.id(),          // Faucet account (who mints the tokens)
-  NoteType.Public,      // Note visibility (public = onchain)
-  BigInt(1000),         // Amount to mint (in base units)
+alice.id(), // Target account (who receives the tokens)
+faucet.id(), // Faucet account (who mints the tokens)
+NoteType.Public, // Note visibility (public = onchain)
+BigInt(1000), // Amount to mint (in base units)
 );
 
 await client.submitNewTransaction(faucet.id(), mintTxRequest);
@@ -83,20 +83,20 @@ await client.syncState();` },
 After minting, Alice has a note waiting for her but the tokens aren't in her account yet.
 To identify notes that are ready to consume, the Miden WebClient provides the `getConsumableNotes` function:
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `// 4. Wait for consumable notes to appear
+react: { code: `// 4. Wait for consumable notes to appear
 const notes = await waitForConsumableNotes({ accountId: aliceId });
 const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
 console.log('Consumable notes:', noteIds);` },
-  typescript: { code: `// 5. Find notes available for consumption
+typescript: { code: `// 5. Find notes available for consumption
 const mintedNotes = await client.getConsumableNotes(alice.id());
 console.log(\`Found \${mintedNotes.length} note(s) to consume\`);
 
 const mintedNoteList = mintedNotes.map((n) => n.inputNoteRecord().toNote());
 console.log(
-  'Minted notes:',
-  mintedNoteList.map((note) => note.id().toString()),
+'Minted notes:',
+mintedNoteList.map((note) => note.id().toString()),
 );` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
@@ -104,13 +104,13 @@ console.log(
 
 Now let's consume the notes to add the tokens to Alice's account balance:
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `// 5. Consume minted notes
+react: { code: `// 5. Consume minted notes
 console.log('Consuming minted notes...');
 await consume({ accountId: aliceId, noteIds });
 console.log('Notes consumed.');` },
-  typescript: { code: `// 6. Consume the notes to add tokens to Alice's balance
+typescript: { code: `// 6. Consume the notes to add tokens to Alice's balance
 console.log('Consuming minted notes...');
 const consumeTxRequest = client.newConsumeTransactionRequest(mintedNoteList);
 
@@ -128,9 +128,9 @@ _The standard asset transfer note on Miden is the P2ID note (Pay-to-Id). There i
 
 Now that Alice has tokens in her account, she can send some to Bob:
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `// 6. Send 100 tokens to Bob
+react: { code: `// 6. Send 100 tokens to Bob
 const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
 console.log("Sending tokens to Bob's account...");
 await send({
@@ -141,18 +141,18 @@ await send({
 .noteType: 'public',
 });
 console.log('Tokens sent successfully!');` },
-  typescript: { code: `// 7. Send tokens from Alice to Bob
+typescript: { code: `// 7. Send tokens from Alice to Bob
 const bobAccountId = Address.fromBech32(
-  'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph',
+'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph',
 ).accountId();
 console.log("Sending tokens to Bob's account...");
 
 const sendTxRequest = client.newSendTransactionRequest(
-  alice.id(),                      // Sender account ID
-  bobAccountId,                    // Recipient account ID
-  faucet.id(),                     // Asset ID (faucet that created the tokens)
-  NoteType.Public,                 // Note visibility
-  BigInt(100),                     // Amount to send
+alice.id(), // Sender account ID
+bobAccountId, // Recipient account ID
+faucet.id(), // Asset ID (faucet that created the tokens)
+NoteType.Public, // Note visibility
+BigInt(100), // Amount to send
 );
 
 await client.submitNewTransaction(alice.id(), sendTxRequest);
@@ -172,9 +172,9 @@ The transaction creates a **P2ID (Pay-to-ID)** note:
 
 Here's the complete `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript):
 
-{/* prettier-ignore */}
+{/_ prettier-ignore _/}
 <CodeSdkTabs example={{
-  react: { code: `'use client';
+react: { code: `'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
 
@@ -257,100 +257,100 @@ export default function CreateMintConsume() {
 ...<CreateMintConsumeInner />
 ..</MidenProvider>
 .);
-}` },
-  typescript: { code: `// lib/createMintConsume.ts
+}`},
+  typescript: { code:`// lib/createMintConsume.ts
 export async function createMintConsume(): Promise<void> {
-  if (typeof window === 'undefined') {
-    console.warn('webClient() can only run in the browser');
-    return;
-  }
+if (typeof window === 'undefined') {
+console.warn('webClient() can only run in the browser');
+return;
+}
 
-  // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { WebClient, AccountStorageMode, AuthScheme, NoteType, Address } =
-    await import('@miden-sdk/miden-sdk');
+// dynamic import → only in the browser, so WASM is loaded client‑side
+const { WebClient, AccountStorageMode, AuthScheme, NoteType, Address } =
+await import('@miden-sdk/miden-sdk');
 
-  const nodeEndpoint = 'https://rpc.testnet.miden.io';
-  const client = await WebClient.createClient(nodeEndpoint);
+const nodeEndpoint = 'https://rpc.testnet.miden.io';
+const client = await WebClient.createClient(nodeEndpoint);
 
-  // 1. Sync with the latest blockchain state
-  const state = await client.syncState();
-  console.log('Latest block number:', state.blockNum());
+// 1. Sync with the latest blockchain state
+const state = await client.syncState();
+console.log('Latest block number:', state.blockNum());
 
-  // 2. Create Alice's account
-  console.log('Creating account for Alice…');
-  const aliceSeed = new Uint8Array(32);
-  crypto.getRandomValues(aliceSeed);
-  const alice = await client.newWallet(
-    AccountStorageMode.public(),
-    true,
-    AuthScheme.AuthRpoFalcon512,
-    aliceSeed,
-  );
-  console.log('Alice ID:', alice.id().toString());
+// 2. Create Alice's account
+console.log('Creating account for Alice…');
+const aliceSeed = new Uint8Array(32);
+crypto.getRandomValues(aliceSeed);
+const alice = await client.newWallet(
+AccountStorageMode.public(),
+true,
+AuthScheme.AuthRpoFalcon512,
+aliceSeed,
+);
+console.log('Alice ID:', alice.id().toString());
 
-  // 3. Deploy a fungible faucet
-  console.log('Creating faucet…');
-  const faucet = await client.newFaucet(
-    AccountStorageMode.public(),
-    false,
-    'MID',
-    8,
-    BigInt(1_000_000),
-    AuthScheme.AuthRpoFalcon512,
-  );
-  console.log('Faucet ID:', faucet.id().toString());
+// 3. Deploy a fungible faucet
+console.log('Creating faucet…');
+const faucet = await client.newFaucet(
+AccountStorageMode.public(),
+false,
+'MID',
+8,
+BigInt(1_000_000),
+AuthScheme.AuthRpoFalcon512,
+);
+console.log('Faucet ID:', faucet.id().toString());
 
-  await client.syncState();
+await client.syncState();
 
-  // 4. Mint tokens to Alice
-  await client.syncState();
+// 4. Mint tokens to Alice
+await client.syncState();
 
-  console.log('Minting tokens to Alice...');
-  const mintTxRequest = client.newMintTransactionRequest(
-    alice.id(),
-    faucet.id(),
-    NoteType.Public,
-    BigInt(1000),
-  );
+console.log('Minting tokens to Alice...');
+const mintTxRequest = client.newMintTransactionRequest(
+alice.id(),
+faucet.id(),
+NoteType.Public,
+BigInt(1000),
+);
 
-  await client.submitNewTransaction(faucet.id(), mintTxRequest);
+await client.submitNewTransaction(faucet.id(), mintTxRequest);
 
-  console.log('Waiting 10 seconds for transaction confirmation...');
-  await new Promise((resolve) => setTimeout(resolve, 10000));
-  await client.syncState();
+console.log('Waiting 10 seconds for transaction confirmation...');
+await new Promise((resolve) => setTimeout(resolve, 10000));
+await client.syncState();
 
-  // 5. Fetch minted notes
-  const mintedNotes = await client.getConsumableNotes(alice.id());
-  const mintedNoteList = mintedNotes.map((n) => n.inputNoteRecord().toNote());
-  console.log(
-    'Minted notes:',
-    mintedNoteList.map((note) => note.id().toString()),
-  );
+// 5. Fetch minted notes
+const mintedNotes = await client.getConsumableNotes(alice.id());
+const mintedNoteList = mintedNotes.map((n) => n.inputNoteRecord().toNote());
+console.log(
+'Minted notes:',
+mintedNoteList.map((note) => note.id().toString()),
+);
 
-  // 6. Consume minted notes
-  console.log('Consuming minted notes...');
-  const consumeTxRequest = client.newConsumeTransactionRequest(mintedNoteList);
+// 6. Consume minted notes
+console.log('Consuming minted notes...');
+const consumeTxRequest = client.newConsumeTransactionRequest(mintedNoteList);
 
-  await client.submitNewTransaction(alice.id(), consumeTxRequest);
+await client.submitNewTransaction(alice.id(), consumeTxRequest);
 
-  await client.syncState();
-  console.log('Notes consumed.');
+await client.syncState();
+console.log('Notes consumed.');
 
-  // 7. Send tokens to Bob
-  const bobAccountId = Address.fromBech32(
-    'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph',
-  ).accountId();
-  console.log("Sending tokens to Bob's account...");
-  const sendTxRequest = client.newSendTransactionRequest(
-    alice.id(),
-    bobAccountId,
-    faucet.id(),
-    NoteType.Public,
-    BigInt(100),
-  );
+// 7. Send tokens to Bob
+const bobAccountId = Address.fromBech32(
+'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph',
+).accountId();
+console.log("Sending tokens to Bob's account...");
+const sendTxRequest = client.newSendTransactionRequest(
+alice.id(),
+bobAccountId,
+faucet.id(),
+NoteType.Public,
+BigInt(100),
+);
 
-  await client.submitNewTransaction(alice.id(), sendTxRequest);
-  console.log('Tokens sent successfully!');
+await client.submitNewTransaction(alice.id(), sendTxRequest);
+console.log('Tokens sent successfully!');
 }` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 

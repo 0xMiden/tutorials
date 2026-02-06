@@ -57,22 +57,22 @@ First, create a new Vite + React project and install the Miden React SDK.
 
 ```tsx
 // main.tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { MidenProvider } from "@miden-sdk/react";
-import App from "./App";
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { MidenProvider } from '@miden-sdk/react';
+import App from './App';
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MidenProvider
       config={{
-        rpcUrl: "devnet",
-        prover: "devnet",
+        rpcUrl: 'devnet',
+        prover: 'devnet',
       }}
     >
       <App />
     </MidenProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
 ```
 
@@ -89,7 +89,7 @@ The `useMiden()` hook provides access to the client's initialization state. Use 
 
 ```tsx
 // App.tsx
-import { useMiden } from "@miden-sdk/react";
+import { useMiden } from '@miden-sdk/react';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -113,7 +113,7 @@ The `useMiden()` hook returns:
 The `useAccounts()` hook provides access to all accounts stored in the client. Use it to check if the user has any existing wallets.
 
 ```tsx
-import { useMiden, useAccounts } from "@miden-sdk/react";
+import { useMiden, useAccounts } from '@miden-sdk/react';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -145,7 +145,7 @@ The `useAccounts()` hook returns:
 The `useCreateWallet()` hook provides a function to create new wallet accounts.
 
 ```tsx
-import { useMiden, useAccounts, useCreateWallet } from "@miden-sdk/react";
+import { useMiden, useAccounts, useCreateWallet } from '@miden-sdk/react';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -162,7 +162,7 @@ export default function App() {
       <div>
         <h1>Wallet</h1>
         <button onClick={() => createWallet()} disabled={isCreating}>
-          {isCreating ? "Creating..." : "Create wallet"}
+          {isCreating ? 'Creating...' : 'Create wallet'}
         </button>
       </div>
     );
@@ -188,7 +188,7 @@ The `useCreateWallet()` hook returns:
 The `useAccount(accountId)` hook provides detailed information about a specific account, including its assets and balances.
 
 ```tsx
-import { useAccount, formatAssetAmount } from "@miden-sdk/react";
+import { useAccount, formatAssetAmount } from '@miden-sdk/react';
 
 function Wallet({ accountId }: { accountId: string }) {
   const { account, assets } = useAccount(accountId);
@@ -199,7 +199,7 @@ function Wallet({ accountId }: { accountId: string }) {
 
       <div>
         <h2>Address</h2>
-        <div>{account?.bech32id?.() ?? "Loading..."}</div>
+        <div>{account?.bech32id?.() ?? 'Loading...'}</div>
       </div>
 
       <div>
@@ -237,7 +237,7 @@ The `formatAssetAmount(amount, decimals)` utility formats a raw amount with the 
 The `useNotes({ accountId })` hook provides access to notes that can be consumed by the account.
 
 ```tsx
-import { useNotes, formatNoteSummary } from "@miden-sdk/react";
+import { useNotes, formatNoteSummary } from '@miden-sdk/react';
 
 function UnclaimedNotes({ accountId }: { accountId: string }) {
   const { consumableNoteSummaries } = useNotes({ accountId });
@@ -273,9 +273,12 @@ The `formatNoteSummary(summary)` utility formats a note summary for display.
 The `useConsume()` hook provides a function to consume (claim) notes and add their assets to the account.
 
 ```tsx
-import { useConsume, formatNoteSummary } from "@miden-sdk/react";
+import { useConsume, formatNoteSummary } from '@miden-sdk/react';
 
-function UnclaimedNotes({ accountId, consumableNoteSummaries }: {
+function UnclaimedNotes({
+  accountId,
+  consumableNoteSummaries,
+}: {
   accountId: string;
   consumableNoteSummaries: Array<{ id: string }>;
 }) {
@@ -319,18 +322,21 @@ The `useConsume()` hook returns:
 The `useSend()` hook provides a function to send tokens to other accounts.
 
 ```tsx
-import { useState, type ChangeEvent } from "react";
-import { useSend, parseAssetAmount } from "@miden-sdk/react";
+import { useState, type ChangeEvent } from 'react';
+import { useSend, parseAssetAmount } from '@miden-sdk/react';
 
-function SendForm({ accountId, assets }: {
+function SendForm({
+  accountId,
+  assets,
+}: {
   accountId: string;
   assets: Array<{ assetId: string; symbol?: string; decimals?: number }>;
 }) {
   const { send, isLoading: isSending } = useSend();
-  const [to, setTo] = useState("");
-  const [assetId, setAssetId] = useState(assets[0]?.assetId ?? "");
-  const [amount, setAmount] = useState("");
-  const [noteType, setNoteType] = useState<"private" | "public">("private");
+  const [to, setTo] = useState('');
+  const [assetId, setAssetId] = useState(assets[0]?.assetId ?? '');
+  const [amount, setAmount] = useState('');
+  const [noteType, setNoteType] = useState<'private' | 'public'>('private');
 
   const selectedAsset = assets.find((asset) => asset.assetId === assetId);
   const selectedDecimals = selectedAsset?.decimals;
@@ -342,16 +348,20 @@ function SendForm({ accountId, assets }: {
       if (!assetId) return;
       const amt = parseAssetAmount(amount, selectedDecimals);
       await send({ from: accountId, to, assetId, amount: amt, noteType });
-      setAmount("");
+      setAmount('');
     } catch (error) {
       console.error(error);
     }
   };
 
-  const onAssetChange = (e: ChangeEvent<HTMLSelectElement>) => setAssetId(e.target.value);
-  const onNoteTypeChange = (e: ChangeEvent<HTMLSelectElement>) => setNoteType(e.target.value as "private" | "public");
-  const onToChange = (e: ChangeEvent<HTMLInputElement>) => setTo(e.target.value);
-  const onAmountChange = (e: ChangeEvent<HTMLInputElement>) => setAmount(e.target.value);
+  const onAssetChange = (e: ChangeEvent<HTMLSelectElement>) =>
+    setAssetId(e.target.value);
+  const onNoteTypeChange = (e: ChangeEvent<HTMLSelectElement>) =>
+    setNoteType(e.target.value as 'private' | 'public');
+  const onToChange = (e: ChangeEvent<HTMLInputElement>) =>
+    setTo(e.target.value);
+  const onAmountChange = (e: ChangeEvent<HTMLInputElement>) =>
+    setAmount(e.target.value);
 
   return (
     <div>
@@ -371,10 +381,20 @@ function SendForm({ accountId, assets }: {
           <option value="">No assets</option>
         )}
       </select>
-      <input placeholder="Recipient address" value={to} onChange={onToChange} disabled={!hasAssets} />
-      <input placeholder="Amount" value={amount} onChange={onAmountChange} disabled={!hasAssets} />
+      <input
+        placeholder="Recipient address"
+        value={to}
+        onChange={onToChange}
+        disabled={!hasAssets}
+      />
+      <input
+        placeholder="Amount"
+        value={amount}
+        onChange={onAmountChange}
+        disabled={!hasAssets}
+      />
       <button disabled={!canSend || isSending} onClick={handleSend}>
-        {isSending ? "Sending..." : "Send"}
+        {isSending ? 'Sending...' : 'Send'}
       </button>
     </div>
   );
@@ -405,31 +425,43 @@ Here is the complete wallet application combining all the features we've covered
 **main.tsx**
 
 ```tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { MidenProvider } from "@miden-sdk/react";
-import App from "./App";
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { MidenProvider } from '@miden-sdk/react';
+import App from './App';
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MidenProvider
       config={{
-        rpcUrl: "devnet",
-        prover: "devnet",
+        rpcUrl: 'devnet',
+        prover: 'devnet',
       }}
     >
       <App />
     </MidenProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
 ```
 
 **App.tsx**
 
 ```tsx
-import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
-import { formatAssetAmount, formatNoteSummary, parseAssetAmount } from "@miden-sdk/react";
-import { useMiden, useAccounts, useAccount, useNotes, useCreateWallet, useConsume, useSend } from "@miden-sdk/react";
+import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
+import {
+  formatAssetAmount,
+  formatNoteSummary,
+  parseAssetAmount,
+} from '@miden-sdk/react';
+import {
+  useMiden,
+  useAccounts,
+  useAccount,
+  useNotes,
+  useCreateWallet,
+  useConsume,
+  useSend,
+} from '@miden-sdk/react';
 
 const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
   <div className="panel">
@@ -443,10 +475,15 @@ export default function App() {
   const { wallets, isLoading } = useAccounts();
   const { createWallet, isCreating } = useCreateWallet();
   const handleCreate = () => createWallet();
-  const createLabel = isCreating ? "Creating..." : "Create wallet";
+  const createLabel = isCreating ? 'Creating...' : 'Create wallet';
 
   if (error) return <div className="center">Error: {error.message}</div>;
-  if (!isReady || isLoading) return <div className="center">{!isReady ? "Initializing..." : "Loading..."}</div>;
+  if (!isReady || isLoading)
+    return (
+      <div className="center">
+        {!isReady ? 'Initializing...' : 'Loading...'}
+      </div>
+    );
 
   const accountId = wallets[0]?.id().toString();
   if (!accountId)
@@ -467,10 +504,10 @@ function Wallet({ accountId }: { accountId: string }) {
   const { consumableNoteSummaries } = useNotes({ accountId });
   const { consume, isLoading: isConsuming } = useConsume();
   const { send, isLoading: isSending } = useSend();
-  const [to, setTo] = useState("");
-  const [assetId, setAssetId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [noteType, setNoteType] = useState<"private" | "public">("private");
+  const [to, setTo] = useState('');
+  const [assetId, setAssetId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [noteType, setNoteType] = useState<'private' | 'public'>('private');
   const defaultAssetId = assets[0]?.assetId;
   const selectedAsset = assets.find((asset) => asset.assetId === assetId);
   const selectedDecimals = selectedAsset?.decimals;
@@ -485,25 +522,29 @@ function Wallet({ accountId }: { accountId: string }) {
       if (!assetId) return;
       const amt = parseAssetAmount(amount, selectedDecimals);
       await send({ from: accountId, to, assetId, amount: amt, noteType });
-      setAmount("");
+      setAmount('');
     } catch (error) {
       console.error(error);
     }
   };
 
   const claimNote = (id: string) => () => consume({ accountId, noteIds: [id] });
-  const onAssetChange = (event: ChangeEvent<HTMLSelectElement>) => setAssetId(event.target.value);
-  const onNoteTypeChange = (event: ChangeEvent<HTMLSelectElement>) => setNoteType(event.target.value as "private" | "public");
-  const onToChange = (event: ChangeEvent<HTMLInputElement>) => setTo(event.target.value);
-  const onAmountChange = (event: ChangeEvent<HTMLInputElement>) => setAmount(event.target.value);
+  const onAssetChange = (event: ChangeEvent<HTMLSelectElement>) =>
+    setAssetId(event.target.value);
+  const onNoteTypeChange = (event: ChangeEvent<HTMLSelectElement>) =>
+    setNoteType(event.target.value as 'private' | 'public');
+  const onToChange = (event: ChangeEvent<HTMLInputElement>) =>
+    setTo(event.target.value);
+  const onAmountChange = (event: ChangeEvent<HTMLInputElement>) =>
+    setAmount(event.target.value);
   const canSend = Boolean(hasAssets && to && assetId && amount);
-  const sendLabel = isSending ? "Sending..." : "Send";
+  const sendLabel = isSending ? 'Sending...' : 'Send';
 
   return (
     <div className="wallet">
       <h1>Wallet</h1>
       <Panel title="Address">
-        <div className="mono">{account?.bech32id?.() ?? "Loading..."}</div>
+        <div className="mono">{account?.bech32id?.() ?? 'Loading...'}</div>
       </Panel>
       <Panel title="Balances">
         {assets.length === 0 ? (
@@ -545,7 +586,11 @@ function Wallet({ accountId }: { accountId: string }) {
             <option value="private">Private</option>
             <option value="public">Public</option>
           </select>
-          <select value={assetId} onChange={onAssetChange} disabled={!hasAssets}>
+          <select
+            value={assetId}
+            onChange={onAssetChange}
+            disabled={!hasAssets}
+          >
             {hasAssets ? (
               assets.map((asset) => (
                 <option key={asset.assetId} value={asset.assetId}>
@@ -556,8 +601,18 @@ function Wallet({ accountId }: { accountId: string }) {
               <option value="">No assets</option>
             )}
           </select>
-          <input placeholder="to account id" value={to} onChange={onToChange} disabled={!hasAssets} />
-          <input placeholder="amount" value={amount} onChange={onAmountChange} disabled={!hasAssets} />
+          <input
+            placeholder="to account id"
+            value={to}
+            onChange={onToChange}
+            disabled={!hasAssets}
+          />
+          <input
+            placeholder="amount"
+            value={amount}
+            onChange={onAmountChange}
+            disabled={!hasAssets}
+          />
           <button disabled={!canSend || isSending} onClick={handleSend}>
             {sendLabel}
           </button>
@@ -607,7 +662,7 @@ By default, the Miden React SDK manages keys internally using the browser's Inde
 The `useSigner()` hook from `@miden-sdk/react` provides a unified interface for interacting with any signer provider. When you wrap your app with a signer provider (Para, Turnkey, MidenFi, etc.), the hook returns the signer context with connection state and methods.
 
 ```tsx
-import { useSigner } from "@miden-sdk/react";
+import { useSigner } from '@miden-sdk/react';
 
 function ConnectButton() {
   const signer = useSigner();
@@ -649,13 +704,13 @@ yarn add use-miden-para-react
 **Usage:**
 
 ```tsx
-import { ParaSignerProvider } from "use-miden-para-react";
-import { MidenProvider, useSigner } from "@miden-sdk/react";
+import { ParaSignerProvider } from 'use-miden-para-react';
+import { MidenProvider, useSigner } from '@miden-sdk/react';
 
 function App() {
   return (
     <ParaSignerProvider apiKey="your-api-key" environment="PRODUCTION">
-      <MidenProvider config={{ rpcUrl: "testnet" }}>
+      <MidenProvider config={{ rpcUrl: 'testnet' }}>
         <Wallet />
       </MidenProvider>
     </ParaSignerProvider>
@@ -679,12 +734,12 @@ function Wallet() {
 
 **ParaSignerProvider Props:**
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `apiKey` | `string` | Your Para API key |
-| `environment` | `"PRODUCTION" \| "DEVELOPMENT" \| "SANDBOX"` | Para environment |
-| `showSigningModal` | `boolean` | Whether to show signing confirmation modal |
-| `customSignConfirmStep` | `ReactNode` | Custom signing confirmation UI |
+| Prop                    | Type                                         | Description                                |
+| ----------------------- | -------------------------------------------- | ------------------------------------------ |
+| `apiKey`                | `string`                                     | Your Para API key                          |
+| `environment`           | `"PRODUCTION" \| "DEVELOPMENT" \| "SANDBOX"` | Para environment                           |
+| `showSigningModal`      | `boolean`                                    | Whether to show signing confirmation modal |
+| `customSignConfirmStep` | `ReactNode`                                  | Custom signing confirmation UI             |
 
 ---
 
@@ -701,19 +756,22 @@ yarn add use-miden-turnkey-react @turnkey/sdk-browser
 **Usage:**
 
 ```tsx
-import { TurnkeySignerProvider, useTurnkeySigner } from "use-miden-turnkey-react";
-import { MidenProvider, useSigner } from "@miden-sdk/react";
+import {
+  TurnkeySignerProvider,
+  useTurnkeySigner,
+} from 'use-miden-turnkey-react';
+import { MidenProvider, useSigner } from '@miden-sdk/react';
 
 const turnkeyConfig = {
-  apiBaseUrl: "https://api.turnkey.com",
-  organizationId: "your-org-id",
+  apiBaseUrl: 'https://api.turnkey.com',
+  organizationId: 'your-org-id',
   // Additional Turnkey SDK configuration (stamper, etc.)
 };
 
 function App() {
   return (
     <TurnkeySignerProvider config={turnkeyConfig}>
-      <MidenProvider config={{ rpcUrl: "testnet" }}>
+      <MidenProvider config={{ rpcUrl: 'testnet' }}>
         <Wallet />
       </MidenProvider>
     </TurnkeySignerProvider>
@@ -746,8 +804,8 @@ function Wallet() {
 
 **TurnkeySignerProvider Props:**
 
-| Prop | Type | Description |
-|------|------|-------------|
+| Prop     | Type                     | Description                                                                  |
+| -------- | ------------------------ | ---------------------------------------------------------------------------- |
 | `config` | `TurnkeySDKClientConfig` | Turnkey SDK client configuration (apiBaseUrl, organizationId, stamper, etc.) |
 
 The `useTurnkeySigner()` hook provides Turnkey-specific extras like `setAccount()` and access to the `client` instance.
@@ -767,13 +825,13 @@ yarn add @miden-wallet-adapter/react
 **Usage:**
 
 ```tsx
-import { MidenFiSignerProvider } from "@miden-wallet-adapter/react";
-import { MidenProvider, useSigner } from "@miden-sdk/react";
+import { MidenFiSignerProvider } from '@miden-wallet-adapter/react';
+import { MidenProvider, useSigner } from '@miden-sdk/react';
 
 function App() {
   return (
     <MidenFiSignerProvider network="Testnet">
-      <MidenProvider config={{ rpcUrl: "testnet" }}>
+      <MidenProvider config={{ rpcUrl: 'testnet' }}>
         <Wallet />
       </MidenProvider>
     </MidenFiSignerProvider>
@@ -797,11 +855,11 @@ function Wallet() {
 
 **MidenFiSignerProvider Props:**
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `network` | `"Testnet" \| "Mainnet"` | Target network |
-| `privateDataPermission` | `boolean` | Whether to request private data access |
-| `allowedPrivateData` | `string[]` | List of allowed private data types |
+| Prop                    | Type                     | Description                            |
+| ----------------------- | ------------------------ | -------------------------------------- |
+| `network`               | `"Testnet" \| "Mainnet"` | Target network                         |
+| `privateDataPermission` | `boolean`                | Whether to request private data access |
+| `allowedPrivateData`    | `string[]`               | List of allowed private data types     |
 
 ---
 
@@ -810,9 +868,9 @@ function Wallet() {
 If you need to integrate with a different signing service, you can build your own signer provider by implementing the `SignerContextValue` interface and providing it via `SignerContext.Provider`.
 
 ```tsx
-import { useState, useCallback, type ReactNode } from "react";
-import { SignerContext, type SignerContextValue } from "@miden-sdk/react";
-import { AccountStorageMode } from "@miden-sdk/miden-sdk";
+import { useState, useCallback, type ReactNode } from 'react';
+import { SignerContext, type SignerContextValue } from '@miden-sdk/react';
+import { AccountStorageMode } from '@miden-sdk/miden-sdk';
 
 interface CustomSignerProviderProps {
   children: ReactNode;
@@ -821,11 +879,14 @@ interface CustomSignerProviderProps {
 
 export function CustomSignerProvider({ children }: CustomSignerProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
-  const [signerContext, setSignerContext] = useState<SignerContextValue | null>(null);
+  const [signerContext, setSignerContext] = useState<SignerContextValue | null>(
+    null,
+  );
 
   const connect = useCallback(async () => {
     // 1. Initialize your signing service and get credentials
-    const { publicKeyCommitment, signMessage } = await initializeYourSigningService();
+    const { publicKeyCommitment, signMessage } =
+      await initializeYourSigningService();
 
     // 2. Build the signer context
     const context: SignerContextValue = {
@@ -835,11 +896,11 @@ export function CustomSignerProvider({ children }: CustomSignerProviderProps) {
       },
       accountConfig: {
         publicKeyCommitment,
-        accountType: "RegularAccountImmutableCode",
+        accountType: 'RegularAccountImmutableCode',
         storageMode: AccountStorageMode.public(),
       },
-      storeName: "custom_signer",
-      name: "CustomSigner",
+      storeName: 'custom_signer',
+      name: 'CustomSigner',
       isConnected: true,
       connect,
       disconnect,
@@ -864,15 +925,15 @@ export function CustomSignerProvider({ children }: CustomSignerProviderProps) {
 
 The `SignerContextValue` interface requires:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `signCb` | `(pubKey, signingInputs) => Promise<Uint8Array>` | Signs transaction inputs and returns the signature |
-| `accountConfig` | `SignerAccountConfig` | Public key commitment, account type, and storage mode |
-| `storeName` | `string` | Unique suffix for IndexedDB isolation (e.g., "custom_walletId") |
-| `name` | `string` | Display name for UI (e.g., "CustomSigner") |
-| `isConnected` | `boolean` | Whether the signer is connected and ready |
-| `connect` | `() => Promise<void>` | Triggers the authentication flow |
-| `disconnect` | `() => Promise<void>` | Disconnects from the signer |
+| Field           | Type                                             | Description                                                     |
+| --------------- | ------------------------------------------------ | --------------------------------------------------------------- |
+| `signCb`        | `(pubKey, signingInputs) => Promise<Uint8Array>` | Signs transaction inputs and returns the signature              |
+| `accountConfig` | `SignerAccountConfig`                            | Public key commitment, account type, and storage mode           |
+| `storeName`     | `string`                                         | Unique suffix for IndexedDB isolation (e.g., "custom_walletId") |
+| `name`          | `string`                                         | Display name for UI (e.g., "CustomSigner")                      |
+| `isConnected`   | `boolean`                                        | Whether the signer is connected and ready                       |
+| `connect`       | `() => Promise<void>`                            | Triggers the authentication flow                                |
+| `disconnect`    | `() => Promise<void>`                            | Disconnects from the signer                                     |
 
 ---
 
