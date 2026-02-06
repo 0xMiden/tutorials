@@ -133,7 +133,7 @@ export default function Home() {
 
 ## Step 3 — Initalize the WebClient
 
-Create the library file and add the following code. This snippet initializes the WebClient along with a local prover.
+Create `lib/react/multiSendWithDelegatedProver.tsx` (React) or `lib/multiSendWithDelegatedProver.ts` (TypeScript) and add the following code. This snippet initializes the WebClient along with a local prover.
 
 ```
 mkdir -p lib

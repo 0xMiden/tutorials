@@ -77,7 +77,7 @@ The WebClient is your gateway to interact with the Miden blockchain. It handles 
 
 ### Create the library file
 
-First, we'll create a separate file for our blockchain logic. In the project root, create a folder `lib/` and inside it the library file:
+First, we'll create a separate file for our blockchain logic. In the project root, create a folder `lib/` and inside it `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript):
 
 ```bash
 mkdir -p lib
@@ -204,7 +204,7 @@ export default function Home() {
 
 Now we'll create Alice's account. Let's create a **public** account so we can easily track her transactions.
 
-Back in the library file, extend the function:
+Back in your library file, extend the function:
 
 {/* prettier-ignore */}
 <CodeSdkTabs example={{
@@ -297,7 +297,7 @@ In this tutorial, we've successfully:
 3. Created a wallet account for Alice
 4. Deployed a fungible faucet that can mint custom tokens
 
-Your final library file should look like:
+Your final `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript) should look like:
 
 {/* prettier-ignore */}
 <CodeSdkTabs example={{

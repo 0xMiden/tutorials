@@ -170,7 +170,7 @@ The transaction creates a **P2ID (Pay-to-ID)** note:
 
 ## Summary
 
-Here's the complete library file:
+Here's the complete `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript):
 
 {/* prettier-ignore */}
 <CodeSdkTabs example={{
