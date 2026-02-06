@@ -83,7 +83,6 @@ First, we'll create a separate file for our blockchain logic. In the project roo
 mkdir -p lib
 ```
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// lib/react/createMintConsume.tsx
 'use client';
@@ -206,7 +205,6 @@ Now we'll create Alice's account. Let's create a **public** account so we can ea
 
 Back in your library file, extend the function:
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `const run = async () => {
 .// 1. Create Alice's wallet (public, mutable)
@@ -249,7 +247,6 @@ A faucet in Miden is a special type of account that can mint new tokens. Think o
 
 Add this code after creating Alice's account:
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// 2. Deploy a fungible faucet
 console.log('Creating faucet…');
@@ -299,7 +296,6 @@ In this tutorial, we've successfully:
 
 Your final `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript) should look like:
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `'use client';
 

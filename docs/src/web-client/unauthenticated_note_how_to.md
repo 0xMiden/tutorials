@@ -159,7 +159,6 @@ mkdir -p lib
 
 Copy and paste the following code into `lib/react/unauthenticatedNoteTransfer.tsx` (React) or `lib/unauthenticatedNoteTransfer.ts` (TypeScript):
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `'use client';
 

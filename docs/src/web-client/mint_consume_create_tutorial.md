@@ -38,7 +38,6 @@ Let's mint some tokens for Alice. When we mint from a faucet, it creates a note 
 
 Add this to the end of your `createMintConsume` function:
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// 3. Mint 1000 tokens to Alice
 console.log('Minting tokens to Alice...');
@@ -83,7 +82,6 @@ await client.syncState();` },
 After minting, Alice has a note waiting for her but the tokens aren't in her account yet.
 To identify notes that are ready to consume, the Miden WebClient provides the `getConsumableNotes` function:
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// 4. Wait for consumable notes to appear
 const notes = await waitForConsumableNotes({ accountId: aliceId });
@@ -104,7 +102,6 @@ mintedNoteList.map((note) => note.id().toString()),
 
 Now let's consume the notes to add the tokens to Alice's account balance:
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// 5. Consume minted notes
 console.log('Consuming minted notes...');
@@ -128,7 +125,6 @@ _The standard asset transfer note on Miden is the P2ID note (Pay-to-Id). There i
 
 Now that Alice has tokens in her account, she can send some to Bob:
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `// 6. Send 100 tokens to Bob
 const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
@@ -172,7 +168,6 @@ The transaction creates a **P2ID (Pay-to-ID)** note:
 
 Here's the complete `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript):
 
-{/* prettier-ignore */}
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
