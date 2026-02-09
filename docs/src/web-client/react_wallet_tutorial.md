@@ -761,12 +761,7 @@ import { MidenProvider, useSigner } from '@miden-sdk/react';
 
 function App() {
   return (
-    <TurnkeySignerProvider
-      config={{
-        apiBaseUrl: 'https://api.turnkey.com',
-        defaultOrganizationId: 'your-org-id',
-      }}
-    >
+    <TurnkeySignerProvider>
       <MidenProvider config={{ rpcUrl: 'testnet' }}>
         <Wallet />
       </MidenProvider>
@@ -795,7 +790,7 @@ Calling `connect()` handles the full Turnkey authentication flow: passkey login,
 
 | Prop     | Type                     | Description                                                          |
 | -------- | ------------------------ | -------------------------------------------------------------------- |
-| `config` | `TurnkeySDKClientConfig` | Turnkey SDK client configuration (apiBaseUrl, defaultOrganizationId) |
+| `config` | `Partial<TurnkeySDKBrowserConfig>` | Optional. Defaults to `apiBaseUrl: "https://api.turnkey.com"` and `defaultOrganizationId` from `VITE_TURNKEY_ORG_ID` env var. |
 
 The `useTurnkeySigner()` hook is available for advanced use cases where you need direct access to the Turnkey `client`, the selected `account`, or the `setAccount()` method to manually control account selection.
 
