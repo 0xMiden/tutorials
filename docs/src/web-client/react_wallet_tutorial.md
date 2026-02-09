@@ -698,13 +698,13 @@ This unified interface means your wallet UI code works the same regardless of wh
 **Installation:**
 
 ```bash
-yarn add use-miden-para-react
+yarn add @miden-sdk/use-miden-para-react
 ```
 
 **Usage:**
 
 ```tsx
-import { ParaSignerProvider } from 'use-miden-para-react';
+import { ParaSignerProvider } from '@miden-sdk/use-miden-para-react';
 import { MidenProvider, useSigner } from '@miden-sdk/react';
 
 function App() {
@@ -750,27 +750,21 @@ function Wallet() {
 **Installation:**
 
 ```bash
-yarn add use-miden-turnkey-react @turnkey/sdk-browser
+yarn add @miden-sdk/miden-turnkey-react @turnkey/sdk-browser
 ```
 
 **Usage:**
 
 ```tsx
-import {
-  TurnkeySignerProvider,
-  useTurnkeySigner,
-} from 'use-miden-turnkey-react';
+import { TurnkeySignerProvider } from '@miden-sdk/miden-turnkey-react';
 import { MidenProvider, useSigner } from '@miden-sdk/react';
-
-const turnkeyConfig = {
-  apiBaseUrl: 'https://api.turnkey.com',
-  organizationId: 'your-org-id',
-  // Additional Turnkey SDK configuration (stamper, etc.)
-};
 
 function App() {
   return (
-    <TurnkeySignerProvider config={turnkeyConfig}>
+    <TurnkeySignerProvider config={{
+      apiBaseUrl: 'https://api.turnkey.com',
+      defaultOrganizationId: 'your-org-id',
+    }}>
       <MidenProvider config={{ rpcUrl: 'testnet' }}>
         <Wallet />
       </MidenProvider>
@@ -780,35 +774,28 @@ function App() {
 
 function Wallet() {
   const signer = useSigner();
-  // Use useTurnkeySigner() only when you need Turnkey-specific features
-  const { setAccount } = useTurnkeySigner();
-
-  const handleLogin = async () => {
-    // Your custom authentication logic (passkey, email, etc.)
-    const walletAccount = await authenticateUser();
-    // Register the account with Turnkey signer
-    setAccount(walletAccount);
-  };
 
   return (
     <div>
       {signer?.isConnected ? (
         <button onClick={signer.disconnect}>Disconnect</button>
       ) : (
-        <button onClick={handleLogin}>Sign In with Turnkey</button>
+        <button onClick={signer?.connect}>Connect with Turnkey</button>
       )}
     </div>
   );
 }
 ```
 
+Calling `connect()` handles the full Turnkey authentication flow: passkey login, wallet discovery, and account selection. No manual setup is needed.
+
 **TurnkeySignerProvider Props:**
 
-| Prop     | Type                     | Description                                                                  |
-| -------- | ------------------------ | ---------------------------------------------------------------------------- |
-| `config` | `TurnkeySDKClientConfig` | Turnkey SDK client configuration (apiBaseUrl, organizationId, stamper, etc.) |
+| Prop     | Type                     | Description                                                                        |
+| -------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| `config` | `TurnkeySDKClientConfig` | Turnkey SDK client configuration (apiBaseUrl, defaultOrganizationId) |
 
-The `useTurnkeySigner()` hook provides Turnkey-specific extras like `setAccount()` and access to the `client` instance.
+The `useTurnkeySigner()` hook is available for advanced use cases where you need direct access to the Turnkey `client`, the selected `account`, or the `setAccount()` method to manually control account selection.
 
 ---
 
@@ -819,13 +806,13 @@ The `useTurnkeySigner()` hook provides Turnkey-specific extras like `setAccount(
 **Installation:**
 
 ```bash
-yarn add @miden-wallet-adapter/react
+yarn add @miden-sdk/miden-wallet-adapter-react
 ```
 
 **Usage:**
 
 ```tsx
-import { MidenFiSignerProvider } from '@miden-wallet-adapter/react';
+import { MidenFiSignerProvider } from '@miden-sdk/miden-wallet-adapter-react';
 import { MidenProvider, useSigner } from '@miden-sdk/react';
 
 function App() {
