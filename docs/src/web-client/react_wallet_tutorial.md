@@ -788,8 +788,8 @@ Calling `connect()` handles the full Turnkey authentication flow: passkey login,
 
 **TurnkeySignerProvider Props:**
 
-| Prop     | Type                     | Description                                                          |
-| -------- | ------------------------ | -------------------------------------------------------------------- |
+| Prop     | Type                               | Description                                                                                                                   |
+| -------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `config` | `Partial<TurnkeySDKBrowserConfig>` | Optional. Defaults to `apiBaseUrl: "https://api.turnkey.com"` and `defaultOrganizationId` from `VITE_TURNKEY_ORG_ID` env var. |
 
 The `useTurnkeySigner()` hook is available for advanced use cases where you need direct access to the Turnkey `client`, the selected `account`, or the `setAccount()` method to manually control account selection.
