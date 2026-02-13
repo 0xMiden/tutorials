@@ -14,9 +14,19 @@ There are two ways to connect to a Miden node:
 
 ## Running the Miden node locally
 
+:::tip[Prerequisites]
+Building the node from source requires a C/C++ toolchain (for compiling RocksDB). On **macOS**, make sure you have the Xcode Command Line Tools installed:
+
+```bash
+xcode-select --install
+```
+
+On **Ubuntu**, see the [node installation page](https://docs.miden.xyz/miden-node/operator/installation#install-using-cargo) for the required packages. If you run into `'cstdint' file not found` errors on macOS, see the [troubleshooting section](https://docs.miden.xyz/miden-node/operator/installation#install-using-cargo) on the installation page.
+:::
+
 ### Step 1: Install the Miden node
 
-Next, install the miden-node crate using this command:
+Install the miden-node crate using this command:
 
 ```bash
 cargo install miden-node --locked --version 0.13.0
