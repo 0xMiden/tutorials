@@ -66,8 +66,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MidenProvider
       config={{
-        rpcUrl: 'devnet',
-        prover: 'devnet',
+        rpcUrl: 'testnet',
+        prover: 'testnet',
       }}
     >
       <App />
@@ -78,8 +78,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 The `MidenProvider` accepts a `config` object with the following options:
 
-- `rpcUrl`: The RPC endpoint to connect to (`"devnet"`, `"testnet"`, or a custom URL)
-- `prover`: The prover to use (`"devnet"` for delegated proving, or `"local"` for local proving)
+- `rpcUrl`: The RPC endpoint to connect to (`"testnet"`, `"devnet"`, or a custom URL)
+- `prover`: The prover to use (`"testnet"` for delegated proving, or `"local"` for local proving)
 
 ---
 
@@ -434,8 +434,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MidenProvider
       config={{
-        rpcUrl: 'devnet',
-        prover: 'devnet',
+        rpcUrl: 'testnet',
+        prover: 'testnet',
       }}
     >
       <App />

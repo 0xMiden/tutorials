@@ -14,7 +14,7 @@ export async function createMintConsume(): Promise<void> {
     Address,
   } = await import('@miden-sdk/miden-sdk');
 
-  const nodeEndpoint = 'https://rpc.devnet.miden.io';
+  const nodeEndpoint = 'https://rpc.testnet.miden.io';
   const client = await WebClient.createClient(nodeEndpoint);
 
   // 1. Sync with the latest blockchain state

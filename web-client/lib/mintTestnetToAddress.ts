@@ -1,7 +1,7 @@
 /**
- * Mint 100 MIDEN tokens on devnet to a fixed recipient using a local prover.
+ * Mint 100 MIDEN tokens on testnet to a fixed recipient using a local prover.
  */
-export async function mintDevnetToAddress(): Promise<void> {
+export async function mintTestnetToAddress(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('Run in browser');
     return;
@@ -16,7 +16,7 @@ export async function mintDevnetToAddress(): Promise<void> {
     TransactionProver,
   } = await import('@miden-sdk/miden-sdk');
 
-  const client = await WebClient.createClient('https://rpc.devnet.miden.io');
+  const client = await WebClient.createClient('https://rpc.testnet.miden.io');
   const prover = TransactionProver.newLocalProver();
 
   console.log('Latest block:', (await client.syncState()).blockNum());
@@ -36,7 +36,7 @@ export async function mintDevnetToAddress(): Promise<void> {
 
   // ── Mint to recipient ───────────────────────────────────────────────────────
   const recipientAddress =
-    'mdev1arey468fhgnhvyzdfk3suqavhccmp6cu_qruqqypuyph';
+    'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
   const recipientAccountId = Address.fromBech32(recipientAddress).accountId();
   console.log('Recipient account ID:', recipientAccountId.toString());
 

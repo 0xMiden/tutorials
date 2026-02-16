@@ -25,7 +25,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
     OutputNote,
   } = await import('@miden-sdk/miden-sdk');
 
-  const client = await WebClient.createClient('https://rpc.devnet.miden.io');
+  const client = await WebClient.createClient('https://rpc.testnet.miden.io');
   const prover = TransactionProver.newLocalProver();
 
   console.log('Latest block:', (await client.syncState()).blockNum());

@@ -169,7 +169,7 @@ function MultiSendInner() {
 
 export default function MultiSendWithDelegatedProver() {
 .return (
-..<MidenProvider config={{ rpcUrl: 'devnet', prover: 'local' }}>
+..<MidenProvider config={{ rpcUrl: 'testnet', prover: 'local' }}>
 ...<MultiSendInner />
 ..</MidenProvider>
 .);
@@ -429,7 +429,7 @@ function MultiSendInner() {
 
 export default function MultiSendWithDelegatedProver() {
 .return (
-..<MidenProvider config={{ rpcUrl: 'devnet', prover: 'local' }}>
+..<MidenProvider config={{ rpcUrl: 'testnet', prover: 'local' }}>
 ...<MultiSendInner />
 ..</MidenProvider>
 .);

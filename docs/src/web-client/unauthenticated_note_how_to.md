@@ -245,7 +245,7 @@ function UnauthenticatedNoteTransferInner() {
 
 export default function UnauthenticatedNoteTransfer() {
 .return (
-..<MidenProvider config={{ rpcUrl: 'devnet', prover: 'local' }}>
+..<MidenProvider config={{ rpcUrl: 'testnet', prover: 'local' }}>
 ...<UnauthenticatedNoteTransferInner />
 ..</MidenProvider>
 .);

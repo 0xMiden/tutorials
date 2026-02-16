@@ -110,7 +110,7 @@ function CreateMintConsumeInner() {
 
 export default function CreateMintConsume() {
 .return (
-..<MidenProvider config={{ rpcUrl: 'devnet', prover: 'local' }}>
+..<MidenProvider config={{ rpcUrl: 'testnet', prover: 'local' }}>
 ...<CreateMintConsumeInner />
 ..</MidenProvider>
 .);
@@ -336,7 +336,7 @@ function CreateMintConsumeInner() {
 
 export default function CreateMintConsume() {
 .return (
-..<MidenProvider config={{ rpcUrl: 'devnet', prover: 'local' }}>
+..<MidenProvider config={{ rpcUrl: 'testnet', prover: 'local' }}>
 ...<CreateMintConsumeInner />
 ..</MidenProvider>
 .);

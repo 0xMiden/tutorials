@@ -138,7 +138,7 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Initialize Client
     // -------------------------------------------------------------------------
-    let endpoint = Endpoint::devnet();
+    let endpoint = Endpoint::testnet();
     let timeout_ms = 10_000;
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
