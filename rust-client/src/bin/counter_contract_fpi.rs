@@ -1,5 +1,5 @@
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc, time::Duration};
+use std::{env, fs, path::Path, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
 use miden_client::{
@@ -120,9 +120,12 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 2] Building counter contract from public state");
 
-    // Define the Counter Contract account id from counter contract deploy
-    let (_, counter_contract_id) =
-        AccountId::from_bech32("mtst1apfclszryn8a5qqae6sa6hscfgn4mnqp").unwrap();
+    // Read the Counter Contract address from the shared file written by counter_contract_deploy,
+    // or fall back to the COUNTER_CONTRACT_ADDRESS environment variable
+    let counter_address = fs::read_to_string("../counter_contract_address.txt")
+        .or_else(|_| env::var("COUNTER_CONTRACT_ADDRESS"))
+        .expect("Counter contract address not found. Run counter_contract_deploy first.");
+    let (_, counter_contract_id) = AccountId::from_bech32(counter_address.trim()).unwrap();
 
     println!("counter contract id: {:?}", counter_contract_id);
 

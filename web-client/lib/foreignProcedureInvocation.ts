@@ -107,7 +107,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   // Define the Counter Contract account id from counter contract deploy (same as Rust)
   const counterContractId = Address.fromBech32(
-    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
+    'mtst1aqrwya03ncny6qzk7e5gszn2qsrztxll',
   ).accountId();
 
   // Import the counter contract
@@ -169,15 +169,17 @@ export async function foreignProcedureInvocation(): Promise<void> {
 `;
 
   // Create the counter contract component to get the procedure hash (following Rust pattern)
-  const counterContractComponentCode =
-    builder.compileAccountComponentCode(counterContractCode);
-  const counterContractComponent = AccountComponent.compile(
-    counterContractComponentCode,
+  const counterContractLib = builder.buildLibrary(
+    'external_contract::counter_contract',
+    counterContractCode,
+  );
+  const counterContractComponent = AccountComponent.fromLibrary(
+    counterContractLib,
     [StorageSlot.emptyValue(counterSlotName)],
   ).withSupportsAllTypes();
 
   const getCountProcHash =
-    counterContractComponent.getProcedureHash('get_count');
+    counterContractComponent.getProcedureHash('external_contract::counter_contract::get_count');
 
   // Build the script that calls the count reader contract (exactly from reader_script.masm with replacements)
   const fpiScriptCode = `

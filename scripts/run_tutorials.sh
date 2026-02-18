@@ -15,8 +15,6 @@ WEB_EXAMPLES=(
 )
 
 WEB_SKIPPED=(
-  incrementCounterContract
-  foreignProcedureInvocation
 )
 
 RUST_EXAMPLES=(
@@ -34,9 +32,8 @@ RUST_EXAMPLES=(
 )
 
 RUST_SKIPPED=(
-  counter_contract_fpi
-  counter_contract_increment
   oracle_data_query
+  network_notes_counter_contract
 )
 
 usage() {
@@ -126,14 +123,14 @@ while [[ $# -gt 0 ]]; do
     --list)
       echo "Web tutorials (default):"
       for name in "${WEB_EXAMPLES[@]}"; do
-        if ! contains "$name" "${WEB_SKIPPED[@]}"; then
+        if ! contains "$name" ${WEB_SKIPPED[@]+"${WEB_SKIPPED[@]}"}; then
           printf "  %s\n" "$name"
         fi
       done
       if [[ ${#WEB_SKIPPED[@]} -gt 0 ]]; then
         echo ""
         echo "Web tutorials (skipped by default):"
-        printf "  %s\n" "${WEB_SKIPPED[@]}"
+        printf "  %s\n" ${WEB_SKIPPED[@]+"${WEB_SKIPPED[@]}"}
       fi
       echo ""
       echo "Rust tutorials (default):"
@@ -171,7 +168,7 @@ if [[ "$run_web" -eq 1 ]]; then
   if [[ ${#web_names[@]} -eq 0 ]]; then
     web_names=()
     for name in "${WEB_EXAMPLES[@]}"; do
-      if ! contains "$name" "${WEB_SKIPPED[@]}"; then
+      if ! contains "$name" ${WEB_SKIPPED[@]+"${WEB_SKIPPED[@]}"}; then
         web_names+=("$name")
       fi
     done
@@ -183,7 +180,7 @@ if [[ "$run_web" -eq 1 ]]; then
       echo "Available web tutorials: ${WEB_EXAMPLES[*]}" >&2
       exit 1
     fi
-    if contains "$name" "${WEB_SKIPPED[@]}"; then
+    if contains "$name" ${WEB_SKIPPED[@]+"${WEB_SKIPPED[@]}"}; then
       echo "Note: $name is skipped by default but will run because it was explicitly requested."
     fi
   done

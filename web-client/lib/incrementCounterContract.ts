@@ -61,7 +61,7 @@ export async function incrementCounterContract(): Promise<void> {
   // Building the counter contract
   // Counter contract account id on testnet
   const counterContractId = Address.fromBech32(
-    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
+    'mtst1aqrwya03ncny6qzk7e5gszn2qsrztxll',
   ).accountId();
 
   // Reading the public state of the counter contract from testnet,

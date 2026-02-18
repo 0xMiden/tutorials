@@ -1,5 +1,5 @@
 /**
- * Demonstrates unauthenticated note transfer chain using a local prover on the Miden Network
+ * Demonstrates unauthenticated note transfer chain using a remote prover on the Miden Network
  * Creates a chain of P2ID (Pay to ID) notes: Alice → wallet 1 → wallet 2 → wallet 3 → wallet 4
  *
  * @throws {Error} If the function cannot be executed in a browser environment
@@ -13,7 +13,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
     AccountStorageMode,
     AuthScheme,
     NoteType,
-    TransactionProver,
     Note,
     NoteAssets,
     OutputNoteArray,
@@ -26,7 +25,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await WebClient.createClient('https://rpc.testnet.miden.io');
-  const prover = TransactionProver.newLocalProver();
 
   console.log('Latest block:', (await client.syncState()).blockNum());
 
@@ -74,7 +72,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
         BigInt(10_000),
       ),
     );
-    const proven = await client.proveTransaction(txResult, prover);
+    const proven = await client.proveTransaction(txResult);
     const submissionHeight = await client.submitProvenTransaction(
       proven,
       txResult,
@@ -96,7 +94,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
       alice.id(),
       client.newConsumeTransactionRequest(noteList),
     );
-    const proven = await client.proveTransaction(txResult, prover);
+    const proven = await client.proveTransaction(txResult);
     const submissionHeight = await client.submitProvenTransaction(
       proven,
       txResult,
@@ -136,7 +134,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
           .withOwnOutputNotes(new OutputNoteArray([outputP2ID]))
           .build(),
       );
-      const proven = await client.proveTransaction(txResult, prover);
+      const proven = await client.proveTransaction(txResult);
       const submissionHeight = await client.submitProvenTransaction(
         proven,
         txResult,
@@ -157,7 +155,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
         receiver.id(),
         consumeRequest,
       );
-      const proven = await client.proveTransaction(txResult, prover);
+      const proven = await client.proveTransaction(txResult);
       const submissionHeight = await client.submitProvenTransaction(
         proven,
         txResult,

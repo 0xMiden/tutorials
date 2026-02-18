@@ -32,8 +32,7 @@ The only downside of using delegated proving is that it reduces the privacy of t
 
 Anyone can run their own delegated prover server. If you are building a product on Miden, it may make sense to run your own delegated prover server for your users. To run your own delegated proving server, follow the instructions here: https://crates.io/crates/miden-remote-prover.
 
-To keep this tutorial runnable without external services, the code below uses a local prover. The
-flow is the same if you swap in `RemoteTransactionProver` and point it at your delegated prover.
+The code below uses the testnet remote prover to demonstrate delegated proving in action.
 
 ## Step 1: Initialize your repository
 
@@ -61,7 +60,7 @@ rand_chacha = "0.9.0"
 ## Step 2: Initialize the client and prover and construct transactions
 
 Similarly to previous tutorials, we must instantiate the client.
-We construct a `LocalTransactionProver` for this walkthrough.
+We construct a `RemoteTransactionProver` pointing at the testnet proving service.
 
 ```rust no_run
 use miden_client::auth::AuthSecretKey;
@@ -76,12 +75,11 @@ use miden_client::{
     rpc::{Endpoint, GrpcClient},
     store::AccountRecordData,
     transaction::{
-        LocalTransactionProver,
-        ProvingOptions,
         TransactionProver,
         TransactionRequestBuilder,
     },
     ClientError,
+    RemoteTransactionProver,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_client::account::{AccountBuilder, AccountStorageMode, AccountType};
@@ -128,10 +126,11 @@ async fn main() -> Result<(), ClientError> {
     keystore.add_key(&key_pair).unwrap();
 
     // -------------------------------------------------------------------------
-    // Setup the local tx prover
+    // Setup the remote tx prover
     // -------------------------------------------------------------------------
-    let local_tx_prover = LocalTransactionProver::new(ProvingOptions::default());
-    let tx_prover: Arc<dyn TransactionProver> = Arc::new(local_tx_prover);
+    let remote_tx_prover =
+        RemoteTransactionProver::new("https://tx-prover.testnet.miden.io:443");
+    let tx_prover: Arc<dyn TransactionProver> = Arc::new(remote_tx_prover);
 
     // We use a dummy transaction request to showcase delegated proving.
     // The only effect of this tx should be increasing Alice's nonce.
@@ -153,8 +152,8 @@ async fn main() -> Result<(), ClientError> {
         .execute_transaction(alice_account.id(), transaction_request)
         .await?;
 
-    // Step 2: Prove the transaction using the local prover
-    println!("Proving transaction with local prover...");
+    // Step 2: Prove the transaction using the remote prover
+    println!("Proving transaction with remote prover...");
     let proven_transaction = client.prove_transaction_with(&tx_result, tx_prover).await?;
 
     // Step 3: Submit the proven transaction
@@ -168,7 +167,7 @@ async fn main() -> Result<(), ClientError> {
         .apply_transaction(&tx_result, submission_height)
         .await?;
 
-    println!("Transaction submitted successfully using local prover!");
+    println!("Transaction submitted successfully using remote prover!");
 
     client.sync_state().await.unwrap();
 

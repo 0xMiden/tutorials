@@ -1,5 +1,5 @@
 /**
- * Demonstrates multi-send functionality using a local prover on the Miden Network
+ * Demonstrates multi-send functionality using a remote prover on the Miden Network
  * Creates multiple P2ID (Pay to ID) notes for different recipients
  *
  * @throws {Error} If the function cannot be executed in a browser environment
@@ -14,7 +14,6 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
     AuthScheme,
     Address,
     NoteType,
-    TransactionProver,
     Note,
     NoteAssets,
     OutputNoteArray,
@@ -25,7 +24,6 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await WebClient.createClient('https://rpc.testnet.miden.io');
-  const prover = TransactionProver.newLocalProver();
 
   console.log('Latest block:', (await client.syncState()).blockNum());
 
@@ -60,7 +58,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
         BigInt(10_000),
       ),
     );
-    const proven = await client.proveTransaction(txResult, prover);
+    const proven = await client.proveTransaction(txResult);
     const submissionHeight = await client.submitProvenTransaction(
       proven,
       txResult,
@@ -82,7 +80,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
       alice.id(),
       client.newConsumeTransactionRequest(noteList),
     );
-    const proven = await client.proveTransaction(txResult, prover);
+    const proven = await client.proveTransaction(txResult);
     await client.syncState();
     const submissionHeight = await client.submitProvenTransaction(
       proven,

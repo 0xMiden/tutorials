@@ -8,10 +8,8 @@ use miden_client::{
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
     store::AccountRecordData,
-    transaction::{
-        LocalTransactionProver, ProvingOptions, TransactionProver, TransactionRequestBuilder,
-    },
-    ClientError,
+    transaction::{TransactionProver, TransactionRequestBuilder},
+    ClientError, RemoteTransactionProver,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 
@@ -57,10 +55,11 @@ async fn main() -> Result<(), ClientError> {
     keystore.add_key(&key_pair).unwrap();
 
     // -------------------------------------------------------------------------
-    // Setup the local tx prover
+    // Setup the remote tx prover
     // -------------------------------------------------------------------------
-    let local_tx_prover = LocalTransactionProver::new(ProvingOptions::default());
-    let tx_prover: Arc<dyn TransactionProver> = Arc::new(local_tx_prover);
+    let remote_tx_prover =
+        RemoteTransactionProver::new("https://tx-prover.testnet.miden.io:443");
+    let tx_prover: Arc<dyn TransactionProver> = Arc::new(remote_tx_prover);
 
     // We use a dummy transaction request to showcase delegated proving.
     // The only effect of this tx should be increasing Alice's nonce.
@@ -82,8 +81,8 @@ async fn main() -> Result<(), ClientError> {
         .execute_transaction(alice_account.id(), transaction_request)
         .await?;
 
-    // Step 2: Prove the transaction using the local prover
-    println!("Proving transaction with local prover...");
+    // Step 2: Prove the transaction using the remote prover
+    println!("Proving transaction with remote prover...");
     let proven_transaction = client.prove_transaction_with(&tx_result, tx_prover).await?;
 
     // Step 3: Submit the proven transaction
@@ -97,7 +96,7 @@ async fn main() -> Result<(), ClientError> {
         .apply_transaction(&tx_result, submission_height)
         .await?;
 
-    println!("Transaction submitted successfully using local prover!");
+    println!("Transaction submitted successfully using remote prover!");
 
     client.sync_state().await.unwrap();
 

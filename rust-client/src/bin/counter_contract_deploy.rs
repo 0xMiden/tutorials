@@ -149,10 +149,11 @@ async fn main() -> Result<(), ClientError> {
         tx_id
     );
 
-    println!(
-        "Counter contract id: {:?}",
-        counter_contract.id().to_bech32(NetworkId::Testnet)
-    );
+    let counter_bech32 = counter_contract.id().to_bech32(NetworkId::Testnet);
+    println!("Counter contract id: {:?}", counter_bech32);
+
+    // Write the deployed address to a shared file so other tutorials can read it
+    fs::write("../counter_contract_address.txt", &counter_bech32).unwrap();
 
     client.sync_state().await.unwrap();
 

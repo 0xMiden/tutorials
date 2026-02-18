@@ -1,5 +1,5 @@
 /**
- * Mint 100 MIDEN tokens on testnet to a fixed recipient using a local prover.
+ * Mint 100 MIDEN tokens on testnet to a fixed recipient using a remote prover.
  */
 export async function mintTestnetToAddress(): Promise<void> {
   if (typeof window === 'undefined') {
@@ -13,11 +13,9 @@ export async function mintTestnetToAddress(): Promise<void> {
     AuthScheme,
     Address,
     NoteType,
-    TransactionProver,
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await WebClient.createClient('https://rpc.testnet.miden.io');
-  const prover = TransactionProver.newLocalProver();
 
   console.log('Latest block:', (await client.syncState()).blockNum());
 
@@ -50,7 +48,7 @@ export async function mintTestnetToAddress(): Promise<void> {
       BigInt(100),
     ),
   );
-  const proven = await client.proveTransaction(txResult, prover);
+  const proven = await client.proveTransaction(txResult);
   const submissionHeight = await client.submitProvenTransaction(
     proven,
     txResult,
