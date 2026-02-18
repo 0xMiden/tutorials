@@ -19,8 +19,33 @@ interface CodeSdkTabsProps {
   tsFilename?: string;
 }
 
-// Preserves indentation by replacing leading dots with spaces
-// This works around MDX/webpack stripping leading whitespace from template literals
+// Dot-indentation convention for CodeSdkTabs
+// ─────────────────────────────────────────────
+// MDX/webpack strips leading whitespace from template literals inside JSX props.
+// To preserve indentation in code snippets, use leading dots in the markdown
+// source. Each dot represents one indent level (2 spaces).
+//
+// Example in a .md file:
+//   typescript: { code: `export function foo() {
+//   .const x = 1;
+//   .if (x) {
+//   ..console.log(x);
+//   .}
+//   }` }
+//
+// Renders as:
+//   export function foo() {
+//     const x = 1;
+//     if (x) {
+//       console.log(x);
+//     }
+//   }
+//
+// Rules:
+//   0 dots  → top-level declarations (export, import, closing braces)
+//   1 dot   → first level inside a function/block body
+//   2 dots  → second level (nested blocks, function call arguments)
+//   3+ dots → deeper nesting
 function preserveIndent(code: string): string {
   return code.replace(/^(\.+)/gm, (match) => '  '.repeat(match.length));
 }

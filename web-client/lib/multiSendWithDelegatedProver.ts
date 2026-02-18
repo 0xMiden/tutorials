@@ -36,7 +36,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
     true,
     AuthScheme.AuthRpoFalcon512,
   );
-  console.log('Alice accout ID:', alice.id().toString());
+  console.log('Alice account ID:', alice.id().toString());
 
   // ── Creating new faucet ──────────────────────────────────────────────────────
   const faucet = await client.newFaucet(

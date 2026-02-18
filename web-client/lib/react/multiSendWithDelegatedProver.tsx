@@ -1,3 +1,7 @@
+// Documentation-only example for the "Creating Multiple Notes" tutorial.
+// This component is embedded in docs via CodeSdkTabs and is not wired into the
+// test harness (app/page.tsx). The TypeScript equivalent in
+// lib/multiSendWithDelegatedProver.ts is used for Playwright tests instead.
 'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
@@ -71,7 +75,7 @@ function MultiSendInner() {
 
 export default function MultiSendWithDelegatedProver() {
   return (
-    <MidenProvider config={{ rpcUrl: 'testnet', prover: 'local' }}>
+    <MidenProvider config={{ rpcUrl: 'testnet', prover: 'testnet' }}>
       <MultiSendInner />
     </MidenProvider>
   );

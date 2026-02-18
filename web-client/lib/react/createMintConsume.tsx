@@ -1,3 +1,7 @@
+// Documentation-only example for the "Mint, Consume, and Create Notes" tutorial.
+// This component is embedded in docs via CodeSdkTabs and is not wired into the
+// test harness (app/page.tsx). The TypeScript equivalent in lib/createMintConsume.ts
+// is used for Playwright tests instead.
 'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';

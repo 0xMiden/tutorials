@@ -39,7 +39,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
     true,
     AuthScheme.AuthRpoFalcon512,
   );
-  console.log('Alice accout ID:', alice.id().toString());
+  console.log('Alice account ID:', alice.id().toString());
 
   const wallets = [];
   for (let i = 0; i < 5; i++) {
