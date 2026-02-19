@@ -250,8 +250,12 @@ export default function UnauthenticatedNoteTransfer() {
 ..</MidenProvider>
 .);
 }`},
-  typescript: { code:`/\*\* \* Demonstrates unauthenticated note transfer chain using a local prover on the Miden Network \* Creates a chain of P2ID (Pay to ID) notes: Alice → wallet 1 → wallet 2 → wallet 3 → wallet 4 \* \* @throws {Error} If the function cannot be executed in a browser environment
-\*/
+  typescript: { code:`/\*\*
+.\* Demonstrates unauthenticated note transfer chain using a local prover on the Miden Network
+.\* Creates a chain of P2ID (Pay to ID) notes: Alice → wallet 1 → wallet 2 → wallet 3 → wallet 4
+.\*
+.\* @throws {Error} If the function cannot be executed in a browser environment
+.\*/
 export async function unauthenticatedNoteTransfer(): Promise<void> {
 .// Ensure this runs only in a browser context
 .if (typeof window === 'undefined') return console.warn('Run in browser');
@@ -378,11 +382,11 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 ..console.log('Creating P2ID note...');
 ..{
+...const builder = new TransactionRequestBuilder();
+...const request = builder.withOwnOutputNotes(new OutputNoteArray([outputP2ID])).build();
 ...const txResult = await client.executeTransaction(
 ....sender.id(),
-....new TransactionRequestBuilder()
-.....withOwnOutputNotes(new OutputNoteArray([outputP2ID]))
-.....build(),
+....request,
 ...);
 ...const proven = await client.proveTransaction(txResult, prover);
 ...const submissionHeight = await client.submitProvenTransaction(
@@ -396,9 +400,8 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 ..const noteIdAndArgs = new NoteAndArgs(p2idNote, null);
 
-..const consumeRequest = new TransactionRequestBuilder()
-...withInputNotes(new NoteAndArgsArray([noteIdAndArgs]))
-...build();
+..const consumeBuilder = new TransactionRequestBuilder();
+..const consumeRequest = consumeBuilder.withInputNotes(new NoteAndArgsArray([noteIdAndArgs])).build();
 
 ..{
 ...const txResult = await client.executeTransaction(
@@ -523,7 +526,7 @@ Wallet 5 balance: 50 MID
 
 Unauthenticated notes on Miden offer a powerful mechanism for achieving faster asset settlements by allowing notes to be both created and consumed within the same block. In this guide, we walked through:
 
-- **Setting up the Miden WebClient** with delegated proving for optimal performance
+- **Setting up the Miden WebClient** with a local prover
 - **Creating P2ID Notes** for targeted asset transfers between specific accounts
 - **Building Transaction Chains** using unauthenticated input notes for sub-blocktime settlement
 - **Performance Observations** demonstrating how unauthenticated notes enable faster-than-blocktime transfers

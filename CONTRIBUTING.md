@@ -83,6 +83,23 @@ export function foo() {
 | Function call arguments (continuation)      | +1   | +2     |
 | Deeper nesting                              | 3+   | 6+     |
 
+### Limitation: Leading-Dot Method Chains
+
+Because `preserveIndent()` converts **all** leading dots to spaces, TypeScript method-chaining syntax (`.withFoo()`, `.build()`) breaks when it appears at the start of a line. The leading `.` is consumed as indentation.
+
+**Workaround:** Assign the builder to a variable so the `.` appears mid-line:
+
+```
+// BAD – the leading dots get eaten:
+..new TransactionRequestBuilder()
+...withOwnOutputNotes(notes)
+...build()
+
+// GOOD – dots are mid-line, preserveIndent ignores them:
+..const builder = new TransactionRequestBuilder();
+..const request = builder.withOwnOutputNotes(notes).build();
+```
+
 ### Tips
 
 - Standalone code blocks (` ```ts...``` `) outside `CodeSdkTabs` use normal space indentation -- the dot convention only applies inside `CodeSdkTabs` template literals.

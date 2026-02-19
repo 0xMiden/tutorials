@@ -19,7 +19,7 @@ The entire flow is wrapped in a helper called `multiSendWithDelegatedProver()` t
 
 ## What we'll cover
 
-1. Setting‑up the WebClient and initializing a local prover
+1. Setting‑up the WebClient
 2. Building three P2ID notes worth 100 `MID` each
 3. Submitting the transaction _using delegated proving_
 
@@ -39,8 +39,8 @@ _How does it work?_ When a user choses to use delegated proving, they send off a
 
 Anyone can run their own delegated prover server. If you are building a product on Miden, it may make sense to run your own delegated prover server for your users. To run your own delegated proving server, follow the instructions here: https://crates.io/crates/miden-proving-service
 
-To keep this tutorial runnable without external services, the code below uses a local prover. You
-can switch to delegated proving later by swapping in `TransactionProver.newRemoteProver(...)`.
+The code below uses `submitNewTransaction`, which handles proving via the network's delegated
+proving service. This means your browser never has to generate the full ZK proof locally.
 
 ## Step 1: Initialize your Next.js project
 
@@ -131,9 +131,9 @@ export default function Home() {
 }
 ```
 
-## Step 3 — Initalize the WebClient
+## Step 3 — Initialize the WebClient
 
-Create `lib/react/multiSendWithDelegatedProver.tsx` (React) or `lib/multiSendWithDelegatedProver.ts` (TypeScript) and add the following code. This snippet initializes the WebClient along with a local prover.
+Create `lib/react/multiSendWithDelegatedProver.tsx` (React) or `lib/multiSendWithDelegatedProver.ts` (TypeScript) and add the following code. This snippet initializes the WebClient.
 
 ```
 mkdir -p lib
@@ -184,7 +184,6 @@ export default function MultiSendWithDelegatedProver() {
 ..AuthScheme,
 ..Address,
 ..NoteType,
-..TransactionProver,
 ..Note,
 ..NoteAssets,
 ..OutputNoteArray,
@@ -195,7 +194,6 @@ export default function MultiSendWithDelegatedProver() {
 .} = await import('@miden-sdk/miden-sdk');
 
 .const client = await WebClient.createClient('https://rpc.testnet.miden.io');
-.const prover = TransactionProver.newLocalProver();
 
 .console.log('Latest block:', (await client.syncState()).blockNum());
 }` },
@@ -258,46 +256,29 @@ const faucet = await client.newFaucet(
 console.log('Faucet ID:', faucet.id().toString());
 
 // ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
-{
-.const txResult = await client.executeTransaction(
+await client.submitNewTransaction(
+.faucet.id(),
+.client.newMintTransactionRequest(
+..alice.id(),
 ..faucet.id(),
-..client.newMintTransactionRequest(
-...alice.id(),
-...faucet.id(),
-...NoteType.Public,
-...BigInt(10_000),
-..),
-.);
-.const proven = await client.proveTransaction(txResult, prover);
-.const submissionHeight = await client.submitProvenTransaction(
-..proven,
-..txResult,
-.);
-.await client.applyTransaction(txResult, submissionHeight);
+..NoteType.Public,
+..BigInt(10_000),
+.),
+);
 
-.console.log('waiting for settlement');
-.await new Promise((r) => setTimeout(r, 7_000));
-.await client.syncState();
-}
+console.log('waiting for settlement');
+await new Promise((r) => setTimeout(r, 7_000));
+await client.syncState();
 
 // ── consume the freshly minted notes ──────────────────────────────────────────────
 const noteList = (await client.getConsumableNotes(alice.id())).map((rec) =>
 .rec.inputNoteRecord().toNote(),
 );
 
-{
-.const txResult = await client.executeTransaction(
-..alice.id(),
-..client.newConsumeTransactionRequest(noteList),
-.);
-.const proven = await client.proveTransaction(txResult, prover);
-.await client.syncState();
-.const submissionHeight = await client.submitProvenTransaction(
-..proven,
-..txResult,
-.);
-.await client.applyTransaction(txResult, submissionHeight);
-}` },
+await client.submitNewTransaction(
+.alice.id(),
+.client.newConsumeTransactionRequest(noteList),
+);` },
 }} reactFilename="lib/react/multiSendWithDelegatedProver.tsx" tsFilename="lib/multiSendWithDelegatedProver.ts" />
 
 ## Step 5 — Build and Create P2ID notes
@@ -341,12 +322,9 @@ const p2idNotes = recipientAddresses.map((addr) => {
 });
 
 // ── create all P2ID notes ───────────────────────────────────────────────────────────────
-await client.submitNewTransaction(
-.alice.id(),
-.new TransactionRequestBuilder()
-..withOwnOutputNotes(new OutputNoteArray(p2idNotes))
-..build(),
-);
+const builder = new TransactionRequestBuilder();
+const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
+await client.submitNewTransaction(alice.id(), txRequest);
 
 console.log('All notes created ✅');` },
 }} reactFilename="lib/react/multiSendWithDelegatedProver.tsx" tsFilename="lib/multiSendWithDelegatedProver.ts" />
@@ -434,8 +412,12 @@ export default function MultiSendWithDelegatedProver() {
 ..</MidenProvider>
 .);
 }`},
-  typescript: { code:`/\*\* \* Demonstrates multi-send functionality using a local prover on the Miden Network \* Creates multiple P2ID (Pay to ID) notes for different recipients \* \* @throws {Error} If the function cannot be executed in a browser environment
-\*/
+  typescript: { code:`/\*\*
+.\* Demonstrates multi-send functionality with delegated proving on the Miden Network
+.\* Creates multiple P2ID (Pay to ID) notes for different recipients
+.\*
+.\* @throws {Error} If the function cannot be executed in a browser environment
+.\*/
 export async function multiSendWithDelegatedProver(): Promise<void> {
 .// Ensure this runs only in a browser context
 .if (typeof window === 'undefined') return console.warn('Run in browser');
@@ -446,7 +428,6 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 ..AuthScheme,
 ..Address,
 ..NoteType,
-..TransactionProver,
 ..Note,
 ..NoteAssets,
 ..OutputNoteArray,
@@ -457,7 +438,6 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .} = await import('@miden-sdk/miden-sdk');
 
 .const client = await WebClient.createClient('https://rpc.testnet.miden.io');
-.const prover = TransactionProver.newLocalProver();
 
 .console.log('Latest block:', (await client.syncState()).blockNum());
 
@@ -482,46 +462,29 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .console.log('Faucet ID:', faucet.id().toString());
 
 .// ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
-.{
-..const txResult = await client.executeTransaction(
+.await client.submitNewTransaction(
+..faucet.id(),
+..client.newMintTransactionRequest(
+...alice.id(),
 ...faucet.id(),
-...client.newMintTransactionRequest(
-....alice.id(),
-....faucet.id(),
-....NoteType.Public,
-....BigInt(10_000),
-...),
-..);
-..const proven = await client.proveTransaction(txResult, prover);
-..const submissionHeight = await client.submitProvenTransaction(
-...proven,
-...txResult,
-..);
-..await client.applyTransaction(txResult, submissionHeight);
+...NoteType.Public,
+...BigInt(10_000),
+..),
+.);
 
-..console.log('waiting for settlement');
-..await new Promise((r) => setTimeout(r, 7_000));
-..await client.syncState();
-.}
+.console.log('waiting for settlement');
+.await new Promise((r) => setTimeout(r, 7_000));
+.await client.syncState();
 
 .// ── consume the freshly minted notes ──────────────────────────────────────────────
 .const noteList = (await client.getConsumableNotes(alice.id())).map((rec) =>
 ..rec.inputNoteRecord().toNote(),
 .);
 
-.{
-..const txResult = await client.executeTransaction(
-...alice.id(),
-...client.newConsumeTransactionRequest(noteList),
-..);
-..const proven = await client.proveTransaction(txResult, prover);
-..await client.syncState();
-..const submissionHeight = await client.submitProvenTransaction(
-...proven,
-...txResult,
-..);
-..await client.applyTransaction(txResult, submissionHeight);
-.}
+.await client.submitNewTransaction(
+..alice.id(),
+..client.newConsumeTransactionRequest(noteList),
+.);
 
 .// ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
 .const recipientAddresses = [
@@ -546,12 +509,9 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .});
 
 .// ── create all P2ID notes ───────────────────────────────────────────────────────────────
-.await client.submitNewTransaction(
-..alice.id(),
-..new TransactionRequestBuilder()
-...withOwnOutputNotes(new OutputNoteArray(p2idNotes))
-...build(),
-.);
+.const builder = new TransactionRequestBuilder();
+.const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
+.await client.submitNewTransaction(alice.id(), txRequest);
 
 .console.log('All notes created ✅');
 }` },
