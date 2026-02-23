@@ -86,7 +86,7 @@ rm -r data
 rm -r accounts
 ```
 
-After resetting the state of the node, follow steps 2 and 4 again.
+After resetting the state of the node, follow steps 2 and 3 again.
 
 ## Connecting to the Miden testnet
 
