@@ -8,31 +8,32 @@ export async function mintTestnetToAddress(): Promise<void> {
   }
 
   const {
-    WebClient,
-    AccountStorageMode,
-    AuthScheme,
+    MidenClient,
+    AccountType,
+    NoteVisibility,
+    StorageMode,
     Address,
-    NoteType,
     TransactionProver,
   } = await import('@miden-sdk/miden-sdk');
 
-  const client = await WebClient.createClient('https://rpc.testnet.miden.io');
+  const client = await MidenClient.create({
+    rpcUrl: 'https://rpc.testnet.miden.io',
+  });
   const prover = TransactionProver.newLocalProver();
 
-  console.log('Latest block:', (await client.syncState()).blockNum());
+  console.log('Latest block:', (await client.sync()).blockNum());
 
   // ── Create a faucet ────────────────────────────────────────────────────────
   console.log('Creating faucet...');
-  const faucet = await client.newFaucet(
-    AccountStorageMode.public(),
-    false,
-    'MID',
-    8,
-    BigInt(1_000_000),
-    AuthScheme.AuthRpoFalcon512,
-  );
+  const faucet = await client.accounts.create({
+    type: AccountType.FungibleFaucet,
+    symbol: 'MID',
+    decimals: 8,
+    maxSupply: BigInt(1_000_000),
+    storage: StorageMode.Public,
+  });
   console.log('Faucet ID:', faucet.id().toString());
-  await client.syncState();
+  await client.sync();
 
   // ── Mint to recipient ───────────────────────────────────────────────────────
   const recipientAddress =
@@ -41,30 +42,18 @@ export async function mintTestnetToAddress(): Promise<void> {
   console.log('Recipient account ID:', recipientAccountId.toString());
 
   console.log('Minting 100 MIDEN tokens...');
-  const txResult = await client.executeTransaction(
-    faucet.id(),
-    client.newMintTransactionRequest(
-      recipientAccountId,
-      faucet.id(),
-      NoteType.Public,
-      BigInt(100),
-    ),
-  );
-  const proven = await client.proveTransaction(txResult, prover);
-  const submissionHeight = await client.submitProvenTransaction(
-    proven,
-    txResult,
-  );
-  const txExecutionResult = await client.applyTransaction(
-    txResult,
-    submissionHeight,
-  );
+  const mintTxId = await client.transactions.mint({
+    account: faucet,
+    to: recipientAccountId,
+    amount: BigInt(100),
+    type: NoteVisibility.Public,
+    prover,
+  });
 
   console.log('Waiting for settlement...');
-  await new Promise((resolve) => setTimeout(resolve, 7_000));
-  await client.syncState();
+  await client.transactions.waitFor(mintTxId);
+  await client.sync();
 
-  const txId = txExecutionResult.executedTransaction().id().toHex().toString();
-  console.log('Mint tx id:', txId);
+  console.log('Mint tx id:', mintTxId.toHex());
   console.log('Mint complete.');
 }

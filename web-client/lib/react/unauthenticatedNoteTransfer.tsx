@@ -4,7 +4,7 @@
 // lib/unauthenticatedNoteTransfer.ts is used for Playwright tests instead.
 'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useInternalTransfer, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useInternalTransfer, useWaitForCommit, useWaitForNotes, type Account } from '@miden-sdk/react';
 import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function UnauthenticatedNoteTransferInner() {
@@ -21,14 +21,13 @@ function UnauthenticatedNoteTransferInner() {
     // 1. Create Alice and 5 wallets for the transfer chain
     console.log('Creating accounts…');
     const alice = await createWallet({ storageMode: StorageMode.Public });
-    const aliceId = alice.id().toString();
-    console.log('Alice account ID:', aliceId);
+    console.log('Alice account ID:', alice.id().toString());
 
-    const walletIds: string[] = [];
+    const wallets: Account[] = [];
     for (let i = 0; i < 5; i++) {
       const wallet = await createWallet({ storageMode: StorageMode.Public });
-      walletIds.push(wallet.id().toString());
-      console.log(`Wallet ${i}:`, walletIds[i]);
+      wallets.push(wallet);
+      console.log(`Wallet ${i}:`, wallet.id().toString());
     }
 
     // 2. Deploy a fungible faucet
@@ -38,13 +37,12 @@ function UnauthenticatedNoteTransferInner() {
       maxSupply: BigInt(1_000_000),
       storageMode: StorageMode.Public,
     });
-    const faucetId = faucet.id().toString();
-    console.log('Faucet ID:', faucetId);
+    console.log('Faucet ID:', faucet.id().toString());
 
     // 3. Mint 10,000 MID to Alice
     const mintResult = await mint({
-      faucetId,
-      targetAccountId: aliceId,
+      faucetId: faucet,
+      targetAccountId: alice,
       amount: BigInt(10_000),
       noteType: NoteVisibility.Public,
     });
@@ -53,17 +51,17 @@ function UnauthenticatedNoteTransferInner() {
     await waitForCommit(mintResult.transactionId);
 
     // 4. Consume the freshly minted notes
-    const notes = await waitForConsumableNotes({ accountId: aliceId });
+    const notes = await waitForConsumableNotes({ accountId: alice });
     const noteIds = notes.map((n) => n.inputNoteRecord().id());
-    await consume({ accountId: aliceId, noteIds });
+    await consume({ accountId: alice, noteIds });
 
     // 5. Create the unauthenticated note transfer chain:
     //    Alice → Wallet 0 → Wallet 1 → Wallet 2 → Wallet 3 → Wallet 4
     console.log('Starting unauthenticated transfer chain…');
     const results = await transferChain({
-      from: aliceId,
-      recipients: walletIds,
-      assetId: faucetId,
+      from: alice,
+      recipients: wallets,
+      assetId: faucet,
       amount: BigInt(50),
       noteType: NoteVisibility.Public,
     });

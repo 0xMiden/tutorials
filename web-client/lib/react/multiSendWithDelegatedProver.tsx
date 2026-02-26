@@ -21,8 +21,7 @@ function MultiSendInner() {
     // 1. Create Alice's wallet
     console.log('Creating account for Alice…');
     const alice = await createWallet({ storageMode: StorageMode.Public });
-    const aliceId = alice.id().toString();
-    console.log('Alice account ID:', aliceId);
+    console.log('Alice account ID:', alice.id().toString());
 
     // 2. Deploy a fungible faucet
     const faucet = await createFaucet({
@@ -31,13 +30,12 @@ function MultiSendInner() {
       maxSupply: BigInt(1_000_000),
       storageMode: StorageMode.Public,
     });
-    const faucetId = faucet.id().toString();
-    console.log('Faucet ID:', faucetId);
+    console.log('Faucet ID:', faucet.id().toString());
 
     // 3. Mint 10,000 MID to Alice
     const mintResult = await mint({
-      faucetId,
-      targetAccountId: aliceId,
+      faucetId: faucet,
+      targetAccountId: alice,
       amount: BigInt(10_000),
       noteType: NoteVisibility.Public,
     });
@@ -46,14 +44,14 @@ function MultiSendInner() {
     await waitForCommit(mintResult.transactionId);
 
     // 4. Consume the freshly minted notes
-    const notes = await waitForConsumableNotes({ accountId: aliceId });
+    const notes = await waitForConsumableNotes({ accountId: alice });
     const noteIds = notes.map((n) => n.inputNoteRecord().id());
-    await consume({ accountId: aliceId, noteIds });
+    await consume({ accountId: alice, noteIds });
 
     // 5. Send 100 MID to three recipients in a single transaction
     await sendMany({
-      from: aliceId,
-      assetId: faucetId,
+      from: alice,
+      assetId: faucet,
       recipients: [
         { to: 'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04', amount: BigInt(100) },
         { to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },

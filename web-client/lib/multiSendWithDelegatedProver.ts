@@ -9,68 +9,57 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   if (typeof window === 'undefined') return console.warn('Run in browser');
 
   const {
-    WebClient,
-    AccountStorageMode,
-    AuthScheme,
-    Address,
-    NoteType,
-    Note,
-    NoteAssets,
+    MidenClient,
+    AccountType,
+    NoteVisibility,
+    StorageMode,
+    createP2IDNote,
     OutputNoteArray,
-    FungibleAsset,
-    NoteAttachment,
     TransactionRequestBuilder,
-    OutputNote,
   } = await import('@miden-sdk/miden-sdk');
 
-  const client = await WebClient.createClient('https://rpc.testnet.miden.io');
+  const client = await MidenClient.create({
+    rpcUrl: 'https://rpc.testnet.miden.io',
+  });
 
-  console.log('Latest block:', (await client.syncState()).blockNum());
+  console.log('Latest block:', (await client.sync()).blockNum());
 
   // ── Creating new account ──────────────────────────────────────────────────────
   console.log('Creating account for Alice…');
-  const alice = await client.newWallet(
-    AccountStorageMode.public(),
-    true,
-    AuthScheme.AuthRpoFalcon512,
-  );
+  const alice = await client.accounts.create({
+    type: AccountType.MutableWallet,
+    storage: StorageMode.Public,
+  });
   console.log('Alice account ID:', alice.id().toString());
 
   // ── Creating new faucet ──────────────────────────────────────────────────────
-  const faucet = await client.newFaucet(
-    AccountStorageMode.public(),
-    false,
-    'MID',
-    8,
-    BigInt(1_000_000),
-    AuthScheme.AuthRpoFalcon512,
-  );
+  const faucet = await client.accounts.create({
+    type: AccountType.FungibleFaucet,
+    symbol: 'MID',
+    decimals: 8,
+    maxSupply: BigInt(1_000_000),
+    storage: StorageMode.Public,
+  });
   console.log('Faucet ID:', faucet.id().toString());
 
   // ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
-  await client.submitNewTransaction(
-    faucet.id(),
-    client.newMintTransactionRequest(
-      alice.id(),
-      faucet.id(),
-      NoteType.Public,
-      BigInt(10_000),
-    ),
-  );
+  const mintTxId = await client.transactions.mint({
+    account: faucet,
+    to: alice,
+    amount: BigInt(10_000),
+    type: NoteVisibility.Public,
+  });
 
   console.log('waiting for settlement');
-  await new Promise((r) => setTimeout(r, 7_000));
-  await client.syncState();
+  await client.transactions.waitFor(mintTxId);
+  await client.sync();
 
   // ── consume the freshly minted notes ──────────────────────────────────────────────
-  const noteList = (await client.getConsumableNotes(alice.id())).map((rec) =>
-    rec.inputNoteRecord().toNote(),
-  );
-
-  await client.submitNewTransaction(
-    alice.id(),
-    client.newConsumeTransactionRequest(noteList),
-  );
+  const noteList = await client.notes.listAvailable({ account: alice });
+  await client.transactions.consume({
+    account: alice,
+    notes: noteList.map((n) => n.inputNoteRecord()),
+  });
 
   // ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
   const recipientAddresses = [
@@ -79,25 +68,19 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
     'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd',
   ];
 
-  const assets = new NoteAssets([new FungibleAsset(faucet.id(), BigInt(100))]);
-
-  const p2idNotes = recipientAddresses.map((addr) => {
-    const receiverAccountId = Address.fromBech32(addr).accountId();
-    const note = Note.createP2IDNote(
-      alice.id(),
-      receiverAccountId,
-      assets,
-      NoteType.Public,
-      new NoteAttachment(),
-    );
-
-    return OutputNote.full(note);
-  });
+  const p2idNotes = recipientAddresses.map((addr) =>
+    createP2IDNote({
+      from: alice,
+      to: addr,
+      assets: { token: faucet, amount: BigInt(100) },
+      type: NoteVisibility.Public,
+    }),
+  );
 
   // ── create all P2ID notes ───────────────────────────────────────────────────────────────
   const builder = new TransactionRequestBuilder();
   const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
-  await client.submitNewTransaction(alice.id(), txRequest);
+  await client.transactions.submit(alice, txRequest);
 
   console.log('All notes created ✅');
 }

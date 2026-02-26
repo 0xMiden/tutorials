@@ -21,8 +21,7 @@ function CreateMintConsumeInner() {
     // 1. Create Alice's wallet (public, mutable)
     console.log('Creating account for Alice…');
     const alice = await createWallet({ storageMode: StorageMode.Public });
-    const aliceId = alice.id().toString();
-    console.log('Alice ID:', aliceId);
+    console.log('Alice ID:', alice.id().toString());
 
     // 2. Deploy a fungible faucet
     console.log('Creating faucet…');
@@ -32,14 +31,13 @@ function CreateMintConsumeInner() {
       maxSupply: BigInt(1_000_000),
       storageMode: StorageMode.Public,
     });
-    const faucetId = faucet.id().toString();
-    console.log('Faucet ID:', faucetId);
+    console.log('Faucet ID:', faucet.id().toString());
 
     // 3. Mint 1000 tokens to Alice
     console.log('Minting tokens to Alice...');
     const mintResult = await mint({
-      faucetId,
-      targetAccountId: aliceId,
+      faucetId: faucet,
+      targetAccountId: alice,
       amount: BigInt(1000),
       noteType: NoteVisibility.Public,
     });
@@ -49,22 +47,22 @@ function CreateMintConsumeInner() {
     await waitForCommit(mintResult.transactionId);
 
     // 5. Wait for consumable notes to appear
-    const notes = await waitForConsumableNotes({ accountId: aliceId });
+    const notes = await waitForConsumableNotes({ accountId: alice });
     const noteIds = notes.map((n) => n.inputNoteRecord().id());
     console.log('Consumable notes:', noteIds.length);
 
     // 6. Consume minted notes
     console.log('Consuming minted notes...');
-    await consume({ accountId: aliceId, noteIds });
+    await consume({ accountId: alice, noteIds });
     console.log('Notes consumed.');
 
     // 7. Send 100 tokens to Bob
     const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
     console.log("Sending tokens to Bob's account...");
     await send({
-      from: aliceId,
+      from: alice,
       to: bobAddress,
-      assetId: faucetId,
+      assetId: faucet,
       amount: BigInt(100),
       noteType: NoteVisibility.Public,
     });

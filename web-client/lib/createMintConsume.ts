@@ -6,96 +6,76 @@ export async function createMintConsume(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const {
-    WebClient,
-    AccountStorageMode,
-    AuthScheme,
-    NoteType,
-    Address,
-  } = await import('@miden-sdk/miden-sdk');
+  const { MidenClient, AccountType, NoteVisibility, StorageMode } = await import('@miden-sdk/miden-sdk');
 
-  const nodeEndpoint = 'https://rpc.testnet.miden.io';
-  const client = await WebClient.createClient(nodeEndpoint);
+  const client = await MidenClient.create({
+    rpcUrl: 'https://rpc.testnet.miden.io',
+  });
 
   // 1. Sync with the latest blockchain state
-  const state = await client.syncState();
+  const state = await client.sync();
   console.log('Latest block number:', state.blockNum());
 
   // 2. Create Alice's account
   console.log('Creating account for Alice…');
-  const aliceSeed = new Uint8Array(32);
-  crypto.getRandomValues(aliceSeed);
-  const alice = await client.newWallet(
-    AccountStorageMode.public(),
-    true,
-    AuthScheme.AuthRpoFalcon512,
-    aliceSeed,
-  );
+  const alice = await client.accounts.create({
+    type: AccountType.MutableWallet,
+    storage: StorageMode.Public,
+  });
   console.log('Alice ID:', alice.id().toString());
 
   // 3. Deploy a fungible faucet
   console.log('Creating faucet…');
-  const faucet = await client.newFaucet(
-    AccountStorageMode.public(),
-    false,
-    'MID',
-    8,
-    BigInt(1_000_000),
-    AuthScheme.AuthRpoFalcon512,
-  );
+  const faucet = await client.accounts.create({
+    type: AccountType.FungibleFaucet,
+    symbol: 'MID',
+    decimals: 8,
+    maxSupply: BigInt(1_000_000),
+    storage: StorageMode.Public,
+  });
   console.log('Faucet ID:', faucet.id().toString());
 
-  await client.syncState();
+  await client.sync();
 
   // 4. Mint tokens to Alice
-  await client.syncState();
-
   console.log('Minting tokens to Alice...');
-  const mintTxRequest = client.newMintTransactionRequest(
-    alice.id(),
-    faucet.id(),
-    NoteType.Public,
-    BigInt(1000),
-  );
+  const mintTxId = await client.transactions.mint({
+    account: faucet,
+    to: alice,
+    amount: BigInt(1000),
+    type: NoteVisibility.Public,
+  });
 
-  await client.submitNewTransaction(faucet.id(), mintTxRequest);
-
-  console.log('Waiting 10 seconds for transaction confirmation...');
-  await new Promise((resolve) => setTimeout(resolve, 10000));
-  await client.syncState();
+  console.log('Waiting for transaction confirmation...');
+  await client.transactions.waitFor(mintTxId);
+  await client.sync();
 
   // 5. Fetch minted notes
-  const mintedNotes = await client.getConsumableNotes(alice.id());
-  const mintedNoteList = mintedNotes.map((n) =>
-    n.inputNoteRecord().toNote(),
-  );
+  const mintedNotes = await client.notes.listAvailable({ account: alice });
   console.log(
     'Minted notes:',
-    mintedNoteList.map((note) => note.id().toString()),
+    mintedNotes.map((n) => n.inputNoteRecord().id().toString()),
   );
 
   // 6. Consume minted notes
   console.log('Consuming minted notes...');
-  const consumeTxRequest = client.newConsumeTransactionRequest(mintedNoteList);
+  await client.transactions.consume({
+    account: alice,
+    notes: mintedNotes.map((n) => n.inputNoteRecord()),
+  });
 
-  await client.submitNewTransaction(alice.id(), consumeTxRequest);
-
-  await client.syncState();
+  await client.sync();
   console.log('Notes consumed.');
 
   // 7. Send tokens to Bob
-  const bobAccountId = Address.fromBech32(
-    'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph',
-  ).accountId();
+  const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
   console.log("Sending tokens to Bob's account...");
-  const sendTxRequest = client.newSendTransactionRequest(
-    alice.id(),
-    bobAccountId,
-    faucet.id(),
-    NoteType.Public,
-    BigInt(100),
-  );
-
-  await client.submitNewTransaction(alice.id(), sendTxRequest);
+  await client.transactions.send({
+    account: alice,
+    to: bobAddress,
+    token: faucet,
+    amount: BigInt(100),
+    type: NoteVisibility.Public,
+  });
   console.log('Tokens sent successfully!');
 }
