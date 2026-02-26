@@ -180,6 +180,7 @@ export default function MultiSendWithDelegatedProver() {
 
 .const {
 ..MidenClient,
+..AccountType,
 ..createP2IDNote,
 ..OutputNoteArray,
 ..TransactionRequestBuilder,
@@ -232,14 +233,14 @@ await consume({ accountId: aliceId, noteIds });`},
   typescript: { code:`// ── Creating new account ──────────────────────────────────────────────────────
 console.log('Creating account for Alice…');
 const alice = await client.accounts.create({
-.type: 'MutableWallet',
+.type: AccountType.MutableWallet,
 .storage: 'public',
 });
 console.log('Alice account ID:', alice.id().toString());
 
 // ── Creating new faucet ──────────────────────────────────────────────────────
 const faucet = await client.accounts.create({
-.type: 'FungibleFaucet',
+.type: AccountType.FungibleFaucet,
 .symbol: 'MID',
 .decimals: 8,
 .maxSupply: BigInt(1_000_000),
@@ -404,6 +405,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
 .const {
 ..MidenClient,
+..AccountType,
 ..createP2IDNote,
 ..OutputNoteArray,
 ..TransactionRequestBuilder,
@@ -418,14 +420,14 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .// ── Creating new account ──────────────────────────────────────────────────────
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: 'MutableWallet',
+..type: AccountType.MutableWallet,
 ..storage: 'public',
 .});
 .console.log('Alice account ID:', alice.id().toString());
 
 .// ── Creating new faucet ──────────────────────────────────────────────────────
 .const faucet = await client.accounts.create({
-..type: 'FungibleFaucet',
+..type: AccountType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

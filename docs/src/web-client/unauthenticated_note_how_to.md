@@ -262,6 +262,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 .const {
 ..MidenClient,
+..AccountType,
 ..TransactionProver,
 ..Note,
 ..NoteType,
@@ -287,7 +288,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: 'MutableWallet',
+..type: AccountType.MutableWallet,
 ..storage: 'public',
 .});
 .console.log('Alice account ID:', alice.id().toString());
@@ -295,7 +296,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .const wallets = [];
 .for (let i = 0; i < 5; i++) {
 ..const wallet = await client.accounts.create({
-...type: 'MutableWallet',
+...type: AccountType.MutableWallet,
 ...storage: 'public',
 ..});
 ..wallets.push(wallet);
@@ -304,7 +305,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 .// ── Creating new faucet ──────────────────────────────────────────────────────
 .const faucet = await client.accounts.create({
-..type: 'FungibleFaucet',
+..type: AccountType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

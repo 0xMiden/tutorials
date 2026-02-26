@@ -123,7 +123,7 @@ export async function createMintConsume(): Promise<void> {
 .}
 
 .// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient } =
+.const { MidenClient, AccountType } =
 ..await import('@miden-sdk/miden-sdk');
 
 .// Connect to Miden testnet RPC endpoint
@@ -233,7 +233,7 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: 'MutableWallet', // Mutable: account code can be upgraded later
+..type: AccountType.MutableWallet, // Mutable: account code can be upgraded later
 ..storage: 'public', // Public: account state is visible on-chain
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -262,7 +262,7 @@ console.log('Setup complete.');`},
 // A faucet is an account that can mint new tokens
 console.log('Creating faucet…');
 const faucetAccount = await client.accounts.create({
-.type: 'FungibleFaucet', // Fungible faucet: can mint divisible tokens
+.type: AccountType.FungibleFaucet, // Fungible faucet: can mint divisible tokens
 .symbol: 'MID', // Token symbol (like ETH, BTC, etc.)
 .decimals: 8, // Decimals (8 means 1 MID = 100,000,000 base units)
 .maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
@@ -347,7 +347,7 @@ export async function createMintConsume(): Promise<void> {
 .}
 
 .// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient } =
+.const { MidenClient, AccountType } =
 ..await import('@miden-sdk/miden-sdk');
 
 .const client = await MidenClient.create({
@@ -361,7 +361,7 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: 'MutableWallet',
+..type: AccountType.MutableWallet,
 ..storage: 'public',
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -369,7 +369,7 @@ export async function createMintConsume(): Promise<void> {
 .// 3. Deploy a fungible faucet
 .console.log('Creating faucet…');
 .const faucet = await client.accounts.create({
-..type: 'FungibleFaucet',
+..type: AccountType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

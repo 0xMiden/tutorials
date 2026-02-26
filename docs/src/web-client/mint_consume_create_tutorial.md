@@ -253,7 +253,7 @@ export async function createMintConsume(): Promise<void> {
 .}
 
 .// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient } = await import('@miden-sdk/miden-sdk');
+.const { MidenClient, AccountType } = await import('@miden-sdk/miden-sdk');
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -266,7 +266,7 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: 'MutableWallet',
+..type: AccountType.MutableWallet,
 ..storage: 'public',
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -274,7 +274,7 @@ export async function createMintConsume(): Promise<void> {
 .// 3. Deploy a fungible faucet
 .console.log('Creating faucet…');
 .const faucet = await client.accounts.create({
-..type: 'FungibleFaucet',
+..type: AccountType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

@@ -116,7 +116,7 @@ export async function incrementCounterContract(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { Address, AuthSecretKey, StorageSlot, MidenClient } =
+  const { AccountType, Address, AuthSecretKey, StorageSlot, MidenClient } =
     await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'https://rpc.testnet.miden.io';
@@ -184,7 +184,7 @@ export async function incrementCounterContract(): Promise<void> {
 
   // Create the counter contract account
   const account = await client.accounts.create({
-    type: 'ImmutableContract',
+    type: AccountType.ImmutableContract,
     storage: 'public',
     seed: walletSeed,
     auth,
@@ -328,13 +328,13 @@ const counterAccountComponent = await client.compile.component({
 
 ### Creating the contract account
 
-Use `client.accounts.create()` with `type: 'ImmutableContract'` to build and register the contract. You must supply a `seed` (for deterministic ID derivation) and a raw `AuthSecretKey` — the client stores the key automatically:
+Use `client.accounts.create()` with `type: AccountType.ImmutableContract` to build and register the contract. You must supply a `seed` (for deterministic ID derivation) and a raw `AuthSecretKey` — the client stores the key automatically:
 
 ```ts
 const auth = AuthSecretKey.rpoFalconWithRNG(walletSeed);
 
 const account = await client.accounts.create({
-  type: 'ImmutableContract',
+  type: AccountType.ImmutableContract,
   storage: 'public',
   seed: walletSeed,
   auth,

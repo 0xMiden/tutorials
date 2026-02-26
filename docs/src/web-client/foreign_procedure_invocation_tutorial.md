@@ -131,7 +131,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { Address, AuthSecretKey, StorageSlot, MidenClient } =
+  const { AccountType, Address, AuthSecretKey, StorageSlot, MidenClient } =
     await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'https://rpc.testnet.miden.io';
@@ -189,7 +189,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
   // Create the count reader contract account
   console.log('Creating count reader contract account...');
   const countReaderAccount = await client.accounts.create({
-    type: 'ImmutableContract',
+    type: AccountType.ImmutableContract,
     storage: 'public',
     seed: walletSeed,
     auth,

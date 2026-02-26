@@ -5,9 +5,8 @@ export async function incrementCounterContract(): Promise<void> {
     return;
   }
 
-  const { AuthSecretKey, StorageSlot, MidenClient } = await import(
-    '@miden-sdk/miden-sdk'
-  );
+  const { AccountType, AuthSecretKey, StorageSlot, MidenClient } =
+    await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'http://localhost:57291';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
@@ -60,7 +59,7 @@ export async function incrementCounterContract(): Promise<void> {
   const auth = AuthSecretKey.rpoFalconWithRNG(walletSeed);
 
   const account = await client.accounts.create({
-    type: 'ImmutableContract',
+    type: AccountType.ImmutableContract,
     storage: 'public',
     seed: walletSeed,
     auth,
