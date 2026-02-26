@@ -231,7 +231,7 @@ await waitForCommit(mintResult.transactionId);
 
 // 4. Consume the freshly minted notes
 const notes = await waitForConsumableNotes({ accountId: aliceId });
-const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
+const noteIds = notes.map((n) => n.inputNoteRecord().id());
 await consume({ accountId: aliceId, noteIds });`},
   typescript: { code:`// ── Creating new account ──────────────────────────────────────────────────────
 console.log('Creating account for Alice…');
@@ -260,14 +260,14 @@ const mintTxId = await client.transactions.mint({
 });
 
 console.log('waiting for settlement');
-await client.transactions.waitFor(mintTxId.toHex());
+await client.transactions.waitFor(mintTxId);
 await client.sync();
 
 // ── consume the freshly minted notes ──────────────────────────────────────────────
 const noteList = await client.notes.listAvailable({ account: alice.id() });
 await client.transactions.consume({
 .account: alice.id(),
-.notes: noteList.map((n) => n.inputNoteRecord().id().toString()),
+.notes: noteList.map((n) => n.inputNoteRecord()),
 });` },
 }} reactFilename="lib/react/multiSendWithDelegatedProver.tsx" tsFilename="lib/multiSendWithDelegatedProver.ts" />
 
@@ -450,14 +450,14 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .});
 
 .console.log('waiting for settlement');
-.await client.transactions.waitFor(mintTxId.toHex());
+.await client.transactions.waitFor(mintTxId);
 .await client.sync();
 
 .// ── consume the freshly minted notes ──────────────────────────────────────────────
 .const noteList = await client.notes.listAvailable({ account: alice.id() });
 .await client.transactions.consume({
 ..account: alice.id(),
-..notes: noteList.map((n) => n.inputNoteRecord().id().toString()),
+..notes: noteList.map((n) => n.inputNoteRecord()),
 .});
 
 .// ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────

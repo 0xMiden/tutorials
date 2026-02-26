@@ -47,7 +47,7 @@ function MultiSendInner() {
 
     // 4. Consume the freshly minted notes
     const notes = await waitForConsumableNotes({ accountId: aliceId });
-    const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
+    const noteIds = notes.map((n) => n.inputNoteRecord().id());
     await consume({ accountId: aliceId, noteIds });
 
     // 5. Send 100 MID to three recipients in a single transaction

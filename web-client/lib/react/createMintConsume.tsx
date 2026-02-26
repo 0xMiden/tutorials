@@ -50,8 +50,8 @@ function CreateMintConsumeInner() {
 
     // 5. Wait for consumable notes to appear
     const notes = await waitForConsumableNotes({ accountId: aliceId });
-    const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
-    console.log('Consumable notes:', noteIds);
+    const noteIds = notes.map((n) => n.inputNoteRecord().id());
+    console.log('Consumable notes:', noteIds.length);
 
     // 6. Consume minted notes
     console.log('Consuming minted notes...');

@@ -212,7 +212,7 @@ function UnauthenticatedNoteTransferInner() {
 
 ..// 4. Consume the freshly minted notes
 ..const notes = await waitForConsumableNotes({ accountId: aliceId });
-..const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
+..const noteIds = notes.map((n) => n.inputNoteRecord().id());
 ..await consume({ accountId: aliceId, noteIds });
 
 ..// 5. Create the unauthenticated note transfer chain:
@@ -326,14 +326,14 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .});
 
 .console.log('Waiting for settlement');
-.await client.transactions.waitFor(mintTxId.toHex());
+.await client.transactions.waitFor(mintTxId);
 .await client.sync();
 
 .// ── Consume the freshly minted note ──────────────────────────────────────────────
 .const noteList = await client.notes.listAvailable({ account: alice.id() });
 .await client.transactions.consume({
 ..account: alice.id(),
-..notes: noteList.map((n) => n.inputNoteRecord().id().toString()),
+..notes: noteList.map((n) => n.inputNoteRecord()),
 ..prover,
 .});
 .await client.sync();

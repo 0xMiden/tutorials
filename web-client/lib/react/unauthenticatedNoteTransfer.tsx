@@ -54,7 +54,7 @@ function UnauthenticatedNoteTransferInner() {
 
     // 4. Consume the freshly minted notes
     const notes = await waitForConsumableNotes({ accountId: aliceId });
-    const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
+    const noteIds = notes.map((n) => n.inputNoteRecord().id());
     await consume({ accountId: aliceId, noteIds });
 
     // 5. Create the unauthenticated note transfer chain:

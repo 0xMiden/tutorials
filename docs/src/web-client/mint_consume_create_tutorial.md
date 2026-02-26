@@ -64,7 +64,7 @@ const mintTxId = await client.transactions.mint({
 
 // Wait for the transaction to be processed
 console.log("Waiting for transaction confirmation...");
-await client.transactions.waitFor(mintTxId.toHex());
+await client.transactions.waitFor(mintTxId);
 await client.sync();` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
@@ -81,8 +81,8 @@ To identify notes that are ready to consume, the MidenClient provides the `clien
 <CodeSdkTabs example={{
 react: { code: `// 4. Wait for consumable notes to appear
 const notes = await waitForConsumableNotes({ accountId: aliceId });
-const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
-console.log('Consumable notes:', noteIds);` },
+const noteIds = notes.map((n) => n.inputNoteRecord().id());
+console.log('Consumable notes:', noteIds.length);` },
 typescript: { code: `// 5. Find notes available for consumption
 const mintedNotes = await client.notes.listAvailable({ account: alice.id() });
 console.log(\`Found \${mintedNotes.length} note(s) to consume\`);
@@ -106,7 +106,7 @@ typescript: { code: `// 6. Consume the notes to add tokens to Alice's balance
 console.log('Consuming minted notes...');
 await client.transactions.consume({
 .account: alice.id(),
-.notes: mintedNotes.map((n) => n.inputNoteRecord().id().toString()),
+.notes: mintedNotes.map((n) => n.inputNoteRecord()),
 });
 
 await client.sync();
@@ -209,8 +209,8 @@ function CreateMintConsumeInner() {
 
 ..// 5. Wait for consumable notes to appear
 ..const notes = await waitForConsumableNotes({ accountId: aliceId });
-..const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
-..console.log('Consumable notes:', noteIds);
+..const noteIds = notes.map((n) => n.inputNoteRecord().id());
+..console.log('Consumable notes:', noteIds.length);
 
 ..// 6. Consume minted notes
 ..console.log('Consuming minted notes...');
@@ -296,7 +296,7 @@ export async function createMintConsume(): Promise<void> {
 .});
 
 .console.log('Waiting for transaction confirmation...');
-.await client.transactions.waitFor(mintTxId.toHex());
+.await client.transactions.waitFor(mintTxId);
 .await client.sync();
 
 .// 5. Fetch minted notes
@@ -310,7 +310,7 @@ export async function createMintConsume(): Promise<void> {
 .console.log('Consuming minted notes...');
 .await client.transactions.consume({
 ..account: alice.id(),
-..notes: mintedNotes.map((n) => n.inputNoteRecord().id().toString()),
+..notes: mintedNotes.map((n) => n.inputNoteRecord()),
 .});
 
 .await client.sync();
