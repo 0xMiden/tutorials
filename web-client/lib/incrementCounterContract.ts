@@ -81,7 +81,7 @@ export async function incrementCounterContract(): Promise<void> {
   });
 
   await client.transactions.execute({
-    account: account.id(),
+    account,
     script,
   });
 
@@ -89,7 +89,7 @@ export async function incrementCounterContract(): Promise<void> {
 
   console.log('Counter contract ID:', account.id().toString());
 
-  const counter = await client.accounts.get(account.id());
+  const counter = await client.accounts.get(account);
   const count = counter?.storage().getItem(counterSlotName);
   const counterValue = Number(
     BigInt('0x' + count!.toHex().slice(-16).match(/../g)!.reverse().join('')),

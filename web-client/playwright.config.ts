@@ -12,6 +12,9 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3000",
     headless: true,
+    launchOptions: {
+      args: ["--disable-web-security"],
+    },
   },
   webServer: {
     command: "yarn dev",

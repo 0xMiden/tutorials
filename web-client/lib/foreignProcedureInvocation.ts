@@ -114,7 +114,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
   // Wait for the deploy transaction to be committed to a block
   // before using it as a foreign account in FPI
   await client.transactions.execute({
-    account: counterAccount.id(),
+    account: counterAccount,
     script: deployScript,
     waitForConfirmation: true,
   });
@@ -184,15 +184,15 @@ export async function foreignProcedureInvocation(): Promise<void> {
   });
 
   await client.transactions.execute({
-    account: countReaderAccount.id(),
+    account: countReaderAccount,
     script,
-    foreignAccounts: [{ id: counterAccount.id() }],
+    foreignAccounts: [counterAccount],
   });
 
   await client.sync();
 
   const updatedCountReaderContract = await client.accounts.get(
-    countReaderAccount.id(),
+    countReaderAccount,
   );
   const countReaderStorage = updatedCountReaderContract
     ?.storage()

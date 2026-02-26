@@ -9,7 +9,7 @@ export async function createMintConsume(): Promise<void> {
   const { MidenClient, AccountType, NoteVisibility, StorageMode } = await import('@miden-sdk/miden-sdk');
 
   const client = await MidenClient.create({
-    rpcUrl: 'https://rpc.testnet.miden.io',
+    rpcUrl: 'http://localhost:57291',
   });
 
   // 1. Sync with the latest blockchain state
