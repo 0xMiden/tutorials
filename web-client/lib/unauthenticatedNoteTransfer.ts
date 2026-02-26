@@ -14,16 +14,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
     NoteVisibility,
     StorageMode,
     TransactionProver,
-    Note,
-    NoteType,
-    NoteAssets,
-    OutputNoteArray,
-    FungibleAsset,
-    NoteAndArgsArray,
-    NoteAndArgs,
-    NoteAttachment,
-    TransactionRequestBuilder,
-    OutputNote,
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await MidenClient.create({
@@ -90,49 +80,31 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   for (let i = 0; i < wallets.length; i++) {
     console.log(`\nUnauthenticated tx ${i + 1}`);
 
-    // Determine sender and receiver for this iteration
     const sender = i === 0 ? alice : wallets[i - 1];
     const receiver = wallets[i];
 
     console.log('Sender:', sender.id().toString());
     console.log('Receiver:', receiver.id().toString());
 
-    const assets = new NoteAssets([new FungibleAsset(faucet.id(), BigInt(50))]);
-    const p2idNote = Note.createP2IDNote(
-      sender.id(),
-      receiver.id(),
-      assets,
-      NoteType.Public,
-      new NoteAttachment(),
+    const { note } = await client.transactions.send({
+      account: sender,
+      to: receiver,
+      token: faucet,
+      amount: BigInt(50),
+      type: NoteVisibility.Public,
+      authenticated: false,
+      prover,
+    });
+
+    const consumeTxId = await client.transactions.consume({
+      account: receiver,
+      notes: [note],
+      prover,
+    });
+
+    console.log(
+      `Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/${consumeTxId.toHex()}`,
     );
-
-    const outputP2ID = OutputNote.full(p2idNote);
-
-    console.log('Creating P2ID note...');
-    {
-      const builder = new TransactionRequestBuilder();
-      const request = builder.withOwnOutputNotes(new OutputNoteArray([outputP2ID])).build();
-      await client.transactions.submit(sender, request, { prover });
-    }
-
-    console.log('Consuming P2ID note...');
-
-    const noteIdAndArgs = new NoteAndArgs(p2idNote, null);
-
-    const consumeBuilder = new TransactionRequestBuilder();
-    const consumeRequest = consumeBuilder.withInputNotes(new NoteAndArgsArray([noteIdAndArgs])).build();
-
-    {
-      const txId = await client.transactions.submit(
-        receiver,
-        consumeRequest,
-        { prover },
-      );
-
-      console.log(
-        `Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/${txId.toHex()}`,
-      );
-    }
   }
 
   console.log('Asset transfer chain completed ✅');

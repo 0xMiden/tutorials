@@ -4,7 +4,7 @@
 // lib/unauthenticatedNoteTransfer.ts is used for Playwright tests instead.
 'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useInternalTransfer, useWaitForCommit, useWaitForNotes, type Account } from '@miden-sdk/react';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes, type Account } from '@miden-sdk/react';
 import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function UnauthenticatedNoteTransferInner() {
@@ -13,7 +13,7 @@ function UnauthenticatedNoteTransferInner() {
   const { createFaucet } = useCreateFaucet();
   const { mint } = useMint();
   const { consume } = useConsume();
-  const { transferChain } = useInternalTransfer();
+  const { send } = useSend();
   const { waitForCommit } = useWaitForCommit();
   const { waitForConsumableNotes } = useWaitForNotes();
 
@@ -58,19 +58,25 @@ function UnauthenticatedNoteTransferInner() {
     // 5. Create the unauthenticated note transfer chain:
     //    Alice → Wallet 0 → Wallet 1 → Wallet 2 → Wallet 3 → Wallet 4
     console.log('Starting unauthenticated transfer chain…');
-    const results = await transferChain({
-      from: alice,
-      recipients: wallets,
-      assetId: faucet,
-      amount: BigInt(50),
-      noteType: NoteVisibility.Public,
-    });
+    let currentSender: Account = alice;
+    for (let i = 0; i < wallets.length; i++) {
+      const wallet = wallets[i];
+      const { note } = await send({
+        from: currentSender,
+        to: wallet,
+        assetId: faucet,
+        amount: BigInt(50),
+        noteType: NoteVisibility.Public,
+        authenticated: false,
+      });
 
-    results.forEach((r, i) => {
+      const result = await consume({ accountId: wallet, noteIds: [note!] });
       console.log(
-        `Transfer ${i + 1}: https://testnet.midenscan.com/tx/${r.consumeTransactionId}`,
+        `Transfer ${i + 1}: https://testnet.midenscan.com/tx/${result.transactionId}`,
       );
-    });
+
+      currentSender = wallet;
+    }
 
     console.log('Asset transfer chain completed ✅');
   };

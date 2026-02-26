@@ -162,7 +162,7 @@ Copy and paste the following code into `lib/react/unauthenticatedNoteTransfer.ts
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useInternalTransfer, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
 import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function UnauthenticatedNoteTransferInner() {
@@ -171,7 +171,7 @@ function UnauthenticatedNoteTransferInner() {
 .const { createFaucet } = useCreateFaucet();
 .const { mint } = useMint();
 .const { consume } = useConsume();
-.const { transferChain } = useInternalTransfer();
+.const { send } = useSend();
 .const { waitForCommit } = useWaitForCommit();
 .const { waitForConsumableNotes } = useWaitForNotes();
 
@@ -179,14 +179,13 @@ function UnauthenticatedNoteTransferInner() {
 ..// 1. Create Alice and 5 wallets for the transfer chain
 ..console.log('Creating accounts…');
 ..const alice = await createWallet({ storageMode: StorageMode.Public });
-..const aliceId = alice.id().toString();
-..console.log('Alice account ID:', aliceId);
+..console.log('Alice account ID:', alice.id().toString());
 
-..const walletIds: string[] = [];
+..const wallets = [];
 ..for (let i = 0; i < 5; i++) {
 ...const wallet = await createWallet({ storageMode: StorageMode.Public });
-...walletIds.push(wallet.id().toString());
-...console.log(\`Wallet \${i}:\`, walletIds[i]);
+...wallets.push(wallet);
+...console.log(\`Wallet \${i}:\`, wallet.id().toString());
 ..}
 
 ..// 2. Deploy a fungible faucet
@@ -196,13 +195,12 @@ function UnauthenticatedNoteTransferInner() {
 ...maxSupply: BigInt(1_000_000),
 ...storageMode: StorageMode.Public,
 ..});
-..const faucetId = faucet.id().toString();
-..console.log('Faucet ID:', faucetId);
+..console.log('Faucet ID:', faucet.id().toString());
 
 ..// 3. Mint 10,000 MID to Alice
 ..const mintResult = await mint({
-...faucetId,
-...targetAccountId: aliceId,
+...faucetId: faucet,
+...targetAccountId: alice,
 ...amount: BigInt(10_000),
 ...noteType: NoteVisibility.Public,
 ..});
@@ -211,26 +209,30 @@ function UnauthenticatedNoteTransferInner() {
 ..await waitForCommit(mintResult.transactionId);
 
 ..// 4. Consume the freshly minted notes
-..const notes = await waitForConsumableNotes({ accountId: aliceId });
+..const notes = await waitForConsumableNotes({ accountId: alice });
 ..const noteIds = notes.map((n) => n.inputNoteRecord().id());
-..await consume({ accountId: aliceId, noteIds });
+..await consume({ accountId: alice, noteIds });
 
 ..// 5. Create the unauthenticated note transfer chain:
 ..// Alice → Wallet 0 → Wallet 1 → Wallet 2 → Wallet 3 → Wallet 4
 ..console.log('Starting unauthenticated transfer chain…');
-..const results = await transferChain({
-...from: aliceId,
-...recipients: walletIds,
-...assetId: faucetId,
-...amount: BigInt(50),
-...noteType: NoteVisibility.Public,
-..});
-
-..results.forEach((r, i) => {
+..let currentSender = alice;
+..for (let i = 0; i < wallets.length; i++) {
+...const wallet = wallets[i];
+...const { note } = await send({
+....from: currentSender,
+....to: wallet,
+....assetId: faucet,
+....amount: BigInt(50),
+....noteType: NoteVisibility.Public,
+....authenticated: false,
+...});
+...const result = await consume({ accountId: wallet, noteIds: [note] });
 ...console.log(
-....\`Transfer \${i + 1}: https://testnet.midenscan.com/tx/\${r.consumeTransactionId}\`,
+....\`Transfer \${i + 1}: https://testnet.midenscan.com/tx/\${result.transactionId}\`,
 ...);
-..});
+...currentSender = wallet;
+..}
 
 ..console.log('Asset transfer chain completed ✅');
 .};
@@ -267,16 +269,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 ..NoteVisibility,
 ..StorageMode,
 ..TransactionProver,
-..Note,
-..NoteType,
-..NoteAssets,
-..OutputNoteArray,
-..FungibleAsset,
-..NoteAndArgsArray,
-..NoteAndArgs,
-..NoteAttachment,
-..TransactionRequestBuilder,
-..OutputNote,
 .} = await import('@miden-sdk/miden-sdk');
 
 .const client = await MidenClient.create({
@@ -286,9 +278,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 .console.log('Latest block:', (await client.sync()).blockNum());
 
-.// ── Creating new account ──────────────────────────────────────────────────────
-.console.log('Creating accounts');
-
+.// ── Creating accounts ──────────────────────────────────────────────────────
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
 ..type: AccountType.MutableWallet,
@@ -316,7 +306,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .});
 .console.log('Faucet ID:', faucet.id().toString());
 
-.// ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
+.// ── Mint 10,000 MID to Alice ──────────────────────────────────────────────────────
 .const mintTxId = await client.transactions.mint({
 ..account: faucet,
 ..to: alice,
@@ -343,50 +333,31 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .for (let i = 0; i < wallets.length; i++) {
 ..console.log(\`\\nUnauthenticated tx \${i + 1}\`);
 
-..// Determine sender and receiver for this iteration
 ..const sender = i === 0 ? alice : wallets[i - 1];
 ..const receiver = wallets[i];
 
 ..console.log('Sender:', sender.id().toString());
 ..console.log('Receiver:', receiver.id().toString());
 
-..const assets = new NoteAssets([new FungibleAsset(faucet.id(), BigInt(50))]);
-..const p2idNote = Note.createP2IDNote(
-...sender.id(),
-...receiver.id(),
-...assets,
-...NoteType.Public,
-...new NoteAttachment(),
+..const { note } = await client.transactions.send({
+...account: sender,
+...to: receiver,
+...token: faucet,
+...amount: BigInt(50),
+...type: NoteVisibility.Public,
+...authenticated: false,
+...prover,
+..});
+
+..const consumeTxId = await client.transactions.consume({
+...account: receiver,
+...notes: [note],
+...prover,
+..});
+
+..console.log(
+...\`Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/\${consumeTxId.toHex()}\`,
 ..);
-
-..const outputP2ID = OutputNote.full(p2idNote);
-
-..console.log('Creating P2ID note...');
-..{
-...const builder = new TransactionRequestBuilder();
-...const request = builder.withOwnOutputNotes(new OutputNoteArray([outputP2ID])).build();
-...await client.transactions.submit(sender.id(), request, { prover });
-..}
-
-..console.log('Consuming P2ID note...');
-
-..const noteIdAndArgs = new NoteAndArgs(p2idNote, null);
-
-..const consumeBuilder = new TransactionRequestBuilder();
-..const consumeRequest = consumeBuilder.withInputNotes(new NoteAndArgsArray([noteIdAndArgs])).build();
-
-..{
-...const txId = await client.transactions.submit(
-....receiver.id(),
-....consumeRequest,
-....{ prover },
-...);
-
-...console.log(
-....\`Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/\${txId.toHex()}\`,
-...);
-..}
-
 .}
 
 .console.log('Asset transfer chain completed ✅');
