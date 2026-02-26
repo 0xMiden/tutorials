@@ -318,10 +318,10 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 .// ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
 .const mintTxId = await client.transactions.mint({
-..account: faucet.id(),
-..to: alice.id(),
+..account: faucet,
+..to: alice,
 ..amount: BigInt(10_000),
-..type: 'public',
+..type: NoteVisibility.Public,
 ..prover,
 .});
 
@@ -330,9 +330,9 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .await client.sync();
 
 .// ── Consume the freshly minted note ──────────────────────────────────────────────
-.const noteList = await client.notes.listAvailable({ account: alice.id() });
+.const noteList = await client.notes.listAvailable({ account: alice });
 .await client.transactions.consume({
-..account: alice.id(),
+..account: alice,
 ..notes: noteList.map((n) => n.inputNoteRecord()),
 ..prover,
 .});

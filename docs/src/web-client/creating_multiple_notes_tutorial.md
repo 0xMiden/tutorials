@@ -253,10 +253,10 @@ console.log('Faucet ID:', faucet.id().toString());
 
 // ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
 const mintTxId = await client.transactions.mint({
-.account: faucet.id(),
-.to: alice.id(),
+.account: faucet,
+.to: alice,
 .amount: BigInt(10_000),
-.type: 'public',
+.type: NoteVisibility.Public,
 });
 
 console.log('waiting for settlement');
@@ -264,9 +264,9 @@ await client.transactions.waitFor(mintTxId);
 await client.sync();
 
 // ── consume the freshly minted notes ──────────────────────────────────────────────
-const noteList = await client.notes.listAvailable({ account: alice.id() });
+const noteList = await client.notes.listAvailable({ account: alice });
 await client.transactions.consume({
-.account: alice.id(),
+.account: alice,
 .notes: noteList.map((n) => n.inputNoteRecord()),
 });` },
 }} reactFilename="lib/react/multiSendWithDelegatedProver.tsx" tsFilename="lib/multiSendWithDelegatedProver.ts" />
@@ -298,17 +298,17 @@ const recipientAddresses = [
 
 const p2idNotes = recipientAddresses.map((addr) =>
 .createP2IDNote({
-..from: alice.id(),
+..from: alice,
 ..to: addr,
-..assets: { token: faucet.id(), amount: BigInt(100) },
-..type: 'public',
+..assets: { token: faucet, amount: BigInt(100) },
+..type: NoteVisibility.Public,
 .}),
 );
 
 // ── create all P2ID notes ───────────────────────────────────────────────────────────────
 const builder = new TransactionRequestBuilder();
 const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
-await client.transactions.submit(alice.id(), txRequest);
+await client.transactions.submit(alice, txRequest);
 
 console.log('All notes created ✅');` },
 }} reactFilename="lib/react/multiSendWithDelegatedProver.tsx" tsFilename="lib/multiSendWithDelegatedProver.ts" />
@@ -443,10 +443,10 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
 .// ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
 .const mintTxId = await client.transactions.mint({
-..account: faucet.id(),
-..to: alice.id(),
+..account: faucet,
+..to: alice,
 ..amount: BigInt(10_000),
-..type: 'public',
+..type: NoteVisibility.Public,
 .});
 
 .console.log('waiting for settlement');
@@ -454,9 +454,9 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .await client.sync();
 
 .// ── consume the freshly minted notes ──────────────────────────────────────────────
-.const noteList = await client.notes.listAvailable({ account: alice.id() });
+.const noteList = await client.notes.listAvailable({ account: alice });
 .await client.transactions.consume({
-..account: alice.id(),
+..account: alice,
 ..notes: noteList.map((n) => n.inputNoteRecord()),
 .});
 
@@ -469,17 +469,17 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
 .const p2idNotes = recipientAddresses.map((addr) =>
 ..createP2IDNote({
-...from: alice.id(),
+...from: alice,
 ...to: addr,
-...assets: { token: faucet.id(), amount: BigInt(100) },
-...type: 'public',
+...assets: { token: faucet, amount: BigInt(100) },
+...type: NoteVisibility.Public,
 ..}),
 .);
 
 .// ── create all P2ID notes ───────────────────────────────────────────────────────────────
 .const builder = new TransactionRequestBuilder();
 .const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
-.await client.transactions.submit(alice.id(), txRequest);
+.await client.transactions.submit(alice, txRequest);
 
 .console.log('All notes created ✅');
 }` },

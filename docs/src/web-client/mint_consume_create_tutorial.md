@@ -56,10 +56,10 @@ await client.sync();
 
 console.log("Minting tokens to Alice...");
 const mintTxId = await client.transactions.mint({
-.account: faucet.id(), // Faucet account (who mints the tokens)
-.to: alice.id(), // Target account (who receives the tokens)
+.account: faucet, // Faucet account (who mints the tokens)
+.to: alice, // Target account (who receives the tokens)
 .amount: BigInt(1000), // Amount to mint (in base units)
-.type: 'public', // Note visibility (public = onchain)
+.type: NoteVisibility.Public, // Note visibility (public = onchain)
 });
 
 // Wait for the transaction to be processed
@@ -84,7 +84,7 @@ const notes = await waitForConsumableNotes({ accountId: aliceId });
 const noteIds = notes.map((n) => n.inputNoteRecord().id());
 console.log('Consumable notes:', noteIds.length);` },
 typescript: { code: `// 5. Find notes available for consumption
-const mintedNotes = await client.notes.listAvailable({ account: alice.id() });
+const mintedNotes = await client.notes.listAvailable({ account: alice });
 console.log(\`Found \${mintedNotes.length} note(s) to consume\`);
 
 console.log(
@@ -105,7 +105,7 @@ console.log('Notes consumed.');` },
 typescript: { code: `// 6. Consume the notes to add tokens to Alice's balance
 console.log('Consuming minted notes...');
 await client.transactions.consume({
-.account: alice.id(),
+.account: alice,
 .notes: mintedNotes.map((n) => n.inputNoteRecord()),
 });
 
@@ -138,11 +138,11 @@ const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
 console.log("Sending tokens to Bob's account...");
 
 await client.transactions.send({
-.account: alice.id(), // Sender account ID
+.account: alice, // Sender account ID
 .to: bobAddress, // Recipient (bech32 address)
-.token: faucet.id(), // Asset ID (faucet that created the tokens)
+.token: faucet, // Asset ID (faucet that created the tokens)
 .amount: BigInt(100), // Amount to send
-.type: 'public', // Note visibility
+.type: NoteVisibility.Public, // Note visibility
 });
 
 console.log('Tokens sent successfully!');` },
@@ -289,10 +289,10 @@ export async function createMintConsume(): Promise<void> {
 
 .console.log('Minting tokens to Alice...');
 .const mintTxId = await client.transactions.mint({
-..account: faucet.id(),
-..to: alice.id(),
+..account: faucet,
+..to: alice,
 ..amount: BigInt(1000),
-..type: 'public',
+..type: NoteVisibility.Public,
 .});
 
 .console.log('Waiting for transaction confirmation...');
@@ -300,7 +300,7 @@ export async function createMintConsume(): Promise<void> {
 .await client.sync();
 
 .// 5. Fetch minted notes
-.const mintedNotes = await client.notes.listAvailable({ account: alice.id() });
+.const mintedNotes = await client.notes.listAvailable({ account: alice });
 .console.log(
 ..'Minted notes:',
 ..mintedNotes.map((n) => n.inputNoteRecord().id().toString()),
@@ -309,7 +309,7 @@ export async function createMintConsume(): Promise<void> {
 .// 6. Consume minted notes
 .console.log('Consuming minted notes...');
 .await client.transactions.consume({
-..account: alice.id(),
+..account: alice,
 ..notes: mintedNotes.map((n) => n.inputNoteRecord()),
 .});
 
@@ -320,11 +320,11 @@ export async function createMintConsume(): Promise<void> {
 .const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
 .console.log("Sending tokens to Bob's account...");
 .await client.transactions.send({
-..account: alice.id(),
+..account: alice,
 ..to: bobAddress,
-..token: faucet.id(),
+..token: faucet,
 ..amount: BigInt(100),
-..type: 'public',
+..type: NoteVisibility.Public,
 .});
 .console.log('Tokens sent successfully!');
 }` },
