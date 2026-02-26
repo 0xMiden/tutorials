@@ -88,6 +88,7 @@ react: { code: `// lib/react/createMintConsume.tsx
 'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
+import { StorageMode } from '@miden-sdk/miden-sdk';
 
 function CreateMintConsumeInner() {
 .const { isReady } = useMiden();
@@ -123,7 +124,7 @@ export async function createMintConsume(): Promise<void> {
 .}
 
 .// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient, AccountType } =
+.const { MidenClient, AccountType, StorageMode } =
 ..await import('@miden-sdk/miden-sdk');
 
 .// Connect to Miden testnet RPC endpoint
@@ -210,7 +211,7 @@ Back in your library file, extend the function:
 react: { code: `const run = async () => {
 .// 1. Create Alice's wallet (public, mutable)
 .console.log('Creating account for Alice…');
-.const alice = await createWallet({ storageMode: 'public' });
+.const alice = await createWallet({ storageMode: StorageMode.Public });
 .console.log('Alice ID:', alice.id().toString());
 };` },
 typescript: { code: `// lib/createMintConsume.ts
@@ -234,7 +235,7 @@ export async function createMintConsume(): Promise<void> {
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
 ..type: AccountType.MutableWallet, // Mutable: account code can be upgraded later
-..storage: 'public', // Public: account state is visible on-chain
+..storage: StorageMode.Public, // Public: account state is visible on-chain
 .});
 .console.log('Alice ID:', alice.id().toString());
 }` },
@@ -253,7 +254,7 @@ const faucet = await createFaucet({
 .tokenSymbol: 'MID', // Token symbol (like ETH, BTC, etc.)
 .decimals: 8, // Decimals (8 means 1 MID = 100,000,000 base units)
 .maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
-.storageMode: 'public', // Public: faucet operations are transparent
+.storageMode: StorageMode.Public, // Public: faucet operations are transparent
 });
 console.log('Faucet account ID:', faucet.id().toString());
 
@@ -266,7 +267,7 @@ const faucetAccount = await client.accounts.create({
 .symbol: 'MID', // Token symbol (like ETH, BTC, etc.)
 .decimals: 8, // Decimals (8 means 1 MID = 100,000,000 base units)
 .maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
-.storage: 'public', // Public: faucet operations are transparent
+.storage: StorageMode.Public, // Public: faucet operations are transparent
 });
 console.log('Faucet account ID:', faucetAccount.id().toString());
 
@@ -298,6 +299,7 @@ Your final `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.t
 react: { code: `'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
+import { StorageMode } from '@miden-sdk/miden-sdk';
 
 function CreateMintConsumeInner() {
 .const { isReady } = useMiden();
@@ -307,7 +309,7 @@ function CreateMintConsumeInner() {
 .const run = async () => {
 ..// 1. Create Alice's wallet (public, mutable)
 ..console.log('Creating account for Alice…');
-..const alice = await createWallet({ storageMode: 'public' });
+..const alice = await createWallet({ storageMode: StorageMode.Public });
 ..console.log('Alice ID:', alice.id().toString());
 
 ..// 2. Deploy a fungible faucet
@@ -316,7 +318,7 @@ function CreateMintConsumeInner() {
 ...tokenSymbol: 'MID',
 ...decimals: 8,
 ...maxSupply: BigInt(1_000_000),
-...storageMode: 'public',
+...storageMode: StorageMode.Public,
 ..});
 ..console.log('Faucet ID:', faucet.id().toString());
 
@@ -347,7 +349,7 @@ export async function createMintConsume(): Promise<void> {
 .}
 
 .// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient, AccountType } =
+.const { MidenClient, AccountType, StorageMode } =
 ..await import('@miden-sdk/miden-sdk');
 
 .const client = await MidenClient.create({
@@ -362,7 +364,7 @@ export async function createMintConsume(): Promise<void> {
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
 ..type: AccountType.MutableWallet,
-..storage: 'public',
+..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());
 
@@ -373,7 +375,7 @@ export async function createMintConsume(): Promise<void> {
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),
-..storage: 'public',
+..storage: StorageMode.Public,
 .});
 .console.log('Faucet ID:', faucet.id().toString());
 

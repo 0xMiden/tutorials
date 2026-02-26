@@ -324,6 +324,7 @@ The `useSend()` hook provides a function to send tokens to other accounts.
 ```tsx
 import { useState, type ChangeEvent } from 'react';
 import { useSend, parseAssetAmount } from '@miden-sdk/react';
+import { NoteVisibility } from '@miden-sdk/miden-sdk';
 
 function SendForm({
   accountId,
@@ -336,7 +337,9 @@ function SendForm({
   const [to, setTo] = useState('');
   const [assetId, setAssetId] = useState(assets[0]?.assetId ?? '');
   const [amount, setAmount] = useState('');
-  const [noteType, setNoteType] = useState<'private' | 'public'>('private');
+  const [noteType, setNoteType] = useState<NoteVisibility>(
+    NoteVisibility.Private,
+  );
 
   const selectedAsset = assets.find((asset) => asset.assetId === assetId);
   const selectedDecimals = selectedAsset?.decimals;
@@ -462,6 +465,7 @@ import {
   useConsume,
   useSend,
 } from '@miden-sdk/react';
+import { NoteVisibility } from '@miden-sdk/miden-sdk';
 
 const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
   <div className="panel">
@@ -507,7 +511,9 @@ function Wallet({ accountId }: { accountId: string }) {
   const [to, setTo] = useState('');
   const [assetId, setAssetId] = useState('');
   const [amount, setAmount] = useState('');
-  const [noteType, setNoteType] = useState<'private' | 'public'>('private');
+  const [noteType, setNoteType] = useState<NoteVisibility>(
+    NoteVisibility.Private,
+  );
   const defaultAssetId = assets[0]?.assetId;
   const selectedAsset = assets.find((asset) => asset.assetId === assetId);
   const selectedDecimals = selectedAsset?.decimals;

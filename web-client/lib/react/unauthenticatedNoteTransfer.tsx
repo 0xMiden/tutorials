@@ -5,6 +5,7 @@
 'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useInternalTransfer, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function UnauthenticatedNoteTransferInner() {
   const { isReady } = useMiden();
@@ -19,13 +20,13 @@ function UnauthenticatedNoteTransferInner() {
   const run = async () => {
     // 1. Create Alice and 5 wallets for the transfer chain
     console.log('Creating accounts…');
-    const alice = await createWallet({ storageMode: 'public' });
+    const alice = await createWallet({ storageMode: StorageMode.Public });
     const aliceId = alice.id().toString();
     console.log('Alice account ID:', aliceId);
 
     const walletIds: string[] = [];
     for (let i = 0; i < 5; i++) {
-      const wallet = await createWallet({ storageMode: 'public' });
+      const wallet = await createWallet({ storageMode: StorageMode.Public });
       walletIds.push(wallet.id().toString());
       console.log(`Wallet ${i}:`, walletIds[i]);
     }
@@ -35,7 +36,7 @@ function UnauthenticatedNoteTransferInner() {
       tokenSymbol: 'MID',
       decimals: 8,
       maxSupply: BigInt(1_000_000),
-      storageMode: 'public',
+      storageMode: StorageMode.Public,
     });
     const faucetId = faucet.id().toString();
     console.log('Faucet ID:', faucetId);
@@ -45,7 +46,7 @@ function UnauthenticatedNoteTransferInner() {
       faucetId,
       targetAccountId: aliceId,
       amount: BigInt(10_000),
-      noteType: 'public',
+      noteType: NoteVisibility.Public,
     });
 
     console.log('Waiting for settlement…');
@@ -64,7 +65,7 @@ function UnauthenticatedNoteTransferInner() {
       recipients: walletIds,
       assetId: faucetId,
       amount: BigInt(50),
-      noteType: 'public',
+      noteType: NoteVisibility.Public,
     });
 
     results.forEach((r, i) => {

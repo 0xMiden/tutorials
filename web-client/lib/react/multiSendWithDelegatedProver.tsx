@@ -5,6 +5,7 @@
 'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function MultiSendInner() {
   const { isReady } = useMiden();
@@ -19,7 +20,7 @@ function MultiSendInner() {
   const run = async () => {
     // 1. Create Alice's wallet
     console.log('Creating account for Alice…');
-    const alice = await createWallet({ storageMode: 'public' });
+    const alice = await createWallet({ storageMode: StorageMode.Public });
     const aliceId = alice.id().toString();
     console.log('Alice account ID:', aliceId);
 
@@ -28,7 +29,7 @@ function MultiSendInner() {
       tokenSymbol: 'MID',
       decimals: 8,
       maxSupply: BigInt(1_000_000),
-      storageMode: 'public',
+      storageMode: StorageMode.Public,
     });
     const faucetId = faucet.id().toString();
     console.log('Faucet ID:', faucetId);
@@ -38,7 +39,7 @@ function MultiSendInner() {
       faucetId,
       targetAccountId: aliceId,
       amount: BigInt(10_000),
-      noteType: 'public',
+      noteType: NoteVisibility.Public,
     });
 
     console.log('Waiting for settlement…');
@@ -58,7 +59,7 @@ function MultiSendInner() {
         { to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },
         { to: 'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd', amount: BigInt(100) },
       ],
-      noteType: 'public',
+      noteType: NoteVisibility.Public,
     });
 
     console.log('All notes created ✅');

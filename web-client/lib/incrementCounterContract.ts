@@ -5,7 +5,7 @@ export async function incrementCounterContract(): Promise<void> {
     return;
   }
 
-  const { AccountType, AuthSecretKey, StorageSlot, MidenClient } =
+  const { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } =
     await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'http://localhost:57291';
@@ -60,7 +60,7 @@ export async function incrementCounterContract(): Promise<void> {
 
   const account = await client.accounts.create({
     type: AccountType.ImmutableContract,
-    storage: 'public',
+    storage: StorageMode.Public,
     seed: walletSeed,
     auth,
     components: [counterAccountComponent],

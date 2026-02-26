@@ -45,7 +45,7 @@ const mintResult = await mint({
 .faucetId, // Faucet account (who mints the tokens)
 .targetAccountId: aliceId, // Target account (who receives the tokens)
 .amount: BigInt(1000), // Amount to mint (in base units)
-.noteType: 'public', // Note visibility (public = onchain)
+.noteType: NoteVisibility.Public, // Note visibility (public = onchain)
 });
 console.log('Mint tx:', mintResult.transactionId);
 
@@ -130,7 +130,7 @@ await send({
 .to: bobAddress,
 .assetId: faucetId,
 .amount: BigInt(100),
-.noteType: 'public',
+.noteType: NoteVisibility.Public,
 });
 console.log('Tokens sent successfully!');` },
 typescript: { code: `// 7. Send tokens from Alice to Bob
@@ -164,6 +164,7 @@ Here's the complete `lib/react/createMintConsume.tsx` (React) or `lib/createMint
 react: { code: `'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function CreateMintConsumeInner() {
 .const { isReady } = useMiden();
@@ -178,7 +179,7 @@ function CreateMintConsumeInner() {
 .const run = async () => {
 ..// 1. Create Alice's wallet (public, mutable)
 ..console.log('Creating account for Alice…');
-..const alice = await createWallet({ storageMode: 'public' });
+..const alice = await createWallet({ storageMode: StorageMode.Public });
 ..const aliceId = alice.id().toString();
 ..console.log('Alice ID:', aliceId);
 
@@ -188,7 +189,7 @@ function CreateMintConsumeInner() {
 ...tokenSymbol: 'MID',
 ...decimals: 8,
 ...maxSupply: BigInt(1_000_000),
-...storageMode: 'public',
+...storageMode: StorageMode.Public,
 ..});
 ..const faucetId = faucet.id().toString();
 ..console.log('Faucet ID:', faucetId);
@@ -199,7 +200,7 @@ function CreateMintConsumeInner() {
 ...faucetId,
 ...targetAccountId: aliceId,
 ...amount: BigInt(1000),
-...noteType: 'public',
+...noteType: NoteVisibility.Public,
 ..});
 ..console.log('Mint tx:', mintResult.transactionId);
 
@@ -224,7 +225,7 @@ function CreateMintConsumeInner() {
 ...to: bobAddress,
 ...assetId: faucetId,
 ...amount: BigInt(100),
-...noteType: 'public',
+...noteType: NoteVisibility.Public,
 ..});
 ..console.log('Tokens sent successfully!');
 .};
@@ -253,7 +254,7 @@ export async function createMintConsume(): Promise<void> {
 .}
 
 .// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient, AccountType } = await import('@miden-sdk/miden-sdk');
+.const { MidenClient, AccountType, NoteVisibility, StorageMode } = await import('@miden-sdk/miden-sdk');
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -267,7 +268,7 @@ export async function createMintConsume(): Promise<void> {
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
 ..type: AccountType.MutableWallet,
-..storage: 'public',
+..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());
 
@@ -278,7 +279,7 @@ export async function createMintConsume(): Promise<void> {
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),
-..storage: 'public',
+..storage: StorageMode.Public,
 .});
 .console.log('Faucet ID:', faucet.id().toString());
 

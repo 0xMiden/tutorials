@@ -5,7 +5,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
     return;
   }
 
-  const { AccountType, AuthSecretKey, StorageSlot, MidenClient } =
+  const { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } =
     await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'http://localhost:57291';
@@ -94,7 +94,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   const counterAccount = await client.accounts.create({
     type: AccountType.ImmutableContract,
-    storage: 'public',
+    storage: StorageMode.Public,
     seed: counterSeed,
     auth: counterAuth,
     components: [counterComponent],
@@ -137,7 +137,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   const countReaderAccount = await client.accounts.create({
     type: AccountType.ImmutableContract,
-    storage: 'public',
+    storage: StorageMode.Public,
     seed: readerSeed,
     auth: readerAuth,
     components: [countReaderComponent],

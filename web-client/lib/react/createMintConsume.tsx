@@ -5,6 +5,7 @@
 'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function CreateMintConsumeInner() {
   const { isReady } = useMiden();
@@ -19,7 +20,7 @@ function CreateMintConsumeInner() {
   const run = async () => {
     // 1. Create Alice's wallet (public, mutable)
     console.log('Creating account for Alice…');
-    const alice = await createWallet({ storageMode: 'public' });
+    const alice = await createWallet({ storageMode: StorageMode.Public });
     const aliceId = alice.id().toString();
     console.log('Alice ID:', aliceId);
 
@@ -29,7 +30,7 @@ function CreateMintConsumeInner() {
       tokenSymbol: 'MID',
       decimals: 8,
       maxSupply: BigInt(1_000_000),
-      storageMode: 'public',
+      storageMode: StorageMode.Public,
     });
     const faucetId = faucet.id().toString();
     console.log('Faucet ID:', faucetId);
@@ -40,7 +41,7 @@ function CreateMintConsumeInner() {
       faucetId,
       targetAccountId: aliceId,
       amount: BigInt(1000),
-      noteType: 'public',
+      noteType: NoteVisibility.Public,
     });
     console.log('Mint tx:', mintResult.transactionId);
 
@@ -65,7 +66,7 @@ function CreateMintConsumeInner() {
       to: bobAddress,
       assetId: faucetId,
       amount: BigInt(100),
-      noteType: 'public',
+      noteType: NoteVisibility.Public,
     });
     console.log('Tokens sent successfully!');
   };

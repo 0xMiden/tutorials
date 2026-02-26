@@ -143,6 +143,7 @@ mkdir -p lib
 react: { code: `'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function MultiSendInner() {
 .const { isReady } = useMiden();
@@ -181,6 +182,8 @@ export default function MultiSendWithDelegatedProver() {
 .const {
 ..MidenClient,
 ..AccountType,
+..NoteVisibility,
+..StorageMode,
 ..createP2IDNote,
 ..OutputNoteArray,
 ..TransactionRequestBuilder,
@@ -201,7 +204,7 @@ Add the code snippet below to the function. This code creates a wallet and fauce
 <CodeSdkTabs example={{
 react: { code: `// 1. Create Alice's wallet
 console.log('Creating account for Alice…');
-const alice = await createWallet({ storageMode: 'public' });
+const alice = await createWallet({ storageMode: StorageMode.Public });
 const aliceId = alice.id().toString();
 console.log('Alice account ID:', aliceId);
 
@@ -210,7 +213,7 @@ const faucet = await createFaucet({
 .tokenSymbol: 'MID',
 .decimals: 8,
 .maxSupply: BigInt(1_000_000),
-.storageMode: 'public',
+.storageMode: StorageMode.Public,
 });
 const faucetId = faucet.id().toString();
 console.log('Faucet ID:', faucetId);
@@ -220,7 +223,7 @@ const mintResult = await mint({
 .faucetId,
 .targetAccountId: aliceId,
 .amount: BigInt(10_000),
-.noteType: 'public',
+.noteType: NoteVisibility.Public,
 });
 
 console.log('Waiting for settlement…');
@@ -234,7 +237,7 @@ await consume({ accountId: aliceId, noteIds });`},
 console.log('Creating account for Alice…');
 const alice = await client.accounts.create({
 .type: AccountType.MutableWallet,
-.storage: 'public',
+.storage: StorageMode.Public,
 });
 console.log('Alice account ID:', alice.id().toString());
 
@@ -244,7 +247,7 @@ const faucet = await client.accounts.create({
 .symbol: 'MID',
 .decimals: 8,
 .maxSupply: BigInt(1_000_000),
-.storage: 'public',
+.storage: StorageMode.Public,
 });
 console.log('Faucet ID:', faucet.id().toString());
 
@@ -282,7 +285,7 @@ await sendMany({
 ..{ to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },
 ..{ to: 'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd', amount: BigInt(100) },
 .],
-.noteType: 'public',
+.noteType: NoteVisibility.Public,
 });
 
 console.log('All notes created ✅');`},
@@ -318,6 +321,7 @@ Your library file should now look like this:
 react: { code: `'use client';
 
 import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
 
 function MultiSendInner() {
 .const { isReady } = useMiden();
@@ -332,7 +336,7 @@ function MultiSendInner() {
 .const run = async () => {
 ..// 1. Create Alice's wallet
 ..console.log('Creating account for Alice…');
-..const alice = await createWallet({ storageMode: 'public' });
+..const alice = await createWallet({ storageMode: StorageMode.Public });
 ..const aliceId = alice.id().toString();
 ..console.log('Alice account ID:', aliceId);
 
@@ -341,7 +345,7 @@ function MultiSendInner() {
 ...tokenSymbol: 'MID',
 ...decimals: 8,
 ...maxSupply: BigInt(1_000_000),
-...storageMode: 'public',
+...storageMode: StorageMode.Public,
 ..});
 ..const faucetId = faucet.id().toString();
 ..console.log('Faucet ID:', faucetId);
@@ -351,7 +355,7 @@ function MultiSendInner() {
 ...faucetId,
 ...targetAccountId: aliceId,
 ...amount: BigInt(10_000),
-...noteType: 'public',
+...noteType: NoteVisibility.Public,
 ..});
 
 ..console.log('Waiting for settlement…');
@@ -371,7 +375,7 @@ function MultiSendInner() {
 ....{ to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },
 ....{ to: 'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd', amount: BigInt(100) },
 ...],
-...noteType: 'public',
+...noteType: NoteVisibility.Public,
 ..});
 
 ..console.log('All notes created ✅');
@@ -406,6 +410,8 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .const {
 ..MidenClient,
 ..AccountType,
+..NoteVisibility,
+..StorageMode,
 ..createP2IDNote,
 ..OutputNoteArray,
 ..TransactionRequestBuilder,
@@ -421,7 +427,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
 ..type: AccountType.MutableWallet,
-..storage: 'public',
+..storage: StorageMode.Public,
 .});
 .console.log('Alice account ID:', alice.id().toString());
 
@@ -431,7 +437,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),
-..storage: 'public',
+..storage: StorageMode.Public,
 .});
 .console.log('Faucet ID:', faucet.id().toString());
 
