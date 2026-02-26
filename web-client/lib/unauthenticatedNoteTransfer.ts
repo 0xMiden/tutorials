@@ -16,7 +16,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await MidenClient.create({
-    rpcUrl: 'http://localhost:57291',
+    rpcUrl: 'local',
     proverUrl: 'local',
   });
 
