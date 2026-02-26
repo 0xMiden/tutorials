@@ -131,9 +131,8 @@ export async function foreignProcedureInvocation(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { Address, AuthSecretKey, StorageSlot, MidenClient } = await import(
-    '@miden-sdk/miden-sdk'
-  );
+  const { Address, AuthSecretKey, StorageSlot, MidenClient } =
+    await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'https://rpc.testnet.miden.io';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
@@ -299,7 +298,10 @@ export async function foreignProcedureInvocation(): Promise<void> {
   const script = await client.compile.txScript({
     code: fpiScriptCode,
     libraries: [
-      { namespace: 'external_contract::count_reader_contract', code: countReaderCode },
+      {
+        namespace: 'external_contract::count_reader_contract',
+        code: countReaderCode,
+      },
     ],
   });
 
@@ -484,7 +486,10 @@ Use `client.compile.txScript()` and pass the count reader library inline. The li
 const script = await client.compile.txScript({
   code: fpiScriptCode,
   libraries: [
-    { namespace: 'external_contract::count_reader_contract', code: countReaderCode },
+    {
+      namespace: 'external_contract::count_reader_contract',
+      code: countReaderCode,
+    },
   ],
 });
 ```

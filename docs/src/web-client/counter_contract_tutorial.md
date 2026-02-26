@@ -116,9 +116,8 @@ export async function incrementCounterContract(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { Address, AuthSecretKey, StorageSlot, MidenClient } = await import(
-    '@miden-sdk/miden-sdk'
-  );
+  const { Address, AuthSecretKey, StorageSlot, MidenClient } =
+    await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'https://rpc.testnet.miden.io';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
@@ -205,7 +204,10 @@ export async function incrementCounterContract(): Promise<void> {
   const script = await client.compile.txScript({
     code: txScriptCode,
     libraries: [
-      { namespace: 'external_contract::counter_contract', code: counterContractCode },
+      {
+        namespace: 'external_contract::counter_contract',
+        code: counterContractCode,
+      },
     ],
   });
 
@@ -348,7 +350,10 @@ Use `client.compile.txScript()` to compile a transaction script. Pass any needed
 const script = await client.compile.txScript({
   code: txScriptCode,
   libraries: [
-    { namespace: 'external_contract::counter_contract', code: counterContractCode },
+    {
+      namespace: 'external_contract::counter_contract',
+      code: counterContractCode,
+    },
   ],
 });
 ```
