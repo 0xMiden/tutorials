@@ -5,24 +5,14 @@ export async function incrementCounterContract(): Promise<void> {
     return;
   }
 
-  // dynamic import → only in the browser, so WASM is loaded client‑side
-  const {
-    Address,
-    AccountBuilder,
-    AccountComponent,
-    AccountStorageMode,
-    AccountType,
-    AuthSecretKey,
-    StorageSlot,
-    TransactionRequestBuilder,
-    WebClient,
-  } = await import('@miden-sdk/miden-sdk');
+  const { AuthSecretKey, StorageSlot, MidenClient } = await import(
+    '@miden-sdk/miden-sdk'
+  );
 
-  const nodeEndpoint = 'https://rpc.testnet.miden.io';
-  const client = await WebClient.createClient(nodeEndpoint);
-  console.log('Current block number: ', (await client.syncState()).blockNum());
+  const nodeEndpoint = 'http://localhost:57291';
+  const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
+  console.log('Current block number: ', (await client.sync()).blockNum());
 
-  // Counter contract code in Miden Assembly
   const counterContractCode = `
     use miden::protocol::active_account
     use miden::protocol::native_account
@@ -58,65 +48,27 @@ export async function incrementCounterContract(): Promise<void> {
     end
 `;
 
-  // Building the counter contract
-  // Counter contract account id on testnet
-  const counterContractId = Address.fromBech32(
-    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
-  ).accountId();
-
-  // Reading the public state of the counter contract from testnet,
-  // and importing it into the WebClient
-  let counterContractAccount = await client.getAccount(counterContractId);
-  if (!counterContractAccount) {
-    await client.importAccountById(counterContractId);
-    await client.syncState();
-    counterContractAccount = await client.getAccount(counterContractId);
-    if (!counterContractAccount) {
-      throw new Error(`Account not found after import: ${counterContractId}`);
-    }
-  }
-
-  const builder = client.createCodeBuilder();
   const counterSlotName = 'miden::tutorials::counter';
-  const counterStorageSlot = StorageSlot.emptyValue(counterSlotName);
 
-  const counterComponentCode =
-    builder.compileAccountComponentCode(counterContractCode);
-  const counterAccountComponent = AccountComponent.compile(
-    counterComponentCode,
-    [counterStorageSlot],
-  ).withSupportsAllTypes();
+  const counterAccountComponent = await client.compile.component({
+    code: counterContractCode,
+    slots: [StorageSlot.emptyValue(counterSlotName)],
+  });
 
   const walletSeed = new Uint8Array(32);
   crypto.getRandomValues(walletSeed);
+  const auth = AuthSecretKey.rpoFalconWithRNG(walletSeed);
 
-  const secretKey = AuthSecretKey.rpoFalconWithRNG(walletSeed);
-  const authComponent =
-    AccountComponent.createAuthComponentFromSecretKey(secretKey);
+  const account = await client.accounts.create({
+    type: 'ImmutableContract',
+    storage: 'public',
+    seed: walletSeed,
+    auth,
+    components: [counterAccountComponent],
+  });
 
-  const accountBuilderResult = new AccountBuilder(walletSeed)
-    .accountType(AccountType.RegularAccountImmutableCode)
-    .storageMode(AccountStorageMode.public())
-    .withAuthComponent(authComponent)
-    .withComponent(counterAccountComponent)
-    .build();
+  await client.sync();
 
-  await client.addAccountSecretKeyToWebStore(
-    accountBuilderResult.account.id(),
-    secretKey,
-  );
-  await client.newAccount(accountBuilderResult.account, false);
-
-  await client.syncState();
-
-  const accountCodeLib = builder.buildLibrary(
-    'external_contract::counter_contract',
-    counterContractCode,
-  );
-
-  builder.linkDynamicLibrary(accountCodeLib);
-
-  // Building the transaction script which will call the counter contract
   const txScriptCode = `
     use external_contract::counter_contract
     begin
@@ -124,31 +76,24 @@ export async function incrementCounterContract(): Promise<void> {
     end
 `;
 
-  const txScript = builder.compileTxScript(txScriptCode);
-  const txIncrementRequest = new TransactionRequestBuilder()
-    .withCustomScript(txScript)
-    .build();
+  const script = await client.compile.txScript({
+    code: txScriptCode,
+    libraries: [{ namespace: 'external_contract::counter_contract', code: counterContractCode }],
+  });
 
-  // Executing the transaction script against the counter contract
-  await client.submitNewTransaction(
-    counterContractAccount.id(),
-    txIncrementRequest,
-  );
+  await client.transactions.execute({
+    account: account.id(),
+    script,
+  });
 
-  // Sync state
-  await client.syncState();
+  await client.sync();
 
-  // Logging the count of counter contract
-  const counter = await client.getAccount(counterContractAccount.id());
+  console.log('Counter contract ID:', account.id().toString());
 
-  // Here we get the first Word from storage of the counter contract
-  // A word is comprised of 4 Felts, 2**64 - 2**32 + 1
+  const counter = await client.accounts.get(account.id());
   const count = counter?.storage().getItem(counterSlotName);
-
-  // Converting the Word represented as a hex to a single integer value
   const counterValue = Number(
     BigInt('0x' + count!.toHex().slice(-16).match(/../g)!.reverse().join('')),
   );
-
   console.log('Count: ', counterValue);
 }
