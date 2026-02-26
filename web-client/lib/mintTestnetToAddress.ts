@@ -13,13 +13,12 @@ export async function mintTestnetToAddress(): Promise<void> {
     NoteVisibility,
     StorageMode,
     Address,
-    TransactionProver,
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await MidenClient.create({
     rpcUrl: 'http://localhost:57291',
+    proverUrl: 'local',
   });
-  const prover = TransactionProver.newLocalProver();
 
   console.log('Latest block:', (await client.sync()).blockNum());
 
@@ -47,7 +46,6 @@ export async function mintTestnetToAddress(): Promise<void> {
     to: recipientAccountId,
     amount: BigInt(100),
     type: NoteVisibility.Public,
-    prover,
   });
 
   console.log('Waiting for settlement...');

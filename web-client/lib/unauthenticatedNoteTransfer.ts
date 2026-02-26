@@ -13,13 +13,12 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
     AccountType,
     NoteVisibility,
     StorageMode,
-    TransactionProver,
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await MidenClient.create({
     rpcUrl: 'http://localhost:57291',
+    proverUrl: 'local',
   });
-  const prover = TransactionProver.newLocalProver();
 
   console.log('Latest block:', (await client.sync()).blockNum());
 
@@ -59,7 +58,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
     to: alice,
     amount: BigInt(10_000),
     type: NoteVisibility.Public,
-    prover,
   });
 
   console.log('Waiting for settlement');
@@ -71,7 +69,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   await client.transactions.consume({
     account: alice,
     notes: noteList.map((n) => n.inputNoteRecord()),
-    prover,
   });
   await client.sync();
 
@@ -93,13 +90,11 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
       amount: BigInt(50),
       type: NoteVisibility.Public,
       authenticated: false,
-      prover,
     });
 
     const consumeTxId = await client.transactions.consume({
       account: receiver,
       notes: [note],
-      prover,
     });
 
     console.log(
