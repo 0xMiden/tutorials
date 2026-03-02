@@ -314,7 +314,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 .console.log('Waiting for settlement');
 .await client.transactions.waitFor(mintTxId);
-.await client.sync();
 
 .// ── Consume the freshly minted note ──────────────────────────────────────────────
 .const noteList = await client.notes.listAvailable({ account: alice });

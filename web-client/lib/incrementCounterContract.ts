@@ -50,8 +50,6 @@ export async function incrementCounterContract(): Promise<void> {
     script,
   });
 
-  await client.sync();
-
   console.log('Counter contract ID:', account.id().toString());
 
   const counter = await client.accounts.get(account);

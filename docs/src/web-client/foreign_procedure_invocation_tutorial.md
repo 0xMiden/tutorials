@@ -369,8 +369,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
       txId.toHex(),
   );
 
-  await client.sync();
-
   // Refresh account objects to see the results
   counterContractAccount = await client.accounts.get(counterContractAccount);
   console.log(

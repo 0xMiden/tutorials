@@ -58,7 +58,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
     script: deployScript,
     waitForConfirmation: true,
   });
-  await client.sync();
   console.log('Counter contract ID:', counterAccount.id().toString());
 
   // -------------------------------------------------------------------------
@@ -127,8 +126,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
     script,
     foreignAccounts: [counterAccount],
   });
-
-  await client.sync();
 
   countReaderAccount = await client.accounts.get(countReaderAccount);
   const countReaderStorage = countReaderAccount

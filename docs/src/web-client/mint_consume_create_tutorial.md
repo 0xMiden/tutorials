@@ -62,8 +62,7 @@ const mintTxId = await client.transactions.mint({
 
 // Wait for the transaction to be processed
 console.log("Waiting for transaction confirmation...");
-await client.transactions.waitFor(mintTxId);
-await client.sync();` },
+await client.transactions.waitFor(mintTxId);` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
 ### What's happening here?
@@ -290,7 +289,6 @@ export async function createMintConsume(): Promise<void> {
 
 .console.log('Waiting for transaction confirmation...');
 .await client.transactions.waitFor(mintTxId);
-.await client.sync();
 
 .// 5. Fetch minted notes
 .const mintedNotes = await client.notes.listAvailable({ account: alice });

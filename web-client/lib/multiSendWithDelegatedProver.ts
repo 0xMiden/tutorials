@@ -52,7 +52,6 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
   console.log('waiting for settlement');
   await client.transactions.waitFor(mintTxId);
-  await client.sync();
 
   // ── consume the freshly minted notes ──────────────────────────────────────────────
   const noteList = await client.notes.listAvailable({ account: alice });

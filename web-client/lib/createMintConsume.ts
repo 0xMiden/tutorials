@@ -46,7 +46,6 @@ export async function createMintConsume(): Promise<void> {
 
   console.log('Waiting for transaction confirmation...');
   await client.transactions.waitFor(mintTxId);
-  await client.sync();
 
   // 5. Fetch minted notes
   const mintedNotes = await client.notes.listAvailable({ account: alice });

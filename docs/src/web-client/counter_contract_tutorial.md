@@ -258,9 +258,6 @@ export async function incrementCounterContract(): Promise<void> {
     script,
   });
 
-  // Sync state
-  await client.sync();
-
   // Logging the count of counter contract
   const counter = await client.accounts.get(counterContractAccount.id());
 

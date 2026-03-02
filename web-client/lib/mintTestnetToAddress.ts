@@ -47,7 +47,6 @@ export async function mintTestnetToAddress(): Promise<void> {
 
   console.log('Waiting for settlement...');
   await client.transactions.waitFor(mintTxId);
-  await client.sync();
 
   console.log('Mint tx id:', mintTxId.toHex());
   console.log('Mint complete.');
