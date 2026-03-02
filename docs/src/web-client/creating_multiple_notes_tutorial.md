@@ -231,8 +231,7 @@ await waitForCommit(mintResult.transactionId);
 
 // 4. Consume the freshly minted notes
 const notes = await waitForConsumableNotes({ accountId: aliceId });
-const noteIds = notes.map((n) => n.inputNoteRecord().id());
-await consume({ accountId: aliceId, noteIds });`},
+await consume({ accountId: aliceId, notes });`},
   typescript: { code:`// ── Creating new account ──────────────────────────────────────────────────────
 console.log('Creating account for Alice…');
 const alice = await client.accounts.create({
@@ -267,7 +266,7 @@ await client.sync();
 const noteList = await client.notes.listAvailable({ account: alice });
 await client.transactions.consume({
 .account: alice,
-.notes: noteList.map((n) => n.inputNoteRecord()),
+.notes: noteList,
 });` },
 }} reactFilename="lib/react/multiSendWithDelegatedProver.tsx" tsFilename="lib/multiSendWithDelegatedProver.ts" />
 
@@ -363,8 +362,7 @@ function MultiSendInner() {
 
 ..// 4. Consume the freshly minted notes
 ..const notes = await waitForConsumableNotes({ accountId: aliceId });
-..const noteIds = notes.map((n) => n.inputNoteRecord().id().toString());
-..await consume({ accountId: aliceId, noteIds });
+..await consume({ accountId: aliceId, notes });
 
 ..// 5. Send 100 MID to three recipients in a single transaction
 ..await sendMany({
@@ -457,7 +455,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .const noteList = await client.notes.listAvailable({ account: alice });
 .await client.transactions.consume({
 ..account: alice,
-..notes: noteList.map((n) => n.inputNoteRecord()),
+..notes: noteList,
 .});
 
 .// ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────

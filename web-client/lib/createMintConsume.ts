@@ -54,14 +54,14 @@ export async function createMintConsume(): Promise<void> {
   const mintedNotes = await client.notes.listAvailable({ account: alice });
   console.log(
     'Minted notes:',
-    mintedNotes.map((n) => n.inputNoteRecord().id().toString()),
+    mintedNotes.map((n) => n.id().toString()),
   );
 
   // 6. Consume minted notes
   console.log('Consuming minted notes...');
   await client.transactions.consume({
     account: alice,
-    notes: mintedNotes.map((n) => n.inputNoteRecord()),
+    notes: mintedNotes,
   });
 
   await client.sync();

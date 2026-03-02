@@ -285,7 +285,7 @@ function UnclaimedNotes({
   const { consume, isLoading: isConsuming } = useConsume();
 
   const claimNote = (id: string) => () => {
-    consume({ accountId, noteIds: [id] });
+    consume({ accountId, notes: [id] });
   };
 
   return (
@@ -312,7 +312,7 @@ function UnclaimedNotes({
 
 The `useConsume()` hook returns:
 
-- `consume({ accountId, noteIds })`: Function to consume one or more notes
+- `consume({ accountId, notes })`: Function to consume one or more notes
 - `isLoading`: `true` while notes are being consumed
 
 ---
@@ -534,7 +534,7 @@ function Wallet({ accountId }: { accountId: string }) {
     }
   };
 
-  const claimNote = (id: string) => () => consume({ accountId, noteIds: [id] });
+  const claimNote = (id: string) => () => consume({ accountId, notes: [id] });
   const onAssetChange = (event: ChangeEvent<HTMLSelectElement>) =>
     setAssetId(event.target.value);
   const onNoteTypeChange = (event: ChangeEvent<HTMLSelectElement>) =>

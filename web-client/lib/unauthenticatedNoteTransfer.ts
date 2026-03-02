@@ -68,7 +68,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   const noteList = await client.notes.listAvailable({ account: alice });
   await client.transactions.consume({
     account: alice,
-    notes: noteList.map((n) => n.inputNoteRecord()),
+    notes: noteList,
   });
   await client.sync();
 

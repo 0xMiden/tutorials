@@ -81,15 +81,14 @@ To identify notes that are ready to consume, the MidenClient provides the `clien
 <CodeSdkTabs example={{
 react: { code: `// 4. Wait for consumable notes to appear
 const notes = await waitForConsumableNotes({ accountId: aliceId });
-const noteIds = notes.map((n) => n.inputNoteRecord().id());
-console.log('Consumable notes:', noteIds.length);` },
+console.log('Consumable notes:', notes.length);` },
 typescript: { code: `// 5. Find notes available for consumption
 const mintedNotes = await client.notes.listAvailable({ account: alice });
 console.log(\`Found \${mintedNotes.length} note(s) to consume\`);
 
 console.log(
 .'Minted notes:',
-.mintedNotes.map((n) => n.inputNoteRecord().id().toString()),
+.mintedNotes.map((n) => n.id().toString()),
 );` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
@@ -100,13 +99,13 @@ Now let's consume the notes to add the tokens to Alice's account balance:
 <CodeSdkTabs example={{
 react: { code: `// 5. Consume minted notes
 console.log('Consuming minted notes...');
-await consume({ accountId: aliceId, noteIds });
+await consume({ accountId: alice, notes });
 console.log('Notes consumed.');` },
 typescript: { code: `// 6. Consume the notes to add tokens to Alice's balance
 console.log('Consuming minted notes...');
 await client.transactions.consume({
 .account: alice,
-.notes: mintedNotes.map((n) => n.inputNoteRecord()),
+.notes: mintedNotes,
 });
 
 await client.sync();
@@ -209,12 +208,11 @@ function CreateMintConsumeInner() {
 
 ..// 5. Wait for consumable notes to appear
 ..const notes = await waitForConsumableNotes({ accountId: aliceId });
-..const noteIds = notes.map((n) => n.inputNoteRecord().id());
-..console.log('Consumable notes:', noteIds.length);
+..console.log('Consumable notes:', notes.length);
 
 ..// 6. Consume minted notes
 ..console.log('Consuming minted notes...');
-..await consume({ accountId: aliceId, noteIds });
+..await consume({ accountId: alice, notes });
 ..console.log('Notes consumed.');
 
 ..// 7. Send 100 tokens to Bob
@@ -303,14 +301,14 @@ export async function createMintConsume(): Promise<void> {
 .const mintedNotes = await client.notes.listAvailable({ account: alice });
 .console.log(
 ..'Minted notes:',
-..mintedNotes.map((n) => n.inputNoteRecord().id().toString()),
+..mintedNotes.map((n) => n.id().toString()),
 .);
 
 .// 6. Consume minted notes
 .console.log('Consuming minted notes...');
 .await client.transactions.consume({
 ..account: alice,
-..notes: mintedNotes.map((n) => n.inputNoteRecord()),
+..notes: mintedNotes,
 .});
 
 .await client.sync();

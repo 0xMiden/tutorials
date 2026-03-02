@@ -58,7 +58,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   const noteList = await client.notes.listAvailable({ account: alice });
   await client.transactions.consume({
     account: alice,
-    notes: noteList.map((n) => n.inputNoteRecord()),
+    notes: noteList,
   });
 
   // ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
