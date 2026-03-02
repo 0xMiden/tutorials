@@ -291,8 +291,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   console.log('Count reader contract ID:', countReaderAccount.id().toString());
 
-  await client.sync();
-
   // -------------------------------------------------------------------------
   // STEP 2: Build & Get State of the Counter Contract
   // -------------------------------------------------------------------------

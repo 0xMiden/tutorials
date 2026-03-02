@@ -31,7 +31,6 @@ export async function mintTestnetToAddress(): Promise<void> {
     storage: StorageMode.Public,
   });
   console.log('Faucet ID:', faucet.id().toString());
-  await client.sync();
 
   // ── Mint to recipient ───────────────────────────────────────────────────────
   const recipientAddress =

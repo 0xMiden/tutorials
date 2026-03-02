@@ -35,8 +35,6 @@ export async function createMintConsume(): Promise<void> {
   });
   console.log('Faucet ID:', faucet.id().toString());
 
-  await client.sync();
-
   // 4. Mint tokens to Alice
   console.log('Minting tokens to Alice...');
   const mintTxId = await client.transactions.mint({
@@ -64,7 +62,6 @@ export async function createMintConsume(): Promise<void> {
     notes: mintedNotes,
   });
 
-  await client.sync();
   console.log('Notes consumed.');
 
   // 7. Send tokens to Bob

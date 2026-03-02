@@ -1,4 +1,6 @@
 // lib/incrementCounterContract.ts
+import counterContractCode from './masm/counter_contract.masm';
+
 export async function incrementCounterContract(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('webClient() can only run in the browser');
@@ -11,41 +13,6 @@ export async function incrementCounterContract(): Promise<void> {
   const nodeEndpoint = 'http://localhost:57291';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
   console.log('Current block number: ', (await client.sync()).blockNum());
-
-  const counterContractCode = `
-    use miden::protocol::active_account
-    use miden::protocol::native_account
-    use miden::core::word
-    use miden::core::sys
-
-    const COUNTER_SLOT = word("miden::tutorials::counter")
-
-    #! Inputs:  []
-    #! Outputs: [count]
-    pub proc get_count
-        push.COUNTER_SLOT[0..2] exec.active_account::get_item
-        # => [count]
-
-        exec.sys::truncate_stack
-        # => [count]
-    end
-
-    #! Inputs:  []
-    #! Outputs: []
-    pub proc increment_count
-        push.COUNTER_SLOT[0..2] exec.active_account::get_item
-        # => [count]
-
-        add.1
-        # => [count+1]
-
-        push.COUNTER_SLOT[0..2] exec.native_account::set_item
-        # => []
-
-        exec.sys::truncate_stack
-        # => []
-    end
-`;
 
   const counterSlotName = 'miden::tutorials::counter';
 
@@ -65,8 +32,6 @@ export async function incrementCounterContract(): Promise<void> {
     auth,
     components: [counterAccountComponent],
   });
-
-  await client.sync();
 
   const txScriptCode = `
     use external_contract::counter_contract

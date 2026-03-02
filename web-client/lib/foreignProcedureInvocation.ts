@@ -83,7 +83,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
     components: [countReaderComponent],
   });
 
-  await client.sync();
   console.log('Count reader contract ID:', countReaderAccount.id().toString());
 
   // -------------------------------------------------------------------------

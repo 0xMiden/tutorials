@@ -52,8 +52,6 @@ console.log('Mint tx:', mintResult.transactionId);
 // Wait for the mint transaction to be committed
 await waitForCommit(mintResult.transactionId);`},
   typescript: { code:`// 4. Mint tokens from the faucet to Alice
-await client.sync();
-
 console.log("Minting tokens to Alice...");
 const mintTxId = await client.transactions.mint({
 .account: faucet, // Faucet account (who mints the tokens)
@@ -108,7 +106,6 @@ await client.transactions.consume({
 .notes: mintedNotes,
 });
 
-await client.sync();
 console.log('Notes consumed.');` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
@@ -281,8 +278,6 @@ export async function createMintConsume(): Promise<void> {
 .});
 .console.log('Faucet ID:', faucet.id().toString());
 
-.await client.sync();
-
 .// 4. Mint tokens to Alice
 
 .console.log('Minting tokens to Alice...');
@@ -311,7 +306,6 @@ export async function createMintConsume(): Promise<void> {
 ..notes: mintedNotes,
 .});
 
-.await client.sync();
 .console.log('Notes consumed.');
 
 .// 7. Send tokens to Bob

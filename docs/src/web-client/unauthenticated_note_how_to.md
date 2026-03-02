@@ -322,7 +322,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 ..account: alice,
 ..notes: noteList,
 .});
-.await client.sync();
 
 .// ── Create unauthenticated note transfer chain ─────────────────────────────────────────────
 .// Alice → wallet 1 → wallet 2 → wallet 3 → wallet 4
