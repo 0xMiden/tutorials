@@ -199,17 +199,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
     .getItem(countReaderSlotName);
 
   if (countReaderStorage) {
-    const countValue = Number(
-      BigInt(
-        '0x' +
-          countReaderStorage
-            .toHex()
-            .slice(-16)
-            .match(/../g)!
-            .reverse()
-            .join(''),
-      ),
-    );
+    const countValue = Number(countReaderStorage.toU64s()[3]);
     console.log('Count copied via Foreign Procedure Invocation:', countValue);
   }
 

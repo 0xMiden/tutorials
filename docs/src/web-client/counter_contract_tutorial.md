@@ -226,10 +226,7 @@ export async function incrementCounterContract(): Promise<void> {
   // A word is comprised of 4 Felts, 2**64 - 2**32 + 1
   const count = counter?.storage().getItem(counterSlotName);
 
-  // Converting the Word represented as a hex to a single integer value
-  const counterValue = Number(
-    BigInt('0x' + count!.toHex().slice(-16).match(/../g)!.reverse().join('')),
-  );
+  const counterValue = Number(count!.toU64s()[3]);
 
   console.log('Count: ', counterValue);
 }

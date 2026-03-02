@@ -91,8 +91,6 @@ export async function incrementCounterContract(): Promise<void> {
 
   const counter = await client.accounts.get(account);
   const count = counter?.storage().getItem(counterSlotName);
-  const counterValue = Number(
-    BigInt('0x' + count!.toHex().slice(-16).match(/../g)!.reverse().join('')),
-  );
+  const counterValue = Number(count!.toU64s()[3]);
   console.log('Count: ', counterValue);
 }
