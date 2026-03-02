@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
       type: "asset/resource",
     });
 
+    // Import .masm files as strings
+    config.module.rules.push({
+      test: /\.masm$/,
+      type: "asset/source",
+    });
+
     return config;
   },
 };

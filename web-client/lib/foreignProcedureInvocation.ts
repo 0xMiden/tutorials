@@ -1,4 +1,7 @@
 // lib/foreignProcedureInvocation.ts
+import counterContractCode from './masm/counter_contract.masm';
+import countReaderCode from './masm/count_reader.masm';
+
 export async function foreignProcedureInvocation(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('foreignProcedureInvocation() can only run in the browser');
@@ -11,69 +14,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
   const nodeEndpoint = 'http://localhost:57291';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
   console.log('Current block number: ', (await client.sync()).blockNum());
-
-  const counterContractCode = `
-    use miden::protocol::active_account
-    use miden::protocol::native_account
-    use miden::core::word
-    use miden::core::sys
-
-    const COUNTER_SLOT = word("miden::tutorials::counter")
-
-    #! Inputs:  []
-    #! Outputs: [count]
-    pub proc get_count
-        push.COUNTER_SLOT[0..2] exec.active_account::get_item
-        # => [count]
-
-        exec.sys::truncate_stack
-        # => [count]
-    end
-
-    #! Inputs:  []
-    #! Outputs: []
-    pub proc increment_count
-        push.COUNTER_SLOT[0..2] exec.active_account::get_item
-        # => [count]
-
-        add.1
-        # => [count+1]
-
-        push.COUNTER_SLOT[0..2] exec.native_account::set_item
-        # => []
-
-        exec.sys::truncate_stack
-        # => []
-    end
-`;
-
-  const countReaderCode = `
-    use miden::protocol::active_account
-    use miden::protocol::native_account
-    use miden::protocol::tx
-    use miden::core::word
-    use miden::core::sys
-
-    const COUNT_READER_SLOT = word("miden::tutorials::count_reader")
-
-    # => [account_id_prefix, account_id_suffix, get_count_proc_hash]
-    pub proc copy_count
-        exec.tx::execute_foreign_procedure
-        # => [count]
-
-        push.COUNT_READER_SLOT[0..2]
-        # [slot_id_prefix, slot_id_suffix, count]
-
-        exec.native_account::set_item
-        # => [OLD_VALUE]
-
-        dropw
-        # => []
-
-        exec.sys::truncate_stack
-        # => []
-    end
-`;
 
   const counterSlotName = 'miden::tutorials::counter';
   const countReaderSlotName = 'miden::tutorials::count_reader';
@@ -135,7 +75,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
   crypto.getRandomValues(readerSeed);
   const readerAuth = AuthSecretKey.rpoFalconWithRNG(readerSeed);
 
-  const countReaderAccount = await client.accounts.create({
+  let countReaderAccount = await client.accounts.create({
     type: AccountType.ImmutableContract,
     storage: StorageMode.Public,
     seed: readerSeed,
@@ -191,10 +131,8 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   await client.sync();
 
-  const updatedCountReaderContract = await client.accounts.get(
-    countReaderAccount,
-  );
-  const countReaderStorage = updatedCountReaderContract
+  countReaderAccount = await client.accounts.get(countReaderAccount);
+  const countReaderStorage = countReaderAccount
     ?.storage()
     .getItem(countReaderSlotName);
 

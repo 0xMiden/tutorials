@@ -111,12 +111,126 @@ export default function Home() {
 }
 ```
 
-## Step 3: Create the Foreign Procedure Invocation Implementation
+## Step 3: Write the MASM Contract Files
+
+The MASM (Miden Assembly) code for our smart contracts lives in separate `.masm` files. Create a `lib/masm/` directory and add the two contract files:
+
+```bash
+mkdir -p lib/masm
+```
+
+### Counter contract
+
+Create the file `lib/masm/counter_contract.masm`. This is the counter contract that was deployed in the previous tutorial. We need its source code here so we can compile it locally and obtain the procedure hash for `get_count`:
+
+```masm
+use miden::protocol::active_account
+use miden::protocol::native_account
+use miden::core::word
+use miden::core::sys
+
+const COUNTER_SLOT = word("miden::tutorials::counter")
+
+#! Inputs:  []
+#! Outputs: [count]
+pub proc get_count
+    push.COUNTER_SLOT[0..2] exec.active_account::get_item
+    # => [count]
+
+    exec.sys::truncate_stack
+    # => [count]
+end
+
+#! Inputs:  []
+#! Outputs: []
+pub proc increment_count
+    push.COUNTER_SLOT[0..2] exec.active_account::get_item
+    # => [count]
+
+    add.1
+    # => [count+1]
+
+    push.COUNTER_SLOT[0..2] exec.native_account::set_item
+    # => []
+
+    exec.sys::truncate_stack
+    # => []
+end
+```
+
+### Count reader contract
+
+Create the file `lib/masm/count_reader.masm`. This is the new "count copy" contract that reads the counter value via FPI and stores it locally:
+
+```masm
+use miden::protocol::active_account
+use miden::protocol::native_account
+use miden::protocol::tx
+use miden::core::word
+use miden::core::sys
+
+const COUNT_READER_SLOT = word("miden::tutorials::count_reader")
+
+# => [account_id_prefix, account_id_suffix, get_count_proc_hash]
+pub proc copy_count
+    exec.tx::execute_foreign_procedure
+    # => [count]
+
+    push.COUNT_READER_SLOT[0..2]
+    # [slot_id_prefix, slot_id_suffix, count]
+
+    exec.native_account::set_item
+    # => [OLD_VALUE]
+
+    dropw
+    # => []
+
+    exec.sys::truncate_stack
+    # => []
+end
+```
+
+### Type declaration
+
+Create `lib/masm/masm.d.ts` so TypeScript recognizes `.masm` imports:
+
+```ts
+declare module '*.masm' {
+  const content: string;
+  export default content;
+}
+```
+
+## Step 4: Configure Your Bundler to Import `.masm` Files
+
+We need to tell our bundler to treat `.masm` files as plain text strings. In Next.js, add an `asset/source` webpack rule.
+
+Open `next.config.ts` and add the highlighted rule inside the `webpack` callback:
+
+```ts
+webpack: (config, { isServer }) => {
+  // ... existing WASM config ...
+
+  // Import .masm files as strings
+  config.module.rules.push({
+    test: /\.masm$/,
+    type: "asset/source",
+  });
+
+  return config;
+},
+```
+
+:::tip Other bundlers
+- **Vite:** use the `?raw` suffix — `import code from './masm/counter_contract.masm?raw'`
+- **Other bundlers / no bundler:** use `fetch()` at runtime — `const code = await fetch('/masm/counter_contract.masm').then(r => r.text())`
+:::
+
+## Step 5: Create the Foreign Procedure Invocation Implementation
 
 Create the file `lib/foreignProcedureInvocation.ts` and add the following code.
 
 ```bash
-mkdir -p lib
 touch lib/foreignProcedureInvocation.ts
 ```
 
@@ -124,6 +238,9 @@ Copy and paste the following code into the `lib/foreignProcedureInvocation.ts` f
 
 ```ts
 // lib/foreignProcedureInvocation.ts
+import counterContractCode from './masm/counter_contract.masm';
+import countReaderCode from './masm/count_reader.masm';
+
 export async function foreignProcedureInvocation(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('foreignProcedureInvocation() can only run in the browser');
@@ -148,35 +265,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
   // -------------------------------------------------------------------------
   console.log('\n[STEP 1] Creating count reader contract.');
 
-  // Count reader contract code in Miden Assembly (exactly from count_reader.masm)
-  const countReaderCode = `
-    use miden::protocol::active_account
-    use miden::protocol::native_account
-    use miden::protocol::tx
-    use miden::core::word
-    use miden::core::sys
-
-    const COUNT_READER_SLOT = word("miden::tutorials::count_reader")
-
-    # => [account_id_prefix, account_id_suffix, get_count_proc_hash]
-    pub proc copy_count
-        exec.tx::execute_foreign_procedure
-        # => [count]
-
-        push.COUNT_READER_SLOT[0..2]
-        # [slot_id_prefix, slot_id_suffix, count]
-
-        exec.native_account::set_item
-        # => [OLD_VALUE]
-
-        dropw
-        # => []
-
-        exec.sys::truncate_stack
-        # => []
-    end
-`;
-
   const countReaderSlotName = 'miden::tutorials::count_reader';
   const counterSlotName = 'miden::tutorials::counter';
 
@@ -193,7 +281,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   // Create the count reader contract account
   console.log('Creating count reader contract account...');
-  const countReaderAccount = await client.accounts.create({
+  let countReaderAccount = await client.accounts.create({
     type: AccountType.ImmutableContract,
     storage: StorageMode.Public,
     seed: walletSeed,
@@ -211,7 +299,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
   console.log('\n[STEP 2] Building counter contract from public state');
 
   // Import the counter contract from testnet by its bech32 address
-  const counterContractAccount =
+  let counterContractAccount =
     await client.accounts.getOrImport('mtst1arjemrxne8lj5qz4mg9c8mtyxg954483');
   console.log(
     'Account storage slot:',
@@ -225,42 +313,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
     '\n[STEP 3] Call counter contract with FPI from count reader contract',
   );
 
-  // Counter contract code (exactly from counter.masm)
-  const counterContractCode = `
-    use miden::protocol::active_account
-    use miden::protocol::native_account
-    use miden::core::word
-    use miden::core::sys
-
-    const COUNTER_SLOT = word("miden::tutorials::counter")
-
-    #! Inputs:  []
-    #! Outputs: [count]
-    pub proc get_count
-        push.COUNTER_SLOT[0..2] exec.active_account::get_item
-        # => [count]
-
-        exec.sys::truncate_stack
-        # => [count]
-    end
-
-    #! Inputs:  []
-    #! Outputs: []
-    pub proc increment_count
-        push.COUNTER_SLOT[0..2] exec.active_account::get_item
-        # => [count]
-
-        add.1
-        # => [count+1]
-
-        push.COUNTER_SLOT[0..2] exec.native_account::set_item
-        # => []
-
-        exec.sys::truncate_stack
-        # => []
-    end
-`;
-
   // Compile the counter contract component to get the procedure hash
   const counterContractComponent = await client.compile.component({
     code: counterContractCode,
@@ -270,7 +322,9 @@ export async function foreignProcedureInvocation(): Promise<void> {
   const getCountProcHash =
     counterContractComponent.getProcedureHash('get_count');
 
-  // Build the script that calls the count reader contract
+  // Build the script that calls the count reader contract.
+  // This script uses template literals because it interpolates runtime values
+  // (procedure hash and account ID) that are only known after compilation.
   const fpiScriptCode = `
     use external_contract::count_reader_contract
     use miden::core::sys
@@ -319,25 +373,21 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   await client.sync();
 
-  // Retrieve updated contract data to see the results
-  const updatedCounterContract = await client.accounts.get(
-    counterContractAccount.id(),
-  );
+  // Refresh account objects to see the results
+  counterContractAccount = await client.accounts.get(counterContractAccount);
   console.log(
     'counter contract storage:',
-    updatedCounterContract?.storage().getItem(counterSlotName)?.toHex(),
+    counterContractAccount?.storage().getItem(counterSlotName)?.toHex(),
   );
 
-  const updatedCountReaderContract = await client.accounts.get(
-    countReaderAccount.id(),
-  );
+  countReaderAccount = await client.accounts.get(countReaderAccount);
   console.log(
     'count reader contract storage:',
-    updatedCountReaderContract?.storage().getItem(countReaderSlotName)?.toHex(),
+    countReaderAccount?.storage().getItem(countReaderSlotName)?.toHex(),
   );
 
   // Log the count value copied via FPI
-  const countReaderStorage = updatedCountReaderContract
+  const countReaderStorage = countReaderAccount
     ?.storage()
     .getItem(countReaderSlotName);
   if (countReaderStorage) {
@@ -502,11 +552,13 @@ In this tutorial we created a smart contract that calls the `get_count` procedur
 
 The key steps were:
 
-1. Creating a count reader contract with a `copy_count` procedure
-2. Importing the counter contract from the network
-3. Getting the procedure hash for the `get_count` function
-4. Building a transaction script that calls our count reader contract
-5. Executing the transaction with a foreign account reference
+1. Writing the MASM contract files (`counter_contract.masm` and `count_reader.masm`)
+2. Configuring the bundler to import `.masm` files as strings
+3. Creating a count reader contract with a `copy_count` procedure
+4. Importing the counter contract from the network
+5. Getting the procedure hash for the `get_count` function
+6. Building a transaction script that calls our count reader contract
+7. Executing the transaction with a foreign account reference
 
 ### Running the example
 
