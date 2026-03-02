@@ -12,7 +12,6 @@ export async function mintTestnetToAddress(): Promise<void> {
     AccountType,
     NoteVisibility,
     StorageMode,
-    Address,
   } = await import('@miden-sdk/miden-sdk');
 
   const client = await MidenClient.create({
@@ -37,13 +36,12 @@ export async function mintTestnetToAddress(): Promise<void> {
   // ── Mint to recipient ───────────────────────────────────────────────────────
   const recipientAddress =
     'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
-  const recipientAccountId = Address.fromBech32(recipientAddress).accountId();
-  console.log('Recipient account ID:', recipientAccountId.toString());
+  console.log('Recipient address:', recipientAddress);
 
   console.log('Minting 100 MIDEN tokens...');
   const mintTxId = await client.transactions.mint({
     account: faucet,
-    to: recipientAccountId,
+    to: recipientAddress,
     amount: BigInt(100),
     type: NoteVisibility.Public,
   });

@@ -118,7 +118,6 @@ export async function incrementCounterContract(): Promise<void> {
   // dynamic import → only in the browser, so WASM is loaded client‑side
   const {
     AccountType,
-    Address,
     AuthSecretKey,
     StorageMode,
     StorageSlot,
@@ -165,15 +164,9 @@ export async function incrementCounterContract(): Promise<void> {
     end
 `;
 
-  // Counter contract account id on testnet
-  const counterContractId = Address.fromBech32(
-    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
-  ).accountId();
-
-  // Reading the public state of the counter contract from testnet,
-  // and importing it into the client
+  // Import the counter contract from testnet by its bech32 address
   const counterContractAccount =
-    await client.accounts.getOrImport(counterContractId);
+    await client.accounts.getOrImport('mtst1arjemrxne8lj5qz4mg9c8mtyxg954483');
 
   const counterSlotName = 'miden::tutorials::counter';
 

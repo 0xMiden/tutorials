@@ -133,7 +133,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
   // dynamic import → only in the browser, so WASM is loaded client‑side
   const {
     AccountType,
-    Address,
     AuthSecretKey,
     StorageMode,
     StorageSlot,
@@ -211,14 +210,9 @@ export async function foreignProcedureInvocation(): Promise<void> {
   // -------------------------------------------------------------------------
   console.log('\n[STEP 2] Building counter contract from public state');
 
-  // Define the Counter Contract account id from counter contract deploy
-  const counterContractId = Address.fromBech32(
-    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
-  ).accountId();
-
-  // Import the counter contract
+  // Import the counter contract from testnet by its bech32 address
   const counterContractAccount =
-    await client.accounts.getOrImport(counterContractId);
+    await client.accounts.getOrImport('mtst1arjemrxne8lj5qz4mg9c8mtyxg954483');
   console.log(
     'Account storage slot:',
     counterContractAccount.storage().getItem(counterSlotName)?.toHex(),
