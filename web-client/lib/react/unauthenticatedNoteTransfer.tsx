@@ -66,7 +66,7 @@ function UnauthenticatedNoteTransferInner() {
         assetId: faucet,
         amount: BigInt(50),
         noteType: NoteVisibility.Public,
-        authenticated: false,
+        returnNote: true,
       });
 
       const result = await consume({ accountId: wallet, notes: [note!] });

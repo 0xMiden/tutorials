@@ -224,7 +224,7 @@ function UnauthenticatedNoteTransferInner() {
 ....assetId: faucet,
 ....amount: BigInt(50),
 ....noteType: NoteVisibility.Public,
-....authenticated: false,
+....returnNote: true,
 ...});
 ...const result = await consume({ accountId: wallet, notes: [note] });
 ...console.log(
@@ -339,7 +339,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 ...token: faucet,
 ...amount: BigInt(50),
 ...type: NoteVisibility.Public,
-...authenticated: false,
+...returnNote: true,
 ..});
 
 ..const consumeTxId = await client.transactions.consume({

@@ -87,7 +87,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
       token: faucet,
       amount: BigInt(50),
       type: NoteVisibility.Public,
-      authenticated: false,
+      returnNote: true,
     });
 
     const consumeTxId = await client.transactions.consume({
