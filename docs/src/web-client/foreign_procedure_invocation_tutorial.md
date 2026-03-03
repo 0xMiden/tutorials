@@ -222,9 +222,10 @@ webpack: (config, { isServer }) => {
 ```
 
 :::tip Other bundlers
+
 - **Vite:** use the `?raw` suffix — `import code from './masm/counter_contract.masm?raw'`
 - **Other bundlers / no bundler:** use `fetch()` at runtime — `const code = await fetch('/masm/counter_contract.masm').then(r => r.text())`
-:::
+  :::
 
 ## Step 5: Create the Foreign Procedure Invocation Implementation
 
@@ -248,13 +249,8 @@ export async function foreignProcedureInvocation(): Promise<void> {
   }
 
   // dynamic import → only in the browser, so WASM is loaded client‑side
-  const {
-    AccountType,
-    AuthSecretKey,
-    StorageMode,
-    StorageSlot,
-    MidenClient,
-  } = await import('@miden-sdk/miden-sdk');
+  const { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } =
+    await import('@miden-sdk/miden-sdk');
 
   const nodeEndpoint = 'https://rpc.testnet.miden.io';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
@@ -297,8 +293,9 @@ export async function foreignProcedureInvocation(): Promise<void> {
   console.log('\n[STEP 2] Building counter contract from public state');
 
   // Import the counter contract from testnet by its bech32 address
-  let counterContractAccount =
-    await client.accounts.getOrImport('mtst1arjemrxne8lj5qz4mg9c8mtyxg954483');
+  let counterContractAccount = await client.accounts.getOrImport(
+    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
+  );
   console.log(
     'Account storage slot:',
     counterContractAccount.storage().getItem(counterSlotName)?.toHex(),
