@@ -128,6 +128,26 @@ loop {
     }
 }
 ```
+If you want to verify Alice's updated balance after consuming notes, fetch the account again from the client store before checking `vault().get_balance(...)`.
+The `alice_account` variable created earlier still points to the initial in-memory account state.
+
+Add this import if it is not already present:
+
+```rust ignore
+use miden_client::store::AccountRecordData;
+```
+
+```rust ignore
+let alice_account_record = client.get_account(alice_account.id()).await?.unwrap();
+let alice_account = match alice_account_record.account_data() {
+    AccountRecordData::Full(account) => account,
+    AccountRecordData::Partial(_) => panic!("alice account is missing full account data"),
+};
+
+let alice_balance = alice_account.vault().get_balance(faucet_account.id()).unwrap();
+println!("Alice's updated balance: {:?}", alice_balance);
+```
+
 
 ## Step 4: Sending tokens to other accounts
 
