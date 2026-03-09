@@ -287,8 +287,8 @@ error: dependency 'miden:bank-account' not found
 :::tip View Complete Source
 See the complete Cargo.toml configurations:
 
-- [Deposit Note Cargo.toml](https://github.com/keinberger/miden-bank/blob/main/contracts/deposit-note/Cargo.toml)
-- [Withdraw Request Note Cargo.toml](https://github.com/keinberger/miden-bank/blob/main/contracts/withdraw-request-note/Cargo.toml)
+- [Deposit Note Cargo.toml](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/deposit-note/Cargo.toml)
+- [Withdraw Request Note Cargo.toml](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/withdraw-request-note/Cargo.toml)
   :::
 
 ## Next Steps

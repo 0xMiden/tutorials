@@ -2,6 +2,7 @@
 
 ## Repo layout
 - `docs/`: Docusaurus tutorials plus a Rust crate for doctesting tutorial markdown.
+- `examples/`: Complete example projects built with the Miden Rust compiler.
 - `rust-client/`: Rust examples that use the Miden client crates.
 - `web-client/`: Next.js 15 app for browser examples.
 - `masm/`: Miden assembly notes, accounts, and scripts used by tutorials.
@@ -35,6 +36,16 @@
 - `oracle_data_query` is skipped by default in Rust runs; request it explicitly if needed.
 - Rust runs always start with `cargo clean` for a fresh build.
 - Rust retries default to 3 attempts (override with `TUTORIAL_RETRIES=1`).
+
+## Examples
+
+### Miden Bank (`examples/miden-bank/`)
+Complete banking application built with the Miden Rust compiler. Companion code for the Building a Bank tutorial.
+
+- Build contracts: `cd contracts/<name> && miden build` (build bank-account first, then others)
+- Run integration tests: `cargo test -p integration`
+- Uses nightly Rust (configured by `rust-toolchain.toml`)
+- Contracts are excluded from the Cargo workspace (compiled with `cargo-miden`)
 
 ## Formatting
 - Markdown is formatted with Prettier using `.prettierrc`.

@@ -179,13 +179,13 @@ This tutorial covers the following Miden Rust compiler features:
 | `#[tx_script]`               | Transaction scripts for account operations                 | 6    |
 | Output Notes                 | Create notes programmatically                              | 7    |
 
-## Source Code Repository
+## Source Code
 
-The complete source code for this tutorial is available in the **[miden-bank repository](https://github.com/keinberger/miden-bank)**. You can clone it to follow along or reference the implementation:
+The complete source code for this tutorial is available in the [examples/miden-bank](https://github.com/0xMiden/miden-tutorials/tree/main/examples/miden-bank) directory of this repository:
 
 ```bash title=">_ Terminal"
-git clone https://github.com/keinberger/miden-bank.git
-cd miden-bank
+git clone https://github.com/0xMiden/miden-tutorials.git
+cd miden-tutorials/examples/miden-bank
 ```
 
 ## Supplementary Guides
@@ -202,6 +202,6 @@ If you get stuck during this tutorial:
 
 - Check the [Miden Docs](https://docs.miden.xyz) for detailed technical references
 - Join the [Build On Miden](https://t.me/BuildOnMiden) Telegram community for support
-- Review the complete code in the [miden-bank repository](https://github.com/keinberger/miden-bank)
+- Review the complete code in the [examples/miden-bank](https://github.com/0xMiden/miden-tutorials/tree/main/examples/miden-bank) directory
 
 Ready to build your first Miden banking application? Let's get started with [Part 0: Project Setup](./00-project-setup.md)!

@@ -583,9 +583,9 @@ Use these patterns to build:
 :::tip View Complete Source
 Explore the complete banking application:
 
-- [All Contracts](https://github.com/keinberger/miden-bank/tree/main/contracts)
-- [Integration Tests](https://github.com/keinberger/miden-bank/tree/main/integration/tests)
-- [Test Helpers](https://github.com/keinberger/miden-bank/blob/main/integration/src/helpers.rs)
+- [All Contracts](https://github.com/0xMiden/miden-tutorials/tree/main/examples/miden-bank/contracts)
+- [Integration Tests](https://github.com/0xMiden/miden-tutorials/tree/main/examples/miden-bank/integration/tests)
+- [Test Helpers](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/integration/src/helpers.rs)
   :::
 
 Happy building on Miden! 🚀

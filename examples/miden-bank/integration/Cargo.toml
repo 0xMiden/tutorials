@@ -1,0 +1,15 @@
+[package]
+name = "integration"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+cargo-miden = { version = "0.7" }
+miden-client = { version = "0.13", features = ["tonic", "testing"] }
+miden-client-sqlite-store = { version = "0.13", package = "miden-client-sqlite-store" }
+miden-core = { version = "0.20" }
+miden-testing = "0.13"
+miden-mast-package = { version = "0.20", default-features = false }
+tokio = { version = "1.40", features = ["rt-multi-thread", "net", "macros", "fs"] }
+rand = { version = "0.9" }
+anyhow = "1.0"
