@@ -312,7 +312,9 @@ _Don't run this code just yet, we still need to create our smart contract that q
 
 In the code above, we specified the Pragma oracle account id `0x4f67e78643022e00000220d8997e33` and the BTC/USD pair `120195681`. The `get_oracle_foreign_accounts` function returns all of the `ForeignAccounts` that you will need to execute the transaction to get the price data from the oracle. Since Pragma's oracle depends on multiple publishers, this function queries all of the publisher account ids required to make a successful FPI call.
 
-To learn more about Pragma's oracle architecture, you can look at the source code here: https://github.com/astraly-labs/pragma-miden
+:::note
+The oracle account ID, procedure hash, and trading pair ID used in this tutorial reference Pragma's testnet deployment. These values are maintained by Pragma and may change if they redeploy their oracle. For the latest values, check the [Pragma Miden repository](https://github.com/astraly-labs/pragma-miden).
+:::
 
 ## Step 2: Build the price reader smart contract and script
 
@@ -344,7 +346,7 @@ The import `miden::tx` contains the `tx::execute_foreign_procedure` which we wil
 
 1. Pushes `0.0.0.120195681` onto the stack, representing the BTC/USD pair in the Pragma oracle.
 2. Pushes `0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9` onto the stack which is the procedure root of the `get_median` procedure in the oracle.
-3. Pushes `599064613630720.5721796415433354752` onto the stack which is the oracle id prefix and suffix.
+3. Pushes `939716883672832.2172042075194638080` onto the stack which is the oracle id prefix and suffix.
 4. Calls `tx::execute_foreign_procedure` which calls the `get_median` procedure via foreign procedure invocation.
 
 Inside of the `masm/accounts/` directory, create the `oracle_reader.masm` file:

@@ -1,6 +1,10 @@
+# The oracle account ID, procedure hash, and pair ID below reference
+# Pragma's testnet deployment (https://github.com/astraly-labs/pragma-miden).
+# If Pragma redeploys their oracle, these values must be updated.
+
 use miden::protocol::tx
 
-# Fetches the current price from the `get_median` 
+# Fetches the current price from the `get_median`
 # procedure from the Pragma oracle
 # => []
 pub proc get_price

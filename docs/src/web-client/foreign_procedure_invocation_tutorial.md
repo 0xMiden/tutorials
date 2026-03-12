@@ -294,7 +294,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
 
   // Import the counter contract from testnet by its bech32 address
   let counterContractAccount = await client.accounts.getOrImport(
-    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
+    'mtst1az62d8rhnf00kqp80k3klwy56c6w9gvm',
   );
   console.log(
     'Account storage slot:',
