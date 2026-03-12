@@ -60,7 +60,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Define the Counter Contract account id from counter contract deploy
     let (_, counter_contract_id) =
-        AccountId::from_bech32("mtst1apfclszryn8a5qqae6sa6hscfgn4mnqp").unwrap();
+        AccountId::from_bech32("mtst1az62d8rhnf00kqp80k3klwy56c6w9gvm").unwrap();
 
     client
         .import_account_by_id(counter_contract_id)
