@@ -612,7 +612,7 @@ impl Bank {
 6. **CRITICAL: Always validate before subtraction** - Felt arithmetic wraps silently!
 
 :::tip View Complete Source
-See the complete deposit and withdraw implementations in the [miden-bank repository](https://github.com/keinberger/miden-bank/blob/main/contracts/bank-account/src/lib.rs).
+See the complete deposit and withdraw implementations in [contracts/bank-account/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/bank-account/src/lib.rs).
 :::
 
 ## Next Steps

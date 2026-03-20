@@ -419,7 +419,7 @@ impl Bank {
 5. **Public methods** are callable by other contracts via generated bindings
 
 :::tip View Complete Source
-See the complete bank account implementation in the [miden-bank repository](https://github.com/keinberger/miden-bank/blob/main/contracts/bank-account/src/lib.rs).
+See the complete bank account implementation in [contracts/bank-account/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/bank-account/src/lib.rs).
 :::
 
 ## Next Steps

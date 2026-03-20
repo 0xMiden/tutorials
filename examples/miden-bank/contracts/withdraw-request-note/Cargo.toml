@@ -1,0 +1,23 @@
+[package]
+name = "withdraw-request-note"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+miden = { version = "0.10" }
+
+[package.metadata.component]
+package = "miden:withdraw-request-note"
+
+# Miden dependencies for cargo-miden build/linking
+[package.metadata.miden.dependencies]
+"miden:bank-account" = { path = "../bank-account" }
+
+[package.metadata.component.target.dependencies]
+"miden:bank-account" = { path = "../bank-account/target/generated-wit/" }
+
+[package.metadata.miden]
+project-kind = "note-script"

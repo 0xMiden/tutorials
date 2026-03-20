@@ -486,7 +486,7 @@ project-kind = "transaction-script"
 5. **Dependencies** - Same Cargo.toml configuration as note scripts
 
 :::tip View Complete Source
-See the complete transaction script implementation in the [miden-bank repository](https://github.com/keinberger/miden-bank/blob/main/contracts/init-tx-script/src/lib.rs).
+See the complete transaction script implementation in [contracts/init-tx-script/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/init-tx-script/src/lib.rs).
 :::
 
 ## Next Steps
