@@ -44,7 +44,7 @@ This tutorial assumes you have a basic understanding of Miden assembly and compl
 1. Create a new Next.js app with TypeScript:
 
    ```bash
-   yarn create next-app@latest miden-fpi-app --typescript
+   npx create-next-app@latest miden-fpi-app --typescript
    ```
 
    Hit enter for all terminal prompts.

@@ -43,7 +43,7 @@ First, create a new Vite + React project and install the Miden React SDK.
 1. Create a new Vite project with React and TypeScript:
 
    ```bash
-   yarn create vite miden-wallet --template react-ts
+   npx create-vite@latest miden-wallet --template react-ts
    cd miden-wallet
    ```
 

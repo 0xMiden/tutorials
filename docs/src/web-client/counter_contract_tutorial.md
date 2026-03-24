@@ -29,7 +29,7 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 1. Create a new Next.js app with TypeScript:
 
    ```bash
-   yarn create next-app@latest miden-web-app --typescript
+   npx create-next-app@latest miden-web-app --typescript
    ```
 
    Hit enter for all terminal prompts.

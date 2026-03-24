@@ -47,7 +47,7 @@ proving service. This means your browser never has to generate the full ZK proof
 1. Create a new Next.js app with TypeScript:
 
    ```bash
-   yarn create next-app@latest miden-web-app --typescript
+   npx create-next-app@latest miden-web-app --typescript
    ```
 
    Hit enter for all terminal prompts.
