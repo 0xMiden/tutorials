@@ -68,9 +68,11 @@ P2ID (Pay-to-ID) is a standard note pattern in Miden that sends assets to a spec
 - **Asset transfer**: Assets are transferred on consumption
 - **Standard script**: Uses a well-known script from miden-standards
 
-## Step 1: Add Withdraw Method to Bank Account
+## Step 1: Complete the Withdraw Method
 
-First, let's add the `withdraw()` method to your bank account. Update `contracts/bank-account/src/lib.rs`:
+In Part 3, we introduced `withdraw()` and `create_p2id_note()` as skeletons. Now we'll complete them with full implementations.
+
+Update `contracts/bank-account/src/lib.rs`:
 
 ```rust title="contracts/bank-account/src/lib.rs"
 #[component]
@@ -104,6 +106,12 @@ impl Bank {
 
         // Extract the fungible amount from the asset
         let withdraw_amount = withdraw_asset.inner[0];
+
+        // Verify this is a fungible asset (inner[1] must be 0 for fungible assets)
+        assert!(
+            withdraw_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
 
         // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([
@@ -166,7 +174,7 @@ This digest is specific to miden-standards version. If the P2ID script changes i
 
 ## Step 3: Implement create_p2id_note
 
-Add the private method that creates the output note:
+This replaces the `todo!()` placeholder from Part 3. Add the full implementation:
 
 ```rust title="contracts/bank-account/src/lib.rs"
 #[component]
@@ -283,25 +291,9 @@ project-kind = "note-script"
 "miden:bank-account" = { path = "../bank-account/target/generated-wit/" }
 ```
 
-### Update Workspace
-
-Add to your root `Cargo.toml`:
-
-```toml title="Cargo.toml"
-[workspace]
-members = [
-    "integration"
-]
-exclude = [
-    "contracts/",
-]
-resolver = "2"
-
-[workspace.package]
-edition = "2021"
-
-[workspace.dependencies]
-```
+:::note Workspace Unchanged
+The root `Cargo.toml` does not need updating — all contracts are excluded via the `contracts/` glob pattern (see Part 0).
+:::
 
 ## Step 5: Implement the Withdraw Request Note Script
 

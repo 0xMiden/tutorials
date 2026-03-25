@@ -29,14 +29,14 @@ In Part 4, you wrote `bank_account::deposit(depositor, asset)` in the deposit no
 │   bank-account/                                            │
 │   └── src/lib.rs         miden build                       │
 │       pub fn deposit()  ─────────────▶  generated-wit/     │
-│       pub fn withdraw()                  miden_bank-account.wit
+│       pub fn withdraw()                  miden-bank-account.wit
 │                                                            │
 │                              ┌───────────────────────────┐ │
 │                              ▼                           │ │
 │   deposit-note/                                          │ │
 │   └── src/lib.rs                                         │ │
 │       use crate::bindings::miden::bank_account::bank_account;
-│       bank_account::deposit(...) ◄───── calls via binding │
+│       bank_account::deposit(...)  ─────▶ calls via binding │
 │                                                            │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -48,14 +48,14 @@ When you build an account component with `miden build`, it generates:
 1. **MASM code** - The compiled contract logic
 2. **WIT files** - WebAssembly Interface Type definitions
 
-Other contracts (note scripts, transaction scripts) import these WIT files to call the account's methods.
+Other components (note scripts, transaction scripts) import these WIT files to call the account's methods.
 
 ```text
 Build Flow:
 ┌──────────────────┐    miden build    ┌─────────────────────────────────┐
 │ bank-account/    │ ─────────────────▶│ target/generated-wit/           │
-│  src/lib.rs      │                   │  miden_bank-account.wit         │
-│                  │                   │  miden_bank-account_world.wit   │
+│  src/lib.rs      │                   │  miden-bank-account.wit         │
+│                  │                   │  miden-bank-account_world.wit   │
 └──────────────────┘                   └─────────────────────────────────┘
                                                       │
                                                       ▼
@@ -191,7 +191,7 @@ impl Bank {
 
 The WIT files describe the interface. Here's a simplified example:
 
-```wit title="target/generated-wit/miden_bank-account.wit"
+```wit title="target/generated-wit/miden-bank-account.wit"
 interface bank-account {
     use miden:types/types.{account-id, asset, felt, word};
 
@@ -233,8 +233,8 @@ ls contracts/bank-account/target/generated-wit/
 <summary>Expected output</summary>
 
 ```text
-miden_bank-account.wit
-miden_bank-account_world.wit
+miden-bank-account.wit
+miden-bank-account_world.wit
 ```
 
 </details>

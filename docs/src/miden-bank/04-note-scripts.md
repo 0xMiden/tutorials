@@ -46,7 +46,7 @@ Part 3:                          Part 4:
 | Storage     | Has persistent storage    | No storage (reads from note data)          |
 | Attribute   | `#[component]`            | `#[note]` struct + `#[note_script]` method |
 | Entry point | Methods on struct         | `fn run(self, _arg: Word)`                 |
-| Invocation  | Called by other contracts | Executes when note is consumed             |
+| Invocation  | Called by other components | Executes when note is consumed             |
 
 Note scripts are like "messages" that carry code along with data and assets.
 
@@ -136,6 +136,10 @@ impl DepositNote {
 }
 ```
 
+:::info Cross-Component Calls
+The `crate::bindings::miden::bank_account::bank_account` import and `bank_account::deposit()` call use Miden's cross-component binding system. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). For now, just know that building `bank-account` first generates WIT files that `deposit-note` imports.
+:::
+
 ### The #[note] and #[note_script] Attributes
 
 The `#[note]` attribute is applied to both a unit struct and its `impl` block to define a note script. Within the `impl` block, the `#[note_script]` attribute marks the entry point method. The function signature is always:
@@ -181,27 +185,11 @@ let first_input = inputs[0];
 
 Returns a vector of `Felt` values passed when the note was created. We'll use inputs in the withdraw request note (Part 7).
 
-## Step 4: Update the Workspace
+## Step 4: Build the Note Script
 
-Update the root `Cargo.toml` to include the new contract:
-
-```toml title="Cargo.toml" {5}
-[workspace]
-members = [
-    "integration"
-]
-exclude = [
-    "contracts/",
-]
-resolver = "2"
-
-[workspace.package]
-edition = "2021"
-
-[workspace.dependencies]
-```
-
-## Step 5: Build the Note Script
+:::note Workspace Unchanged
+The root `Cargo.toml` does not need updating — all contracts are excluded via the `contracts/` glob pattern (see Part 0).
+:::
 
 :::info Build Order Matters
 Build account components **first** before building note scripts that depend on them. The note script needs the generated WIT files from the account.
@@ -257,7 +245,24 @@ Creating Miden package /path/to/miden-bank/target/miden/release/deposit_note.mas
 
 ## Try It: Verify Deposits Work
 
-Now let's write a test to verify the complete deposit flow. This test:
+First, verify your deposit-note builds successfully:
+
+```bash title=">_ Terminal"
+# Ensure bank-account is built first
+cd contracts/bank-account && miden build
+
+# Then build deposit-note
+cd ../deposit-note && miden build
+```
+
+:::note Test Dependencies
+The full deposit test below requires the `init-tx-script` contract from Part 6. You can return to run this test after completing Part 6.
+:::
+
+<details>
+<summary>Preview: Full deposit note test (runnable after Part 6)</summary>
+
+This test verifies the complete deposit flow:
 
 1. Initializes the bank
 2. Creates a deposit note with tokens
@@ -406,16 +411,7 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
 }
 ```
 
-:::note Dependencies
-This test requires the `init-tx-script` contract which we'll create in Part 6. You can either:
-
-1. Skip ahead to create a minimal init-tx-script (see Part 6)
-2. Run this test after completing Part 6
-
-For now, verify that your deposit-note builds successfully.
-:::
-
-Run the test from the project root (after creating init-tx-script in Part 6):
+Run the test from the project root:
 
 ```bash title=">_ Terminal"
 cargo test --package integration test_deposit_note_credits_depositor -- --nocapture
@@ -439,6 +435,8 @@ test test_deposit_note_credits_depositor ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```
+
+</details>
 
 </details>
 

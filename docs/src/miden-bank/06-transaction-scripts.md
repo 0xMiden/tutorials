@@ -101,27 +101,11 @@ Key configuration:
 - `project-kind = "transaction-script"` - Marks this as a transaction script (not "account" or "note")
 - Dependencies reference the account component (same pattern as note scripts)
 
-## Step 3: Add to Workspace
+:::note Workspace Unchanged
+The root `Cargo.toml` does not need updating — all contracts are excluded via the `contracts/` glob pattern (see Part 0).
+:::
 
-Update your root `Cargo.toml` to include the new project:
-
-```toml title="Cargo.toml"
-[workspace]
-members = [
-    "integration"
-]
-exclude = [
-    "contracts/",
-]
-resolver = "2"
-
-[workspace.package]
-edition = "2021"
-
-[workspace.dependencies]
-```
-
-## Step 4: Implement the Transaction Script
+## Step 3: Implement the Transaction Script
 
 Create the initialization script:
 
@@ -193,7 +177,7 @@ The `Account` wrapper provides:
 - Proper mutable/immutable borrowing
 - Automatic context binding
 
-## Step 5: Build the Transaction Script
+## Step 4: Build the Transaction Script
 
 Build in dependency order:
 
@@ -403,6 +387,10 @@ test result: ok. 1 passed; 0 failed; 0 ignored
 ```
 
 </details>
+
+:::tip Expected Output
+Your actual output may include additional trace lines from the Miden VM or MockChain. As long as you see the test passing, these can be safely ignored.
+:::
 
 :::tip Troubleshooting
 **"Cannot find module bindings"**: The bank-account wasn't built. Run `miden build` in `contracts/bank-account` first.

@@ -94,6 +94,14 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     let deposit_amount = deposit_asset.inner[0];
 
     // ========================================================================
+    // CONSTRAINT: Fungible asset check
+    // ========================================================================
+    assert!(
+        deposit_asset.inner[1].as_u64() == 0,
+        "Only fungible assets are supported"
+    );
+
+    // ========================================================================
     // CONSTRAINT: Maximum deposit amount check
     // ========================================================================
     assert!(
@@ -192,6 +200,12 @@ pub fn withdraw(
     // Extract the fungible amount from the asset
     let withdraw_amount = withdraw_asset.inner[0];
 
+    // Verify this is a fungible asset
+    assert!(
+        withdraw_asset.inner[1].as_u64() == 0,
+        "Only fungible assets are supported"
+    );
+
     // Create key from depositor's AccountId and asset faucet ID
     let key = Word::from([
         depositor.prefix,
@@ -252,7 +266,25 @@ miden build
 
 ## Try It: Verify Deposits Work
 
-Let's write a test to verify our deposit logic works correctly:
+First, verify your bank-account contract compiles:
+
+```bash title=">_ Terminal"
+cd contracts/bank-account
+miden build
+```
+
+:::note Test Dependencies
+The full deposit test below requires contracts from later parts:
+- `deposit-note` (Part 4)
+- `init-tx-script` (Part 6)
+
+You can return to run this test after completing Part 6.
+:::
+
+<details>
+<summary>Preview: Full deposit test (runnable after Part 6)</summary>
+
+This test verifies the complete deposit flow:
 
 ```rust title="integration/tests/part3_deposit_test.rs"
 use integration::helpers::{
@@ -411,23 +443,7 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
 }
 ```
 
-:::note Test Dependencies
-This test requires:
-
-- `deposit-note` contract (Part 4)
-- `init-tx-script` contract (Part 6)
-
-If you haven't created these yet, you can run this test after completing Parts 4 and 6, or create placeholder contracts. For now, let's verify the bank-account compiles correctly.
-:::
-
-Build verification:
-
-```bash title=">_ Terminal"
-cd contracts/bank-account
-miden build
-```
-
-If you have the note scripts ready, run the full test from the project root:
+Run the test from the project root:
 
 ```bash title=">_ Terminal"
 cargo test --package integration test_deposit_updates_balance -- --nocapture
@@ -451,6 +467,8 @@ test test_deposit_updates_balance ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```
+
+</details>
 
 </details>
 
@@ -535,6 +553,11 @@ impl Bank {
         let deposit_amount = deposit_asset.inner[0];
 
         assert!(
+            deposit_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
+
+        assert!(
             deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
             "Deposit amount exceeds maximum allowed"
         );
@@ -565,6 +588,11 @@ impl Bank {
         self.require_initialized();
 
         let withdraw_amount = withdraw_asset.inner[0];
+
+        assert!(
+            withdraw_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
 
         let key = Word::from([
             depositor.prefix,

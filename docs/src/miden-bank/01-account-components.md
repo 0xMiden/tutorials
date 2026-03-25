@@ -69,7 +69,7 @@ struct Bank {
 }
 ```
 
-We've added a `StorageMap` that will track each depositor's balance. The compiler auto-assigns slot numbers based on field order.
+We've added a `StorageMap` that will track each depositor's balance. The compiler derives slot IDs by hashing slot names (not by field declaration order). Slot names follow the pattern `miden::component::{component_name}::{field_name}`.
 
 ## Storage Types Explained
 
@@ -149,7 +149,7 @@ Plan your storage layout carefully:
 | `initialized` | `Value`      | Initialization flag |
 | `balances`    | `StorageMap` | Depositor balances  |
 
-The `description` attribute generates named slot identifiers (e.g., `miden::component::miden_bank_account::initialized`) used in tests to reference specific slots. The compiler auto-assigns slot numbers based on field order.
+The `description` attribute generates named slot identifiers (e.g., `miden::component::miden_bank_account::initialized`) used in tests to reference specific slots. The compiler derives slot IDs by hashing these names, so field declaration order does not affect slot assignment.
 
 ## Step 2: Implement Component Methods
 
@@ -191,9 +191,11 @@ impl Bank {
 }
 ```
 
+We'll use `require_initialized()` as a guard in Part 2 to enforce that the bank is initialized before deposits are accepted.
+
 ### Public vs Private Methods
 
-- **Public methods** (`pub fn`) are exposed in the generated WIT interface and can be called by other contracts
+- **Public methods** (`pub fn`) are exposed in the generated WIT interface and can be called by other components
 - **Private methods** (`fn`) are internal and cannot be called from outside
 
 ```rust
@@ -415,7 +417,7 @@ impl Bank {
 1. **`#[component]`** marks structs and impl blocks as Miden account components
 2. **`Value`** stores a single Word, read with `.read()`, write with `.write()`
 3. **`StorageMap`** stores key-value pairs, access with `.get()` and `.set()`
-4. **Storage slots** are identified by name (auto-assigned by compiler), each holds 4 Felts (32 bytes)
+4. **Storage slots** are identified by name (IDs derived from hashed slot names), each holds 4 Felts (32 bytes)
 5. **Public methods** are callable by other contracts via generated bindings
 
 :::tip View Complete Source

@@ -134,6 +134,12 @@ impl Bank {
         // Asset inner layout for fungible: [amount, 0, faucet_suffix, faucet_prefix]
         let deposit_amount = deposit_asset.inner[0];
 
+        // Verify this is a fungible asset (inner[1] must be 0 for fungible assets)
+        assert!(
+            deposit_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
+
         // Validate deposit amount does not exceed maximum
         assert!(
             deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
@@ -185,6 +191,12 @@ impl Bank {
 
         // Extract the fungible amount from the asset
         let withdraw_amount = withdraw_asset.inner[0];
+
+        // Verify this is a fungible asset (inner[1] must be 0 for fungible assets)
+        assert!(
+            withdraw_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
 
         // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([
