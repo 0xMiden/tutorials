@@ -605,7 +605,7 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 Run the test from the project root:
 
 ```bash title=">_ Terminal"
-cargo test --package integration test_withdraw_creates_p2id_note -- --nocapture
+cargo test --package integration --test withdraw_test -- --nocapture
 ```
 
 <details>

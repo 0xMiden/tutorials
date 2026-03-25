@@ -439,7 +439,7 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
 Run the complete test from the project root:
 
 ```bash title=">_ Terminal"
-cargo test --package integration test_complete_bank_flow -- --nocapture
+cargo test --package integration --release -- --nocapture
 ```
 
 <details>

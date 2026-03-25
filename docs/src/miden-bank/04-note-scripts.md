@@ -414,7 +414,7 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
 Run the test from the project root:
 
 ```bash title=">_ Terminal"
-cargo test --package integration test_deposit_note_credits_depositor -- --nocapture
+cargo test --package integration --test deposit_test -- --nocapture
 ```
 
 <details>

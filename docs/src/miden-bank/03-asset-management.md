@@ -463,7 +463,7 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
 Run the test from the project root:
 
 ```bash title=">_ Terminal"
-cargo test --package integration test_deposit_updates_balance -- --nocapture
+cargo test --package integration --test deposit_test -- --nocapture
 ```
 
 <details>
