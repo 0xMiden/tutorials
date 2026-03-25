@@ -459,8 +459,8 @@ struct WithdrawRequestNote;
 impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
-        let depositor = active_note::get_sender();
         let inputs = active_note::get_inputs();
+        assert!(inputs.len() >= 10, "Withdraw request requires 10 inputs");
 
         // Parse parameters from inputs
         let withdraw_asset = Asset::new(Word::from([
@@ -474,7 +474,8 @@ impl WithdrawRequestNote {
         let tag = inputs[8];
         let note_type = inputs[9];
 
-        bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
+        // The bank identifies the depositor internally via active_note::get_sender()
+        bank_account::withdraw(withdraw_asset, serial_num, tag, note_type);
     }
 }
 ```

@@ -167,13 +167,18 @@ impl Bank {
         self.initialized.write(initialized_word);
     }
 
-    /// Get the balance for a depositor.
+    /// Get the balance for a depositor and specific asset type.
     ///
-    /// This method is required for the component to compile correctly -
-    /// account components must use WIT binding types (like AccountId)
+    /// This method is also required for the component to compile correctly -
+    /// account components must use WIT binding types (like AccountId, Asset)
     /// in at least one public method.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.inner[3], // faucet prefix
+            asset.inner[2], // faucet suffix
+        ]);
         self.balances.get(&key)
     }
 }
@@ -185,7 +190,7 @@ This is our starting point with two storage slots:
 - `balances`: A `StorageMap` to track user balances (we'll use this starting in Part 1)
 
 :::note Compiler Requirement
-Account components must use WIT binding types (like `AccountId`, `Asset`, etc.) in at least one public method signature for the compiler to generate the required bindings correctly. The `get_balance` method serves this purpose.
+Account components must use WIT binding types (like `AccountId`, `Asset`, etc.) in at least one public method signature for the compiler to generate the required bindings correctly. The `get_balance` method serves this purpose with both `AccountId` and `Asset`.
 :::
 
 ## Step 4: Verify the Workspace Configuration

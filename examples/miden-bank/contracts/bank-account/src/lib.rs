@@ -110,15 +110,21 @@ impl Bank {
         ]))
     }
 
-    /// Get the balance for a depositor.
+    /// Get the balance for a depositor and specific asset type.
     ///
     /// # Arguments
     /// * `depositor` - The AccountId to query the balance for
+    /// * `asset` - The asset type to query (used to derive the faucet key)
     ///
     /// # Returns
     /// The depositor's current balance as a Felt
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.inner[3], // faucet prefix
+            asset.inner[2], // faucet suffix
+        ]);
         self.balances.get(&key)
     }
 

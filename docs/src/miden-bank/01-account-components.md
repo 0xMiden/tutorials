@@ -6,29 +6,32 @@ description: "Learn how to define account components with the #[component] attri
 
 # Part 1: Account Components and Storage
 
-In this section, you'll learn the fundamentals of building Miden account components. We'll expand our Bank to include balance tracking with a `StorageMap`, giving us the foundation for deposits and withdrawals.
+In this section, you'll learn the fundamentals of building Miden account components. We'll explore the storage types introduced in Part 0 — `Value` and `StorageMap` — and add component methods.
 
 ## What You'll Build in This Part
 
 By the end of this section, you will have:
 
 - Understood the `#[component]` attribute and what it generates
-- Added a `StorageMap` for tracking depositor balances
+- Explored how `StorageMap` works for tracking depositor balances
 - Implemented a `get_balance()` query method
-- **Verified it works** with a MockChain test
+- **Verified it works** with an integration test
 
 ## Building on Part 0
 
-In Part 0, we created a minimal bank with just an `initialized` flag. Now we'll add balance tracking:
+In Part 0, we created the Bank struct with `initialized` and `balances` storage. Now we'll explore the storage types in detail and add methods:
 
 ```text
 Part 0:                          Part 1:
-┌────────────────────┐             ┌──────────────────────────┐
-│ Bank               │             │ Bank                     │
-│ ─────────────────  │    ──►      │ ──────────────────────── │
-│ initialized (Value)│             │ initialized (Value)      │
-│                    │             │ balances (StorageMap)    │ ◄── NEW
-└────────────────────┘             └──────────────────────────┘
+┌──────────────────────────┐     ┌──────────────────────────┐
+│ Bank                     │     │ Bank                     │
+│ ──────────────────────── │ ──► │ ──────────────────────── │
+│ initialized (Value)      │     │ initialized (Value)      │
+│ balances (StorageMap)    │     │ balances (StorageMap)    │
+└──────────────────────────┘     │ + initialize()           │
+                                 │ + get_balance()          │ ◄── NEW
+                                 │ + require_initialized()  │
+                                 └──────────────────────────┘
 ```
 
 ## The #[component] Attribute
@@ -175,9 +178,14 @@ impl Bank {
         self.initialized.write(initialized_word);
     }
 
-    /// Get the balance for a depositor.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    /// Get the balance for a depositor and specific asset type.
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.inner[3], // faucet prefix
+            asset.inner[2], // faucet suffix
+        ]);
         self.balances.get(&key)
     }
 
@@ -200,8 +208,8 @@ We'll use `require_initialized()` as a guard in Part 2 to enforce that the bank 
 - **Private methods** (`fn`) are internal and cannot be called from outside
 
 ```rust
-// Public: Can be called by note scripts and other contracts
-pub fn get_balance(&self, depositor: AccountId) -> Felt { ... }
+// Public: Can be called by note scripts and other components
+pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt { ... }
 
 // Private: Internal helper, not exposed
 fn require_initialized(&self) { ... }
@@ -394,9 +402,14 @@ impl Bank {
         self.initialized.write(initialized_word);
     }
 
-    /// Get the balance for a depositor.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    /// Get the balance for a depositor and specific asset type.
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.inner[3], // faucet prefix
+            asset.inner[2], // faucet suffix
+        ]);
         self.balances.get(&key)
     }
 

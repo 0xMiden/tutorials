@@ -132,9 +132,14 @@ impl Bank {
         self.initialized.write(initialized_word);
     }
 
-    /// Get the balance for a depositor.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    /// Get the balance for a depositor and specific asset type.
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.inner[3],
+            asset.inner[2],
+        ]);
         self.balances.get(&key)
     }
 
@@ -337,8 +342,8 @@ For now, the constraint logic is in place and we've verified the contract compil
 ### Balance Checks (Preview for Part 3)
 
 ```rust
-fn require_sufficient_balance(&self, depositor: AccountId, amount: Felt) {
-    let balance = self.get_balance(depositor);
+fn require_sufficient_balance(&self, depositor: AccountId, asset: Asset, amount: Felt) {
+    let balance = self.get_balance(depositor, asset);
     assert!(
         balance.as_u64() >= amount.as_u64(),
         "Insufficient balance"
@@ -405,9 +410,14 @@ impl Bank {
         self.initialized.write(initialized_word);
     }
 
-    /// Get the balance for a depositor.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    /// Get the balance for a depositor and specific asset type.
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.inner[3],
+            asset.inner[2],
+        ]);
         self.balances.get(&key)
     }
 

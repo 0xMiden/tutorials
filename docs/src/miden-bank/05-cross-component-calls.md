@@ -178,7 +178,7 @@ impl Bank {
     // PUBLIC: Available through bindings
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) { ... }
     pub fn withdraw(&mut self, /* ... */) { ... }
-    pub fn get_balance(&self, depositor: AccountId) -> Felt { ... }
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt { ... }
     pub fn initialize(&mut self) { ... }
 
     // PRIVATE: NOT available through bindings
@@ -197,8 +197,8 @@ interface bank-account {
 
     initialize: func();
     deposit: func(depositor: account-id, deposit-asset: asset);
-    withdraw: func(depositor: account-id, withdraw-asset: asset, ...);
-    get-balance: func(depositor: account-id) -> felt;
+    withdraw: func(withdraw-asset: asset, serial-num: word, tag: felt, note-type: felt);
+    get-balance: func(depositor: account-id, asset: asset) -> felt;
 }
 ```
 

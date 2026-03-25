@@ -83,8 +83,9 @@ impl Bank {
     ///
     /// Creates a P2ID note that sends the requested asset to the depositor's account.
     ///
+    /// The depositor is identified via `active_note::get_sender()` internally.
+    ///
     /// # Arguments
-    /// * `depositor` - The AccountId of the user withdrawing
     /// * `withdraw_asset` - The fungible asset to withdraw
     /// * `serial_num` - Unique serial number for the P2ID output note
     /// * `tag` - The note tag for the P2ID output note (allows caller to specify routing)
@@ -335,8 +336,9 @@ struct WithdrawRequestNote;
 impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
-        // Get the inputs
+        // Get the inputs and validate expected count
         let inputs = active_note::get_inputs();
+        assert!(inputs.len() >= 10, "Withdraw request requires 10 inputs");
 
         // Asset: [amount, 0, faucet_suffix, faucet_prefix]
         let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));
@@ -674,11 +676,9 @@ struct WithdrawRequestNote;
 impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
-        // The depositor is whoever created/sent this note
-        let depositor = active_note::get_sender();
-
-        // Get the inputs
+        // Get the inputs and validate expected count
         let inputs = active_note::get_inputs();
+        assert!(inputs.len() >= 10, "Withdraw request requires 10 inputs");
 
         // Asset: [amount, 0, faucet_suffix, faucet_prefix]
         let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));
@@ -692,8 +692,9 @@ impl WithdrawRequestNote {
         // Note type: 1 = Public, 2 = Private
         let note_type = inputs[9];
 
-        // Call the bank account to withdraw the assets
-        bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
+        // Call the bank account to withdraw the assets.
+        // The bank identifies the depositor internally via active_note::get_sender().
+        bank_account::withdraw(withdraw_asset, serial_num, tag, note_type);
     }
 }
 ```
