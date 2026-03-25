@@ -165,7 +165,7 @@ Now let's trace the withdrawal process:
 
 Let's create a comprehensive test that exercises the entire bank system:
 
-```rust title="integration/tests/part8_complete_flow_test.rs"
+```rust title="integration/tests/deposit_test.rs + withdraw_test.rs"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package, create_testing_note_from_package,
     AccountCreationConfig, NoteCreationConfig,
@@ -447,43 +447,20 @@ cargo test --package integration --release -- --nocapture
 
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
-    Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part8_complete_flow_test.rs
+    Finished `release` profile [optimized] target(s)
+     Running tests/deposit_test.rs
+
+running 3 tests
+test deposit_test ... ok
+test deposit_exceeds_max_should_fail ... ok
+test deposit_without_init_should_fail ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored
+
+     Running tests/withdraw_test.rs
 
 running 1 test
-╔══════════════════════════════════════════════════════════════╗
-║            MIDEN BANK - COMPLETE FLOW TEST                   ║
-╚══════════════════════════════════════════════════════════════╝
-
-📦 Setting up test environment...
-   ✓ Faucet and sender wallet created
-   ✓ All packages built
-   ✓ Bank account created: 0x...
-   ✓ MockChain built
-
-1️⃣  INITIALIZING BANK...
-   ✓ Bank initialized (storage[0] = [1, 0, 0, 0])
-
-2️⃣  DEPOSITING TOKENS...
-   Deposit amount: 1000 tokens
-   ✓ Bank processed deposit, balance: 1000 tokens
-
-3️⃣  WITHDRAWING TOKENS...
-   Withdraw amount: 400 tokens
-   ✓ Bank processed withdraw request
-   ✓ P2ID output note created for sender
-   ✓ Final balance verified: 600 tokens
-
-╔══════════════════════════════════════════════════════════════╗
-║                      TEST SUMMARY                            ║
-╠══════════════════════════════════════════════════════════════╣
-║  Initial deposit:       1000 tokens                          ║
-║  Withdrawal:         -   400 tokens                          ║
-║  Final balance:          600 tokens                          ║
-║                                                              ║
-║  ✅ All operations completed successfully!                   ║
-╚══════════════════════════════════════════════════════════════╝
-test test_complete_bank_flow ... ok
+test withdraw_test ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```

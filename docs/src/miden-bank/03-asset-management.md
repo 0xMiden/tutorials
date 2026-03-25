@@ -303,7 +303,7 @@ You can return to run this test after completing Part 6.
 
 This test verifies the complete deposit flow:
 
-```rust title="integration/tests/part3_deposit_test.rs"
+```rust title="integration/tests/deposit_test.rs"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package,
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
@@ -472,17 +472,14 @@ cargo test --package integration --test deposit_test -- --nocapture
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
     Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part3_deposit_test.rs
+     Running tests/deposit_test.rs
 
-running 1 test
-Bank initialized successfully!
-Deposit transaction executed!
-Depositor balance: 1000
+running 3 tests
+test deposit_test ... ok
+test deposit_exceeds_max_should_fail ... ok
+test deposit_without_init_should_fail ... ok
 
-Part 3 deposit test passed!
-test test_deposit_updates_balance ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 3 passed; 0 failed; 0 ignored
 ```
 
 </details>

@@ -406,7 +406,7 @@ Let's test the complete withdraw flow. This test:
 3. Creates a withdraw-request note with the 10-Felt input layout
 4. Processes the withdrawal and verifies a P2ID output note is created
 
-```rust title="integration/tests/part7_withdraw_test.rs"
+```rust title="integration/tests/withdraw_test.rs"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package, create_testing_note_from_package,
     AccountCreationConfig, NoteCreationConfig,
@@ -614,15 +614,10 @@ cargo test --package integration --test withdraw_test -- --nocapture
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
     Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part7_withdraw_test.rs
+     Running tests/withdraw_test.rs
 
 running 1 test
-Step 1: Bank initialized
-Step 2: Deposited 1000 tokens
-Step 3: Withdrew 500 tokens
-
-Part 7 withdraw test passed!
-test test_withdraw_creates_p2id_note ... ok
+test withdraw_test ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```
