@@ -235,7 +235,7 @@ miden build
 
 ## Try It: Verify Constraints Work
 
-Let's write a test to verify our constraints work correctly. This test verifies that depositing without initialization fails:
+Let's write a test to verify our constraint logic compiles and the storage layout is correct. The actual deposit-failure test will come in Part 4 once the deposit note is available:
 
 ```rust title="integration/tests/part2_constraints_test.rs"
 use integration::helpers::{

@@ -26,6 +26,14 @@ use miden::{Felt};
 /// effectively rejecting the transaction at the proving stage.
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 
+/// Maximum allowed balance per depositor per asset.
+///
+/// This matches `FungibleAsset::MAX_AMOUNT` (2^63 - 2^31) from the Miden protocol.
+/// Felt arithmetic is modular (wraps at the Goldilocks prime), so without this guard
+/// a cumulative balance could silently wrap around to zero. Checking the result of
+/// addition against this bound is a best practice to prevent overflow.
+const MAX_BALANCE: u64 = 9_223_372_034_707_292_160; // 2^63 - 2^31
+
 /// Bank account component that tracks depositor balances.
 ///
 /// Users deposit assets via deposit notes, and the bank tracks
@@ -156,8 +164,17 @@ impl Bank {
         ]);
 
         // Update balance: current + deposit_amount
+        // Note: Felt arithmetic is modular — addition wraps at the Goldilocks prime.
+        // The MAX_BALANCE guard below prevents silent cumulative overflow.
         let current_balance: Felt = self.balances.get(&key);
         let new_balance = current_balance + deposit_amount;
+
+        // Best practice: guard against cumulative balance overflow
+        assert!(
+            new_balance.as_u64() <= MAX_BALANCE,
+            "Balance would exceed maximum allowed"
+        );
+
         self.balances.set(key, new_balance);
 
         // Add asset to the bank's vault
@@ -167,9 +184,11 @@ impl Bank {
     /// Withdraw assets back to the depositor.
     ///
     /// Creates a P2ID note that sends the requested asset to the depositor's account.
+    /// The depositor is identified via `active_note::get_sender()`, which is
+    /// cryptographically bound to the note's metadata — this prevents an attacker
+    /// from passing a victim's account ID to drain their balance.
     ///
     /// # Arguments
-    /// * `depositor` - The AccountId of the user withdrawing
     /// * `withdraw_asset` - The fungible asset to withdraw
     /// * `serial_num` - Unique serial number for the P2ID output note
     /// * `tag` - The note tag for the P2ID output note (allows caller to specify routing)
@@ -180,7 +199,6 @@ impl Bank {
     /// Panics if the bank has not been initialized.
     pub fn withdraw(
         &mut self,
-        depositor: AccountId,
         withdraw_asset: Asset,
         serial_num: Word,
         tag: Felt,
@@ -188,6 +206,10 @@ impl Bank {
     ) {
         // Ensure the bank is initialized before processing withdrawals
         self.require_initialized();
+
+        // Identify the depositor from the note's sender — this is cryptographically
+        // bound to the note metadata, so it cannot be spoofed by a malicious caller.
+        let depositor = active_note::get_sender();
 
         // Extract the fungible amount from the asset
         let withdraw_amount = withdraw_asset.inner[0];

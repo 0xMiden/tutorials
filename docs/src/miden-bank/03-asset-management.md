@@ -122,8 +122,21 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     ]);
 
     // Update balance: current + deposit_amount
+    // Note: Felt arithmetic is modular — addition wraps at the Goldilocks prime.
+    // The MAX_BALANCE guard below prevents silent cumulative overflow.
     let current_balance: Felt = self.balances.get(&key);
     let new_balance = current_balance + deposit_amount;
+
+    // ========================================================================
+    // BEST PRACTICE: Guard against cumulative balance overflow
+    // ========================================================================
+    // MAX_BALANCE matches FungibleAsset::MAX_AMOUNT (2^63 - 2^31).
+    // Without this check, repeated deposits could silently wrap the balance.
+    assert!(
+        new_balance.as_u64() <= MAX_BALANCE,
+        "Balance would exceed maximum allowed"
+    );
+
     self.balances.set(key, new_balance);
 
     // ========================================================================
@@ -184,9 +197,9 @@ Add this method to your Bank impl block:
 ```rust title="contracts/bank-account/src/lib.rs"
 /// Withdraw assets from the bank.
 /// Creates a P2ID note to send assets back to the depositor.
+/// The depositor is identified via `active_note::get_sender()` internally.
 pub fn withdraw(
     &mut self,
-    depositor: AccountId,
     withdraw_asset: Asset,
     serial_num: Word,
     tag: Felt,
@@ -196,6 +209,10 @@ pub fn withdraw(
     // CONSTRAINT: Bank must be initialized
     // ========================================================================
     self.require_initialized();
+
+    // Identify the depositor from the note's sender — this is
+    // cryptographically bound and cannot be spoofed by a malicious caller.
+    let depositor = active_note::get_sender();
 
     // Extract the fungible amount from the asset
     let withdraw_amount = withdraw_asset.inner[0];
@@ -507,6 +524,10 @@ use miden::*;
 /// Maximum allowed deposit amount per transaction.
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 
+/// Maximum allowed balance per depositor per asset.
+/// Matches FungibleAsset::MAX_AMOUNT (2^63 - 2^31).
+const MAX_BALANCE: u64 = 9_223_372_034_707_292_160;
+
 /// Bank account component that tracks depositor balances.
 #[component]
 struct Bank {
@@ -571,21 +592,30 @@ impl Bank {
 
         let current_balance: Felt = self.balances.get(&key);
         let new_balance = current_balance + deposit_amount;
+
+        // Best practice: guard against cumulative balance overflow
+        assert!(
+            new_balance.as_u64() <= MAX_BALANCE,
+            "Balance would exceed maximum allowed"
+        );
+
         self.balances.set(key, new_balance);
 
         native_account::add_asset(deposit_asset);
     }
 
     /// Withdraw assets from the bank.
+    /// The depositor is identified via `active_note::get_sender()` internally.
     pub fn withdraw(
         &mut self,
-        depositor: AccountId,
         withdraw_asset: Asset,
         serial_num: Word,
         tag: Felt,
         note_type: Felt,
     ) {
         self.require_initialized();
+
+        let depositor = active_note::get_sender();
 
         let withdraw_amount = withdraw_asset.inner[0];
 

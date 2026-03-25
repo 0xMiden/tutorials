@@ -41,9 +41,9 @@ The `#[component]` attribute marks a struct as a Miden account component. When y
 
 Let's expand our Bank component:
 
-## Step 1: Add the Balances Storage Map
+## Step 1: Understand the Storage Layout
 
-Update `contracts/bank-account/src/lib.rs`:
+In Part 0, we created the Bank struct with two storage fields. Let's examine what they do. Here is `contracts/bank-account/src/lib.rs`:
 
 ```rust title="contracts/bank-account/src/lib.rs" {17-20}
 #![no_std]
@@ -69,7 +69,7 @@ struct Bank {
 }
 ```
 
-We've added a `StorageMap` that will track each depositor's balance. The compiler derives slot IDs by hashing slot names (not by field declaration order). Slot names follow the pattern `miden::component::{component_name}::{field_name}`.
+The `balances` field is a `StorageMap` that tracks each depositor's balance. The compiler derives slot IDs by hashing slot names (not by field declaration order). Slot names follow the pattern `miden::component::{component_name}::{field_name}`.
 
 ## Storage Types Explained
 
@@ -128,16 +128,17 @@ let key = Word::from([
     felt!(0),
 ]);
 
-// Get returns a Felt (single value, not a Word)
+// Get returns a generic type V where V: From<Word>.
+// Here we annotate the result as Felt, which works because Felt implements From<Word>.
 let balance: Felt = self.balances.get(&key);
 
-// Set stores a Felt at the key
+// Set stores a value at the key (any type that implements Into<Word>)
 let new_balance = balance + deposit_amount;
 self.balances.set(key, new_balance);
 ```
 
-:::warning StorageMap Returns Felt
-Unlike `Value::read()` which returns a `Word`, `StorageMap::get()` returns a single `Felt`. This is an important distinction.
+:::info StorageMap Has a Generic API
+`StorageMap::get()` returns a generic type `V` (constrained by `V: From<Word>`), not specifically `Felt`. The type is inferred from the variable annotation. In this tutorial we use `Felt` because we store single balance values, but you could also use `Word` or any custom type that implements the trait.
 :::
 
 ### Storage Layout
@@ -222,7 +223,7 @@ This compiles the Rust code to Miden Assembly and generates:
 
 ## Try It: Verify Your Code
 
-Let's write a MockChain test to verify our Bank component works correctly. This test will:
+Let's write a test to verify our Bank component works correctly. This test will:
 
 1. Create a bank account
 2. Initialize it

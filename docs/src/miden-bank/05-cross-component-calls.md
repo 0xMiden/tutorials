@@ -55,7 +55,7 @@ Build Flow:
 ┌──────────────────┐    miden build    ┌─────────────────────────────────┐
 │ bank-account/    │ ─────────────────▶│ target/generated-wit/           │
 │  src/lib.rs      │                   │  miden-bank-account.wit         │
-│                  │                   │  miden-bank-account_world.wit   │
+│                  │                   │  (includes world definition)    │
 └──────────────────┘                   └─────────────────────────────────┘
                                                       │
                                                       ▼
@@ -234,7 +234,6 @@ ls contracts/bank-account/target/generated-wit/
 
 ```text
 miden-bank-account.wit
-miden-bank-account_world.wit
 ```
 
 </details>
