@@ -34,7 +34,7 @@ impl WithdrawRequestNote {
     fn run(self, _arg: Word) {
         // Get the inputs and validate expected count
         let inputs = active_note::get_inputs();
-        assert!(inputs.len() >= 10, "Withdraw request requires 10 inputs");
+        assert!(inputs.len() == 10, "Withdraw request requires exactly 10 inputs");
 
         // Asset: [amount, 0, faucet_suffix, faucet_prefix]
         let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));

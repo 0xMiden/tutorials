@@ -460,7 +460,7 @@ impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
         let inputs = active_note::get_inputs();
-        assert!(inputs.len() >= 10, "Withdraw request requires 10 inputs");
+        assert!(inputs.len() == 10, "Withdraw request requires exactly 10 inputs");
 
         // Parse parameters from inputs
         let withdraw_asset = Asset::new(Word::from([
