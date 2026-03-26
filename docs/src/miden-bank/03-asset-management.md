@@ -85,10 +85,8 @@ Update `contracts/bank-account/src/lib.rs` to complete the deposit function with
 ```rust title="contracts/bank-account/src/lib.rs"
 /// Deposit assets into the bank.
 pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-    // ========================================================================
-    // CONSTRAINT: Bank must be initialized
-    // ========================================================================
-    self.require_initialized();
+    // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+    // self.require_initialized();
 
     // Extract the fungible amount from the asset
     let deposit_amount = deposit_asset.inner[0];
@@ -110,10 +108,9 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     );
 
     // ========================================================================
-    // UPDATE BALANCE
+    // UPDATE BALANCE (integer-space validation)
     // ========================================================================
     // Create key from depositor's AccountId and asset faucet ID
-    // This allows tracking balances per depositor per asset type
     let key = Word::from([
         depositor.prefix,
         depositor.suffix,
@@ -121,23 +118,21 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         deposit_asset.inner[2], // asset suffix (faucet)
     ]);
 
-    // Update balance: current + deposit_amount
-    // Note: Felt arithmetic is modular — addition wraps at the Goldilocks prime.
-    // The MAX_BALANCE guard below prevents silent cumulative overflow.
+    // Validate balance update entirely in integer space to avoid
+    // modular Felt wraparound. Felt addition wraps at the Goldilocks
+    // prime, so we use checked_add in u64 and store the result directly.
     let current_balance: Felt = self.balances.get(&key);
-    let new_balance = current_balance + deposit_amount;
+    let current_u64 = current_balance.as_u64();
+    let deposit_u64 = deposit_amount.as_u64();
 
-    // ========================================================================
-    // BEST PRACTICE: Guard against cumulative balance overflow
-    // ========================================================================
-    // MAX_BALANCE matches FungibleAsset::MAX_AMOUNT (2^63 - 2^31).
-    // Without this check, repeated deposits could silently wrap the balance.
+    let new_balance_u64 = current_u64.checked_add(deposit_u64)
+        .expect("Balance overflow: addition exceeds u64 range");
     assert!(
-        new_balance.as_u64() <= MAX_BALANCE,
+        new_balance_u64 <= MAX_BALANCE,
         "Balance would exceed maximum allowed"
     );
 
-    self.balances.set(key, new_balance);
+    self.balances.set(key, Felt::from_u64_unchecked(new_balance_u64));
 
     // ========================================================================
     // ADD ASSET TO VAULT
@@ -205,10 +200,8 @@ pub fn withdraw(
     tag: Felt,
     note_type: Felt,
 ) {
-    // ========================================================================
-    // CONSTRAINT: Bank must be initialized
-    // ========================================================================
-    self.require_initialized();
+    // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+    // self.require_initialized();
 
     // Identify the depositor from the note's sender — this is
     // cryptographically bound and cannot be spoofed by a malicious caller.
@@ -291,15 +284,11 @@ miden build
 ```
 
 :::note Test Dependencies
-The full deposit test below requires contracts from later parts:
-- `deposit-note` (Part 4)
-- `init-tx-script` (Part 6)
-
-You can return to run this test after completing Part 6.
+The full deposit test below requires the `deposit-note` contract from Part 4. You can return to run this test after completing Part 4.
 :::
 
 <details>
-<summary>Preview: Full deposit test (runnable after Part 6)</summary>
+<summary>Preview: Full deposit test (runnable after Part 4)</summary>
 
 This test verifies the complete deposit flow:
 
@@ -571,7 +560,8 @@ impl Bank {
 
     /// Deposit assets into the bank.
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
 
         let deposit_amount = deposit_asset.inner[0];
 
@@ -592,16 +582,15 @@ impl Bank {
             deposit_asset.inner[2],
         ]);
 
+        // Validate in integer space — Felt addition is modular
         let current_balance: Felt = self.balances.get(&key);
-        let new_balance = current_balance + deposit_amount;
+        let current_u64 = current_balance.as_u64();
+        let deposit_u64 = deposit_amount.as_u64();
+        let new_balance_u64 = current_u64.checked_add(deposit_u64)
+            .expect("Balance overflow");
+        assert!(new_balance_u64 <= MAX_BALANCE, "Balance would exceed maximum");
 
-        // Best practice: guard against cumulative balance overflow
-        assert!(
-            new_balance.as_u64() <= MAX_BALANCE,
-            "Balance would exceed maximum allowed"
-        );
-
-        self.balances.set(key, new_balance);
+        self.balances.set(key, Felt::from_u64_unchecked(new_balance_u64));
 
         native_account::add_asset(deposit_asset);
     }
@@ -615,7 +604,8 @@ impl Bank {
         tag: Felt,
         note_type: Felt,
     ) {
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
 
         let depositor = active_note::get_sender();
 

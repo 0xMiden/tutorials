@@ -46,7 +46,7 @@ Part 3:                          Part 4:
 | Storage     | Has persistent storage    | No storage (reads from note data)          |
 | Attribute   | `#[component]`            | `#[note]` struct + `#[note_script]` method |
 | Entry point | Methods on struct         | `fn run(self, _arg: Word)`                 |
-| Invocation  | Called by other components | Executes when note is consumed             |
+| Invocation  | Called by other contracts | Executes when note is consumed             |
 
 Note scripts are like "messages" that carry code along with data and assets.
 
@@ -186,10 +186,6 @@ let first_input = inputs[0];
 Returns a vector of `Felt` values passed when the note was created. We'll use inputs in the withdraw request note (Part 7).
 
 ## Step 4: Build the Note Script
-
-:::note Workspace Unchanged
-The root `Cargo.toml` does not need updating — all contracts are excluded via the `contracts/` glob pattern (see Part 0).
-:::
 
 :::info Build Order Matters
 Build account components **first** before building note scripts that depend on them. The note script needs the generated WIT files from the account.

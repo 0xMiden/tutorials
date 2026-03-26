@@ -204,11 +204,11 @@ We'll use `require_initialized()` as a guard in Part 2 to enforce that the bank 
 
 ### Public vs Private Methods
 
-- **Public methods** (`pub fn`) are exposed in the generated WIT interface and can be called by other components
-- **Private methods** (`fn`) are internal and cannot be called from outside
+- **Public methods** (`pub fn`) are exposed in the generated WIT interface and can be called by other contracts
+- **Private methods** (`fn`) are internal and cannot be called from the outside
 
 ```rust
-// Public: Can be called by note scripts and other components
+// Public: Can be called by note scripts and other contracts
 pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt { ... }
 
 // Private: Internal helper, not exposed

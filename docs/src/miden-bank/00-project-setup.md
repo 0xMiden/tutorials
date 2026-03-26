@@ -193,33 +193,13 @@ This is our starting point with two storage slots:
 Account components must use WIT binding types (like `AccountId`, `Asset`, etc.) in at least one public method signature for the compiler to generate the required bindings correctly. The `get_balance` method serves this purpose with both `AccountId` and `Asset`.
 :::
 
-## Step 4: Verify the Workspace Configuration
-
-The root `Cargo.toml` does not need updating — all contracts are excluded via the `contracts/` glob pattern, so renaming a contract directory has no effect on the workspace. Verify it looks like this:
-
-```toml title="Cargo.toml"
-[workspace]
-members = [
-    "integration"
-]
-exclude = [
-    "contracts/",
-]
-resolver = "2"
-
-[workspace.package]
-edition = "2021"
-
-[workspace.dependencies]
-```
-
 :::info Contracts Are Excluded
 In v0.13, contracts are excluded from the Cargo workspace and built independently by `cargo miden`. Each contract specifies its own `miden` dependency directly. Only the `integration` crate remains a workspace member.
 
 Because contracts are excluded, your IDE (rust-analyzer) may not provide completions or diagnostics for contract code. This is expected — contracts are built independently using `miden build`.
 :::
 
-## Step 5: Build and Verify
+## Step 4: Build and Verify
 
 Let's verify everything compiles correctly:
 

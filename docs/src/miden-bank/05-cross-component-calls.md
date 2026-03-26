@@ -48,7 +48,7 @@ When you build an account component with `miden build`, it generates:
 1. **MASM code** - The compiled contract logic
 2. **WIT files** - WebAssembly Interface Type definitions
 
-Other components (note scripts, transaction scripts) import these WIT files to call the account's methods.
+Other contracts (note scripts, transaction scripts) import these WIT files to call the account's methods.
 
 ```text
 Build Flow:

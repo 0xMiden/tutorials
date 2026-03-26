@@ -101,10 +101,6 @@ Key configuration:
 - `project-kind = "transaction-script"` - Marks this as a transaction script (not "account" or "note")
 - Dependencies reference the account component (same pattern as note scripts)
 
-:::note Workspace Unchanged
-The root `Cargo.toml` does not need updating — all contracts are excluded via the `contracts/` glob pattern (see Part 0).
-:::
-
 ## Step 3: Implement the Transaction Script
 
 Create the initialization script:

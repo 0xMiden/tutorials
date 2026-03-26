@@ -295,10 +295,6 @@ project-kind = "note-script"
 "miden:bank-account" = { path = "../bank-account/target/generated-wit/" }
 ```
 
-:::note Workspace Unchanged
-The root `Cargo.toml` does not need updating — all contracts are excluded via the `contracts/` glob pattern (see Part 0).
-:::
-
 ## Step 5: Implement the Withdraw Request Note Script
 
 ```rust title="contracts/withdraw-request-note/src/lib.rs"

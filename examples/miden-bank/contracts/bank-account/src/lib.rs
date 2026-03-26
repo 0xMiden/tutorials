@@ -169,19 +169,21 @@ impl Bank {
             deposit_asset.inner[2], // asset suffix (faucet)
         ]);
 
-        // Update balance: current + deposit_amount
-        // Note: Felt arithmetic is modular — addition wraps at the Goldilocks prime.
-        // The MAX_BALANCE guard below prevents silent cumulative overflow.
+        // Update balance in integer space to avoid modular Felt wraparound.
+        // Felt arithmetic is modular (wraps at the Goldilocks prime), so we
+        // validate entirely in u64 before storing the result as a Felt.
         let current_balance: Felt = self.balances.get(&key);
-        let new_balance = current_balance + deposit_amount;
+        let current_u64 = current_balance.as_u64();
+        let deposit_u64 = deposit_amount.as_u64();
 
-        // Best practice: guard against cumulative balance overflow
+        let new_balance_u64 = current_u64.checked_add(deposit_u64)
+            .expect("Balance overflow: addition exceeds u64 range");
         assert!(
-            new_balance.as_u64() <= MAX_BALANCE,
+            new_balance_u64 <= MAX_BALANCE,
             "Balance would exceed maximum allowed"
         );
 
-        self.balances.set(key, new_balance);
+        self.balances.set(key, Felt::from_u64_unchecked(new_balance_u64));
 
         // Add asset to the bank's vault
         native_account::add_asset(deposit_asset);

@@ -155,10 +155,8 @@ impl Bank {
     /// Deposit assets into the bank.
     /// For now, this just validates constraints - we'll add asset handling in Part 3.
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-        // ========================================================================
-        // CONSTRAINT: Bank must be initialized
-        // ========================================================================
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
 
         // Extract the fungible amount from the asset
         let deposit_amount = deposit_asset.inner[0];
@@ -432,8 +430,8 @@ impl Bank {
 
     /// Deposit assets into the bank.
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-        // CONSTRAINT: Bank must be initialized
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
 
         let deposit_amount = deposit_asset.inner[0];
 
