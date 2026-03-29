@@ -15,3 +15,5 @@ This repository is organized into several parts:
 The documentation (tutorials) in the `docs` folder is built using Docusaurus and is automatically absorbed into the main [miden-docs](https://github.com/0xMiden/miden-docs) repository for the main documentation website. Changes to the `next` branch trigger an automated deployment workflow. The docs folder requires npm packages to be installed before building.
 
 The documentation folder is also a standalone Rust repository. The purpose of this is to be able to run `cargo doc test`, to test the Rust code inside of the tutorial markdowns.
+
+* Community Concept: [Time-Locked Notes UI (Vercel)](https://miden-time-locked-notes.vercel.app/) - Built by @writealishah
