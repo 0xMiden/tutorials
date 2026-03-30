@@ -200,7 +200,7 @@ impl Bank {
 }
 ```
 
-We'll use `require_initialized()` as a guard in Part 2 to enforce that the bank is initialized before deposits are accepted.
+We define `require_initialized()` here but leave it commented out in the deposit function until Part 6. In Part 6 (Transaction Scripts), we'll enable it so the bank requires initialization before accepting deposits.
 
 ### Public vs Private Methods
 
@@ -229,9 +229,13 @@ This compiles the Rust code to Miden Assembly and generates:
 - `target/miden/release/bank_account.masp` - The compiled package
 - `target/generated-wit/` - WIT interface files for other contracts to use
 
-## Try It: Verify Your Code
+## Optional: Verify Your Code
 
-Let's write a test to verify our Bank component works correctly. This test will:
+:::note
+This is an optional self-check. If you create this test file, you can run it to verify your component. The main runnable tests begin in Part 4.
+:::
+
+This test will:
 
 1. Create a bank account
 2. Initialize it

@@ -251,47 +251,38 @@ cd contracts/bank-account && miden build
 cd ../deposit-note && miden build
 ```
 
-:::note Test Dependencies
-The full deposit test below requires the `init-tx-script` contract from Part 6. You can return to run this test after completing Part 6.
+This is the first runnable test in the tutorial. It verifies the deposit flow end-to-end — building the bank and deposit-note contracts, creating a deposit, and checking the balance.
+
+:::note No initialization needed
+The initialization guard (`require_initialized()`) is intentionally commented out at this tutorial stage. We'll enable it in Part 6 when we build the init transaction script.
 :::
 
-<details>
-<summary>Preview: Full deposit note test (runnable after Part 6)</summary>
+Create the test file:
 
-This test verifies the complete deposit flow:
-
-1. Initializes the bank
-2. Creates a deposit note with tokens
-3. Has the bank consume the note
-4. Verifies the balance was updated
-
-```rust title="integration/tests/deposit_test.rs"
+```rust title="integration/tests/part4_deposit_test.rs"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package,
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
 use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
 use miden_client::note::NoteAssets;
-use miden_client::transaction::{OutputNote, TransactionScript};
+use miden_client::transaction::OutputNote;
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::{Felt, Word};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
 #[tokio::test]
-async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
+async fn test_deposit_flow() -> anyhow::Result<()> {
     // =========================================================================
     // SETUP: Build contracts and create mock chain
     // =========================================================================
     let mut builder = MockChain::builder();
 
-    // Create a faucet for test tokens
     let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", 10_000_000, Some(10))?;
-
-    // Create sender (depositor) wallet
     let sender = builder.add_existing_wallet_with_assets(Auth::BasicAuth, [FungibleAsset::new(faucet.id(), 1000)?.into()])?;
 
-    // Build all contracts
+    // Build bank-account and deposit-note only (no init-tx-script needed)
     let bank_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/bank-account"),
         true,
@@ -302,17 +293,13 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
         true,
     )?);
 
-    let init_tx_script_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/init-tx-script"),
-        true,
-    )?);
-
-    // Create bank account
-    let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
-            .expect("Valid slot name");
+    // Create the bank account with storage slots
     let balances_slot =
         StorageSlotName::new("miden::component::miden_bank_account::balances")
+            .expect("Valid slot name");
+
+    let initialized_slot =
+        StorageSlotName::new("miden::component::miden_bank_account::initialized")
             .expect("Valid slot name");
 
     let bank_cfg = AccountCreationConfig {
@@ -328,17 +315,16 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
 
     let mut bank_account =
         create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
-
     builder.add_account(bank_account.clone())?;
 
-    // Create the deposit note and add it before building the chain
+    // Create the deposit note
     let deposit_amount: u64 = 1000;
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
     let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
 
     let deposit_note = create_testing_note_from_package(
         deposit_note_package.clone(),
-        sender.id(),  // Sender is the depositor
+        sender.id(),
         NoteCreationConfig {
             assets: note_assets,
             ..Default::default()
@@ -349,25 +335,7 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
     let mut mock_chain = builder.build()?;
 
     // =========================================================================
-    // STEP 1: Initialize the bank
-    // =========================================================================
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
-
-    let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
-        .tx_script(init_tx_script)
-        .build()?;
-
-    let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
-    mock_chain.add_pending_executed_transaction(&executed_init)?;
-    mock_chain.prove_next_block()?;
-
-    println!("Step 1: Bank initialized");
-
-    // =========================================================================
-    // STEP 2: Execute deposit
+    // EXECUTE DEPOSIT (no init needed — guard is commented out at this stage)
     // =========================================================================
     let tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
@@ -378,10 +346,10 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
     mock_chain.add_pending_executed_transaction(&executed_transaction)?;
     mock_chain.prove_next_block()?;
 
-    println!("Step 2: Deposit note consumed");
+    println!("Deposit transaction executed!");
 
     // =========================================================================
-    // VERIFY: Balance was updated
+    // VERIFY: Check balance was updated
     // =========================================================================
     let depositor_key = Word::from([
         sender.id().prefix().as_felt(),
@@ -393,16 +361,14 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
     let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
     let balance_value = balance[3].as_int();
 
-    println!("Step 3: Verified balance = {}", balance_value);
-
+    println!("Depositor balance: {}", balance_value);
     assert_eq!(
         balance_value,
         deposit_amount,
         "Balance should equal deposited amount"
     );
 
-    println!("\nPart 4 deposit note test passed!");
-
+    println!("\nPart 4 deposit test passed!");
     Ok(())
 }
 ```
@@ -410,7 +376,7 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
 Run the test from the project root:
 
 ```bash title=">_ Terminal"
-cargo test --package integration --test deposit_test -- --nocapture
+cargo test --package integration --test part4_deposit_test -- --nocapture
 ```
 
 <details>
@@ -419,17 +385,17 @@ cargo test --package integration --test deposit_test -- --nocapture
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
     Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/deposit_test.rs
+     Running tests/part4_deposit_test.rs
 
-running 3 tests
-test deposit_test ... ok
-test deposit_exceeds_max_should_fail ... ok
-test deposit_without_init_should_fail ... ok
+running 1 test
+Deposit transaction executed!
+Depositor balance: 1000
 
-test result: ok. 3 passed; 0 failed; 0 ignored
+Part 4 deposit test passed!
+test test_deposit_flow ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored
 ```
-
-</details>
 
 </details>
 

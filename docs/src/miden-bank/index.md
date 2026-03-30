@@ -17,7 +17,7 @@ You'll create a **banking system** consisting of:
 - **Withdraw Request Note**: A note script that requests withdrawals from the bank
 - **Initialization Script**: A transaction script to deploy and initialize the bank
 
-Each part ends with a **runnable MockChain test** that verifies what you built works correctly.
+The tutorial includes runnable tests where appropriate — some parts are setup-only or conceptual, with the first runnable test in Part 4.
 
 ## Tutorial Structure
 
@@ -25,7 +25,7 @@ This tutorial is designed for hands-on learning. Each part builds on the previou
 
 - **What You'll Build** - Clear objectives for the section
 - **Step-by-step code** - Progressively building functionality
-- **Try It section** - A MockChain test to verify your code works
+- **Verification steps** - Runnable tests, build checks, or code review
 - **Complete code** - Full code listing for reference
 
 ### Parts Overview

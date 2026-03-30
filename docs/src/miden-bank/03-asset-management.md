@@ -300,7 +300,7 @@ use integration::helpers::{
 use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::note::NoteAssets;
-use miden_client::transaction::{OutputNote, TransactionScript};
+use miden_client::transaction::OutputNote;
 use miden_client::{Felt, Word};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
@@ -326,11 +326,6 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
 
     let deposit_note_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/deposit-note"),
-        true,
-    )?);
-
-    let init_tx_script_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/init-tx-script"),
         true,
     )?);
 
@@ -381,32 +376,7 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
     let mut mock_chain = builder.build()?;
 
     // =========================================================================
-    // STEP 1: Initialize the bank
-    // =========================================================================
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
-
-    let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
-        .tx_script(init_tx_script)
-        .build()?;
-
-    let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
-    mock_chain.add_pending_executed_transaction(&executed_init)?;
-    mock_chain.prove_next_block()?;
-
-    // Verify initialization
-    let initialized = bank_account.storage().get_item(&initialized_slot)?;
-    assert_eq!(
-        initialized[0].as_int(),
-        1,
-        "Bank should be initialized"
-    );
-    println!("Bank initialized successfully!");
-
-    // =========================================================================
-    // STEP 2: Execute deposit
+    // Execute deposit (init guard is not yet active at this tutorial stage)
     // =========================================================================
 
     // Execute deposit transaction
