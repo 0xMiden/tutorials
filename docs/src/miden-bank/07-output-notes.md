@@ -68,9 +68,11 @@ P2ID (Pay-to-ID) is a standard note pattern in Miden that sends assets to a spec
 - **Asset transfer**: Assets are transferred on consumption
 - **Standard script**: Uses a well-known script from miden-standards
 
-## Step 1: Add Withdraw Method to Bank Account
+## Step 1: Complete the Withdraw Method
 
-First, let's add the `withdraw()` method to your bank account. Update `contracts/bank-account/src/lib.rs`:
+In Part 3, we introduced `withdraw()` and `create_p2id_note()` as skeletons. Now we'll complete them with full implementations.
+
+Update `contracts/bank-account/src/lib.rs`:
 
 ```rust title="contracts/bank-account/src/lib.rs"
 #[component]
@@ -81,8 +83,9 @@ impl Bank {
     ///
     /// Creates a P2ID note that sends the requested asset to the depositor's account.
     ///
+    /// The depositor is identified via `active_note::get_sender()` internally.
+    ///
     /// # Arguments
-    /// * `depositor` - The AccountId of the user withdrawing
     /// * `withdraw_asset` - The fungible asset to withdraw
     /// * `serial_num` - Unique serial number for the P2ID output note
     /// * `tag` - The note tag for the P2ID output note (allows caller to specify routing)
@@ -93,7 +96,6 @@ impl Bank {
     /// Panics if the bank has not been initialized.
     pub fn withdraw(
         &mut self,
-        depositor: AccountId,
         withdraw_asset: Asset,
         serial_num: Word,
         tag: Felt,
@@ -102,8 +104,18 @@ impl Bank {
         // Ensure the bank is initialized before processing withdrawals
         self.require_initialized();
 
+        // Identify the depositor from the note's sender — this is cryptographically
+        // bound to the note metadata, so it cannot be spoofed by a malicious caller.
+        let depositor = active_note::get_sender();
+
         // Extract the fungible amount from the asset
         let withdraw_amount = withdraw_asset.inner[0];
+
+        // Verify this is a fungible asset (inner[1] must be 0 for fungible assets)
+        assert!(
+            withdraw_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
 
         // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([
@@ -166,7 +178,7 @@ This digest is specific to miden-standards version. If the P2ID script changes i
 
 ## Step 3: Implement create_p2id_note
 
-Add the private method that creates the output note:
+This replaces the `todo!()` placeholder from Part 3. Add the full implementation:
 
 ```rust title="contracts/bank-account/src/lib.rs"
 #[component]
@@ -283,26 +295,6 @@ project-kind = "note-script"
 "miden:bank-account" = { path = "../bank-account/target/generated-wit/" }
 ```
 
-### Update Workspace
-
-Add to your root `Cargo.toml`:
-
-```toml title="Cargo.toml"
-[workspace]
-members = [
-    "integration"
-]
-exclude = [
-    "contracts/",
-]
-resolver = "2"
-
-[workspace.package]
-edition = "2021"
-
-[workspace.dependencies]
-```
-
 ## Step 5: Implement the Withdraw Request Note Script
 
 ```rust title="contracts/withdraw-request-note/src/lib.rs"
@@ -323,10 +315,10 @@ use crate::bindings::miden::bank_account::bank_account;
 /// # Flow
 /// 1. Note is created by a depositor specifying the withdrawal details
 /// 2. Bank account consumes this note
-/// 3. Note script reads the sender (depositor) and inputs
-/// 4. Calls `bank_account::withdraw(depositor, asset, serial_num, tag, note_type)`
-/// 5. Bank updates the depositor's balance
-/// 6. Bank creates a P2ID note with the specified parameters to send assets back
+/// 3. Note script reads the inputs (asset, serial_num, tag, note_type)
+/// 4. Calls `bank_account::withdraw(asset, serial_num, tag, note_type)`
+/// 5. Bank identifies the depositor via `active_note::get_sender()` internally
+/// 6. Bank updates the depositor's balance and creates a P2ID note to send assets back
 ///
 /// # Note Inputs (10 Felts)
 /// [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
@@ -340,11 +332,9 @@ struct WithdrawRequestNote;
 impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
-        // The depositor is whoever created/sent this note
-        let depositor = active_note::get_sender();
-
-        // Get the inputs
+        // Get the inputs and validate expected count
         let inputs = active_note::get_inputs();
+        assert!(inputs.len() == 10, "Withdraw request requires exactly 10 inputs");
 
         // Asset: [amount, 0, faucet_suffix, faucet_prefix]
         let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));
@@ -358,8 +348,10 @@ impl WithdrawRequestNote {
         // Note type: 1 = Public, 2 = Private
         let note_type = inputs[9];
 
-        // Call the bank account to withdraw the assets
-        bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
+        // Call the bank account to withdraw the assets.
+        // The bank identifies the depositor internally via active_note::get_sender(),
+        // which is cryptographically bound and cannot be spoofed.
+        bank_account::withdraw(withdraw_asset, serial_num, tag, note_type);
     }
 }
 ```
@@ -410,7 +402,7 @@ Let's test the complete withdraw flow. This test:
 3. Creates a withdraw-request note with the 10-Felt input layout
 4. Processes the withdrawal and verifies a P2ID output note is created
 
-```rust title="integration/tests/part7_withdraw_test.rs"
+```rust title="integration/tests/withdraw_test.rs"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package, create_testing_note_from_package,
     AccountCreationConfig, NoteCreationConfig,
@@ -609,7 +601,7 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 Run the test from the project root:
 
 ```bash title=">_ Terminal"
-cargo test --package integration test_withdraw_creates_p2id_note -- --nocapture
+cargo test --package integration --test withdraw_test -- --nocapture
 ```
 
 <details>
@@ -618,15 +610,10 @@ cargo test --package integration test_withdraw_creates_p2id_note -- --nocapture
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
     Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part7_withdraw_test.rs
+     Running tests/withdraw_test.rs
 
 running 1 test
-Step 1: Bank initialized
-Step 2: Deposited 1000 tokens
-Step 3: Withdrew 500 tokens
-
-Part 7 withdraw test passed!
-test test_withdraw_creates_p2id_note ... ok
+test withdraw_test ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```
@@ -680,11 +667,9 @@ struct WithdrawRequestNote;
 impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
-        // The depositor is whoever created/sent this note
-        let depositor = active_note::get_sender();
-
-        // Get the inputs
+        // Get the inputs and validate expected count
         let inputs = active_note::get_inputs();
+        assert!(inputs.len() == 10, "Withdraw request requires exactly 10 inputs");
 
         // Asset: [amount, 0, faucet_suffix, faucet_prefix]
         let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));
@@ -698,8 +683,9 @@ impl WithdrawRequestNote {
         // Note type: 1 = Public, 2 = Private
         let note_type = inputs[9];
 
-        // Call the bank account to withdraw the assets
-        bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
+        // Call the bank account to withdraw the assets.
+        // The bank identifies the depositor internally via active_note::get_sender().
+        bank_account::withdraw(withdraw_asset, serial_num, tag, note_type);
     }
 }
 ```

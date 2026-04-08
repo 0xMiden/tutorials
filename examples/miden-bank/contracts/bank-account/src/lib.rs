@@ -26,6 +26,14 @@ use miden::{Felt};
 /// effectively rejecting the transaction at the proving stage.
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 
+/// Maximum allowed balance per depositor per asset.
+///
+/// This matches `FungibleAsset::MAX_AMOUNT` (2^63 - 2^31) from the Miden protocol.
+/// Felt arithmetic is modular (wraps at the Goldilocks prime), so without this guard
+/// a cumulative balance could silently wrap around to zero. Checking the result of
+/// addition against this bound is a best practice to prevent overflow.
+const MAX_BALANCE: u64 = 9_223_372_034_707_292_160; // 2^63 - 2^31
+
 /// Bank account component that tracks depositor balances.
 ///
 /// Users deposit assets via deposit notes, and the bank tracks
@@ -102,15 +110,21 @@ impl Bank {
         ]))
     }
 
-    /// Get the balance for a depositor.
+    /// Get the balance for a depositor and specific asset type.
     ///
     /// # Arguments
     /// * `depositor` - The AccountId to query the balance for
+    /// * `asset` - The asset type to query (used to derive the faucet key)
     ///
     /// # Returns
     /// The depositor's current balance as a Felt
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.inner[3], // faucet prefix
+            asset.inner[2], // faucet suffix
+        ]);
         self.balances.get(&key)
     }
 
@@ -134,6 +148,12 @@ impl Bank {
         // Asset inner layout for fungible: [amount, 0, faucet_suffix, faucet_prefix]
         let deposit_amount = deposit_asset.inner[0];
 
+        // Verify this is a fungible asset (inner[1] must be 0 for fungible assets)
+        assert!(
+            deposit_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
+
         // Validate deposit amount does not exceed maximum
         assert!(
             deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
@@ -149,10 +169,21 @@ impl Bank {
             deposit_asset.inner[2], // asset suffix (faucet)
         ]);
 
-        // Update balance: current + deposit_amount
+        // Update balance in integer space to avoid modular Felt wraparound.
+        // Felt arithmetic is modular (wraps at the Goldilocks prime), so we
+        // validate entirely in u64 before storing the result as a Felt.
         let current_balance: Felt = self.balances.get(&key);
-        let new_balance = current_balance + deposit_amount;
-        self.balances.set(key, new_balance);
+        let current_u64 = current_balance.as_u64();
+        let deposit_u64 = deposit_amount.as_u64();
+
+        let new_balance_u64 = current_u64.checked_add(deposit_u64)
+            .expect("Balance overflow: addition exceeds u64 range");
+        assert!(
+            new_balance_u64 <= MAX_BALANCE,
+            "Balance would exceed maximum allowed"
+        );
+
+        self.balances.set(key, Felt::from_u64_unchecked(new_balance_u64));
 
         // Add asset to the bank's vault
         native_account::add_asset(deposit_asset);
@@ -161,9 +192,11 @@ impl Bank {
     /// Withdraw assets back to the depositor.
     ///
     /// Creates a P2ID note that sends the requested asset to the depositor's account.
+    /// The depositor is identified via `active_note::get_sender()`, which is
+    /// cryptographically bound to the note's metadata — this prevents an attacker
+    /// from passing a victim's account ID to drain their balance.
     ///
     /// # Arguments
-    /// * `depositor` - The AccountId of the user withdrawing
     /// * `withdraw_asset` - The fungible asset to withdraw
     /// * `serial_num` - Unique serial number for the P2ID output note
     /// * `tag` - The note tag for the P2ID output note (allows caller to specify routing)
@@ -174,7 +207,6 @@ impl Bank {
     /// Panics if the bank has not been initialized.
     pub fn withdraw(
         &mut self,
-        depositor: AccountId,
         withdraw_asset: Asset,
         serial_num: Word,
         tag: Felt,
@@ -183,8 +215,18 @@ impl Bank {
         // Ensure the bank is initialized before processing withdrawals
         self.require_initialized();
 
+        // Identify the depositor from the note's sender — this is cryptographically
+        // bound to the note metadata, so it cannot be spoofed by a malicious caller.
+        let depositor = active_note::get_sender();
+
         // Extract the fungible amount from the asset
         let withdraw_amount = withdraw_asset.inner[0];
+
+        // Verify this is a fungible asset (inner[1] must be 0 for fungible assets)
+        assert!(
+            withdraw_asset.inner[1].as_u64() == 0,
+            "Only fungible assets are supported"
+        );
 
         // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([

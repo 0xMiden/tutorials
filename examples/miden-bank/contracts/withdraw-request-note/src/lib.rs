@@ -15,10 +15,10 @@ use crate::bindings::miden::bank_account::bank_account;
 /// # Flow
 /// 1. Note is created by a depositor specifying the withdrawal details
 /// 2. Bank account consumes this note
-/// 3. Note script reads the sender (depositor) and inputs
-/// 4. Calls `bank_account::withdraw(depositor, asset, serial_num, tag, note_type)`
-/// 5. Bank updates the depositor's balance
-/// 6. Bank creates a P2ID note with the specified parameters to send assets back
+/// 3. Note script reads the inputs (asset, serial_num, tag, note_type)
+/// 4. Calls `bank_account::withdraw(asset, serial_num, tag, note_type)`
+/// 5. Bank identifies the depositor via `active_note::get_sender()` internally
+/// 6. Bank updates the depositor's balance and creates a P2ID note to send assets back
 ///
 /// # Note Inputs (10 Felts)
 /// [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
@@ -32,11 +32,9 @@ struct WithdrawRequestNote;
 impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
-        // The depositor is whoever created/sent this note
-        let depositor = active_note::get_sender();
-
-        // Get the inputs
+        // Get the inputs and validate expected count
         let inputs = active_note::get_inputs();
+        assert!(inputs.len() == 10, "Withdraw request requires exactly 10 inputs");
 
         // Asset: [amount, 0, faucet_suffix, faucet_prefix]
         let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));
@@ -50,7 +48,9 @@ impl WithdrawRequestNote {
         // Note type: 1 = Public, 2 = Private
         let note_type = inputs[9];
 
-        // Call the bank account to withdraw the assets
-        bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
+        // Call the bank account to withdraw the assets.
+        // The bank identifies the depositor internally via active_note::get_sender(),
+        // which is cryptographically bound and cannot be spoofed.
+        bank_account::withdraw(withdraw_asset, serial_num, tag, note_type);
     }
 }

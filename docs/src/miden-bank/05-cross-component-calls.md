@@ -29,14 +29,14 @@ In Part 4, you wrote `bank_account::deposit(depositor, asset)` in the deposit no
 │   bank-account/                                            │
 │   └── src/lib.rs         miden build                       │
 │       pub fn deposit()  ─────────────▶  generated-wit/     │
-│       pub fn withdraw()                  miden_bank-account.wit
+│       pub fn withdraw()                  miden-bank-account.wit
 │                                                            │
 │                              ┌───────────────────────────┐ │
 │                              ▼                           │ │
 │   deposit-note/                                          │ │
 │   └── src/lib.rs                                         │ │
 │       use crate::bindings::miden::bank_account::bank_account;
-│       bank_account::deposit(...) ◄───── calls via binding │
+│       bank_account::deposit(...)  ─────▶ calls via binding │
 │                                                            │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -54,8 +54,8 @@ Other contracts (note scripts, transaction scripts) import these WIT files to ca
 Build Flow:
 ┌──────────────────┐    miden build    ┌─────────────────────────────────┐
 │ bank-account/    │ ─────────────────▶│ target/generated-wit/           │
-│  src/lib.rs      │                   │  miden_bank-account.wit         │
-│                  │                   │  miden_bank-account_world.wit   │
+│  src/lib.rs      │                   │  miden-bank-account.wit         │
+│                  │                   │  (includes world definition)    │
 └──────────────────┘                   └─────────────────────────────────┘
                                                       │
                                                       ▼
@@ -178,7 +178,7 @@ impl Bank {
     // PUBLIC: Available through bindings
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) { ... }
     pub fn withdraw(&mut self, /* ... */) { ... }
-    pub fn get_balance(&self, depositor: AccountId) -> Felt { ... }
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt { ... }
     pub fn initialize(&mut self) { ... }
 
     // PRIVATE: NOT available through bindings
@@ -191,14 +191,14 @@ impl Bank {
 
 The WIT files describe the interface. Here's a simplified example:
 
-```wit title="target/generated-wit/miden_bank-account.wit"
+```wit title="target/generated-wit/miden-bank-account.wit"
 interface bank-account {
     use miden:types/types.{account-id, asset, felt, word};
 
     initialize: func();
     deposit: func(depositor: account-id, deposit-asset: asset);
-    withdraw: func(depositor: account-id, withdraw-asset: asset, ...);
-    get-balance: func(depositor: account-id) -> felt;
+    withdraw: func(withdraw-asset: asset, serial-num: word, tag: felt, note-type: felt);
+    get-balance: func(depositor: account-id, asset: asset) -> felt;
 }
 ```
 
@@ -233,8 +233,7 @@ ls contracts/bank-account/target/generated-wit/
 <summary>Expected output</summary>
 
 ```text
-miden_bank-account.wit
-miden_bank-account_world.wit
+miden-bank-account.wit
 ```
 
 </details>
