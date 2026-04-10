@@ -270,7 +270,7 @@ println!("\n[STEP 2] Building counter contract from public state");
 
 // Define the Counter Contract account id from counter contract deploy
 let (_, counter_contract_id) =
-    AccountId::from_bech32("mtst1az62d8rhnf00kqp80k3klwy56c6w9gvm").unwrap();
+    AccountId::from_bech32("mtst1aq8hpfmr4zhq7qr4dfwn07djwy6lmags").unwrap();
 
 println!("counter contract id: {:?}", counter_contract_id);
 
@@ -558,7 +558,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Define the Counter Contract account id from counter contract deploy
     let (_, counter_contract_id) =
-        AccountId::from_bech32("mtst1az62d8rhnf00kqp80k3klwy56c6w9gvm").unwrap();
+        AccountId::from_bech32("mtst1aq8hpfmr4zhq7qr4dfwn07djwy6lmags").unwrap();
 
     println!("counter contract id: {:?}", counter_contract_id);
 
