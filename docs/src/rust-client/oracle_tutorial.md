@@ -53,14 +53,7 @@ Copy and paste the following code into your `src/main.rs` file:
 
 ```rust no_run
 use miden_client::{
-    assembly::{
-        Assembler,
-        CodeBuilder,
-        DefaultSourceManager,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{
@@ -71,7 +64,7 @@ use miden_client::{
     Client, ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_client::{auth::NoAuth, transaction::TransactionKernel};
+use miden_client::auth::NoAuth;
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountComponent, AccountId, AccountStorageMode,
@@ -169,21 +162,6 @@ pub async fn get_oracle_foreign_accounts(
     Ok(foreign_accounts)
 }
 
-fn create_library(
-    assembler: Assembler,
-    library_path: &str,
-    source_code: &str,
-) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
-}
-
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
@@ -266,14 +244,9 @@ async fn main() -> Result<(), ClientError> {
     let script_path = Path::new("../masm/scripts/oracle_reader_script.masm");
     let script_code = fs::read_to_string(script_path).unwrap();
 
-    let assembler = TransactionKernel::assembler();
-    let library_path = "external_contract::oracle_reader";
-    let account_component_lib =
-        create_library(assembler.clone(), library_path, &contract_code).unwrap();
-
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_dynamically_linked_library(contract_component.component_code())
         .unwrap()
         .compile_tx_script(&script_code)
         .unwrap();
