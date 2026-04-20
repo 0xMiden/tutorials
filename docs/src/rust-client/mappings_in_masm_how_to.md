@@ -146,19 +146,11 @@ Below is the Rust code that deploys the smart contract, creates the transaction 
 
 ```rust no_run
 use miden_client::auth::NoAuth;
-use miden_client::transaction::TransactionKernel;
 use rand::RngCore;
 use std::{fs, path::Path, sync::Arc};
 
 use miden_client::{
-    assembly::{
-        Assembler,
-        CodeBuilder,
-        DefaultSourceManager,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
@@ -173,21 +165,6 @@ use miden_client::{
     },
     Felt, Word,
 };
-
-fn create_library(
-    assembler: Assembler,
-    library_path: &str,
-    source_code: &str,
-) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -221,9 +198,6 @@ async fn main() -> Result<(), ClientError> {
     // Load the MASM file for the counter contract
     let file_path = Path::new("../masm/accounts/mapping_example_contract.masm");
     let account_code = fs::read_to_string(file_path).unwrap();
-
-    // Prepare assembler (debug mode = true)
-    let assembler: Assembler = TransactionKernel::assembler();
 
     // Using an empty storage value in slot 0 since this is usually reserved
     // for the account pub_key and metadata
@@ -274,18 +248,10 @@ async fn main() -> Result<(), ClientError> {
     let script_code =
         fs::read_to_string(Path::new("../masm/scripts/mapping_example_script.masm")).unwrap();
 
-    // Create the library from the account source code using the helper function.
-    let account_component_lib = create_library(
-        assembler.clone(),
-        "miden_by_example::mapping_example_contract",
-        &account_code,
-    )
-    .unwrap();
-
-    // Compile the transaction script with the library.
+    // Compile the transaction script, dynamically linking the account component library.
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_dynamically_linked_library(mapping_contract_component.component_code())
         .unwrap()
         .compile_tx_script(&script_code)
         .unwrap();

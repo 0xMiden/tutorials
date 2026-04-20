@@ -55,20 +55,12 @@ Copy and paste the following code into your `src/main.rs` file:
 
 ```rust no_run
 use miden_client::auth::NoAuth;
-use miden_client::transaction::TransactionKernel;
 use rand::RngCore;
 use std::{fs, path::Path, sync::Arc};
 
 use miden_client::{
     address::NetworkId,
-    assembly::{
-        Assembler,
-        CodeBuilder,
-        DefaultSourceManager,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
@@ -83,21 +75,6 @@ use miden_client::{
     },
     Word,
 };
-
-fn create_library(
-    assembler: Assembler,
-    library_path: &str,
-    source_code: &str,
-) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -327,18 +304,9 @@ println!("\n[STEP 2] Call Counter Contract With Script");
 let script_path = Path::new("../masm/scripts/counter_script.masm");
 let script_code = fs::read_to_string(script_path).unwrap();
 
-// Create a library from the counter contract code
-let assembler = TransactionKernel::assembler();
-let account_component_lib = create_library(
-    assembler.clone(),
-    "external_contract::counter_contract",
-    &counter_code,
-)
-.unwrap();
-
 let tx_script = client
     .code_builder()
-    .with_dynamically_linked_library(&account_component_lib)
+    .with_dynamically_linked_library(counter_component.component_code())
     .unwrap()
     .compile_tx_script(&script_code)
     .unwrap();
@@ -387,20 +355,12 @@ The final `src/main.rs` file should look like this:
 
 ```rust no_run
 use miden_client::auth::NoAuth;
-use miden_client::transaction::TransactionKernel;
 use rand::RngCore;
 use std::{fs, path::Path, sync::Arc};
 
 use miden_client::{
     address::NetworkId,
-    assembly::{
-        Assembler,
-        CodeBuilder,
-        DefaultSourceManager,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
@@ -415,21 +375,6 @@ use miden_client::{
     },
     Word,
 };
-
-fn create_library(
-    assembler: Assembler,
-    library_path: &str,
-    source_code: &str,
-) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -508,18 +453,9 @@ async fn main() -> Result<(), ClientError> {
     let script_path = Path::new("../masm/scripts/counter_script.masm");
     let script_code = fs::read_to_string(script_path).unwrap();
 
-    // Create a library from the counter contract code
-    let assembler = TransactionKernel::assembler();
-    let account_component_lib = create_library(
-        assembler.clone(),
-        "external_contract::counter_contract",
-        &counter_code,
-    )
-    .unwrap();
-
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_dynamically_linked_library(counter_component.component_code())
         .unwrap()
         .compile_tx_script(&script_code)
         .unwrap();

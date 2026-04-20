@@ -7,33 +7,15 @@ use miden_client::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
         AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
     },
-    assembly::{
-        CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{domain::account::AccountStorageRequirements, Endpoint, GrpcClient},
-    transaction::{ForeignAccount, TransactionKernel, TransactionRequestBuilder},
+    transaction::{ForeignAccount, TransactionRequestBuilder},
     ClientError, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-fn create_library(
-    library_path: &str,
-    source_code: &str,
-) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager,
-    )?;
-    let library = assembler.assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -180,15 +162,9 @@ async fn main() -> Result<(), ClientError> {
             &u64::from(counter_contract_id.prefix()).to_string(),
         );
 
-    let account_component_lib = create_library(
-        "external_contract::count_reader_contract",
-        &count_reader_code,
-    )
-    .unwrap();
-
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_dynamically_linked_library(count_reader_component.component_code())
         .unwrap()
         .compile_tx_script(&script_code)
         .unwrap();

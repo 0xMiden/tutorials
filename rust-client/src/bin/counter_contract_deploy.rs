@@ -7,33 +7,15 @@ use miden_client::{
         AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
-    assembly::{
-        CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    transaction::{TransactionKernel, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     ClientError, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-fn create_library(
-    library_path: &str,
-    source_code: &str,
-) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager,
-    )?;
-    let library = assembler.assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -115,16 +97,9 @@ async fn main() -> Result<(), ClientError> {
     let script_path = Path::new("../masm/scripts/counter_script.masm");
     let script_code = fs::read_to_string(script_path).unwrap();
 
-    // Create a library from the counter contract code
-    let account_component_lib = create_library(
-        "external_contract::counter_contract",
-        &counter_code,
-    )
-    .unwrap();
-
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_dynamically_linked_library(counter_component.component_code())
         .unwrap()
         .compile_tx_script(&script_code)
         .unwrap();

@@ -163,21 +163,12 @@ use miden_client::{
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_client::auth::{self, AuthSchemeId, AuthSingleSig};
-use miden_client::transaction::TransactionKernel;
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
         AccountType, StorageSlot, StorageSlotName,
     },
-    assembly::{
-        Assembler,
-        CodeBuilder,
-        DefaultSourceManager,
-        Library,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
 };
 use rand::RngCore;
 use tokio::time::{sleep, Duration};
@@ -212,22 +203,6 @@ async fn wait_for_tx(
         sleep(Duration::from_secs(2)).await;
     }
     Ok(())
-}
-
-/// Creates a Miden library from the provided account code and library path.
-fn create_library(
-    account_code: String,
-    library_path: &str,
-) -> Result<std::sync::Arc<Library>, Box<dyn std::error::Error>> {
-    let assembler: Assembler = TransactionKernel::assembler();
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        account_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
 }
 
 #[tokio::main]
@@ -328,7 +303,7 @@ let counter_contract = AccountBuilder::new(init_seed)
     .account_type(AccountType::RegularAccountImmutableCode) // Immutable code
     .storage_mode(AccountStorageMode::Network) // Stored on network
     .with_auth_component(auth::NoAuth) // No authentication required
-    .with_component(counter_component)
+    .with_component(counter_component.clone())
     .build()
     .unwrap();
 
@@ -356,14 +331,9 @@ println!("\n[STEP 3] Deploy network counter smart contract");
 
 let script_code = fs::read_to_string(Path::new("../masm/scripts/counter_script.masm")).unwrap();
 
-let account_code = fs::read_to_string(Path::new("../masm/accounts/counter.masm")).unwrap();
-let library_path = "external_contract::counter_contract";
-
-let library = create_library(account_code, library_path).unwrap();
-
 let tx_script = client
     .code_builder()
-    .with_dynamically_linked_library(&library)?
+    .with_dynamically_linked_library(counter_component.component_code())?
     .compile_tx_script(&script_code)?;
 
 let tx_increment_request = TransactionRequestBuilder::new()
@@ -401,11 +371,6 @@ println!("\n[STEP 4] Creating a network note for network counter contract");
 
 let network_note_code =
     fs::read_to_string(Path::new("../masm/notes/network_increment_note.masm")).unwrap();
-let account_code = fs::read_to_string(Path::new("../masm/accounts/counter.masm")).unwrap();
-
-let library_path = "external_contract::counter_contract";
-let library = create_library(account_code, library_path).unwrap();
-
 // Create and submit the network note that will increment the counter
 // Generate a random serial number for the note
 let serial_num = client.rng().draw_word();
@@ -413,7 +378,7 @@ let serial_num = client.rng().draw_word();
 // Compile the note script with the counter contract library
 let note_script = client
     .code_builder()
-    .with_dynamically_linked_library(&library)?
+    .with_dynamically_linked_library(counter_component.component_code())?
     .compile_note_script(&network_note_code)?;
 
 // Create note recipient with empty storage
@@ -516,21 +481,12 @@ use miden_client::{
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_client::auth::{self, AuthSchemeId, AuthSingleSig};
-use miden_client::transaction::TransactionKernel;
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
         AccountType, StorageSlot, StorageSlotName,
     },
-    assembly::{
-        Assembler,
-        CodeBuilder,
-        DefaultSourceManager,
-        Library,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
 };
 use rand::RngCore;
 use tokio::time::{sleep, Duration};
@@ -565,22 +521,6 @@ async fn wait_for_tx(
         sleep(Duration::from_secs(2)).await;
     }
     Ok(())
-}
-
-/// Creates a Miden library from the provided account code and library path.
-fn create_library(
-    account_code: String,
-    library_path: &str,
-) -> Result<std::sync::Arc<Library>, Box<dyn std::error::Error>> {
-    let assembler: Assembler = TransactionKernel::assembler();
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        account_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
 }
 
 #[tokio::main]
@@ -668,7 +608,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .account_type(AccountType::RegularAccountImmutableCode) // Immutable code
         .storage_mode(AccountStorageMode::Network) // Stored on network
         .with_auth_component(auth::NoAuth) // No authentication required
-        .with_component(counter_component)
+        .with_component(counter_component.clone())
         .build()
         .unwrap();
 
@@ -686,14 +626,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let script_code = fs::read_to_string(Path::new("../masm/scripts/counter_script.masm")).unwrap();
 
-    let account_code = fs::read_to_string(Path::new("../masm/accounts/counter.masm")).unwrap();
-    let library_path = "external_contract::counter_contract";
-
-    let library = create_library(account_code, library_path).unwrap();
-
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&library)?
+        .with_dynamically_linked_library(counter_component.component_code())?
         .compile_tx_script(&script_code)?;
 
     let tx_increment_request = TransactionRequestBuilder::new()
@@ -721,11 +656,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let network_note_code =
         fs::read_to_string(Path::new("../masm/notes/network_increment_note.masm")).unwrap();
-    let account_code = fs::read_to_string(Path::new("../masm/accounts/counter.masm")).unwrap();
-
-    let library_path = "external_contract::counter_contract";
-    let library = create_library(account_code, library_path).unwrap();
-
     // Create and submit the network note that will increment the counter
     // Generate a random serial number for the note
     let serial_num = client.rng().draw_word();
@@ -733,7 +663,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Compile the note script with the counter contract library
     let note_script = client
         .code_builder()
-        .with_dynamically_linked_library(&library)?
+        .with_dynamically_linked_library(counter_component.component_code())?
         .compile_note_script(&network_note_code)?;
 
     // Create note recipient with empty inputs
