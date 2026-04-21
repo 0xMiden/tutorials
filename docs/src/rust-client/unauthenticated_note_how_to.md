@@ -53,22 +53,22 @@ Alice ➡ Bob ➡ Charlie ➡ Dave ➡ Eve ➡ Frank ➡ ...
 ## Full Rust code example
 
 ```rust no_run
-use miden_client::auth::AuthFalcon512Rpo;
+use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration, Instant};
 
 use miden_client::{
-    account::component::{BasicFungibleFaucet, BasicWallet},
+    account::component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
     address::NetworkId,
     asset::{FungibleAsset, TokenSymbol},
     auth::AuthSecretKey,
     builder::ClientBuilder,
-    keystore::FilesystemKeyStore,
-    note::{create_p2id_note, Note, NoteAttachment, NoteType},
+    keystore::{FilesystemKeyStore, Keystore},
+    note::{Note, NoteAttachment, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
-    store::{AccountRecordData, TransactionFilter},
-    transaction::{OutputNote, TransactionId, TransactionRequestBuilder, TransactionStatus},
+    store::TransactionFilter,
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     utils::{Deserializable, Serializable},
     Client, ClientError, Felt,
 };
@@ -141,7 +141,7 @@ async fn main() -> Result<(), ClientError> {
     client.rng().fill_bytes(&mut init_seed);
 
     // Generate key pair
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Faucet parameters
     let symbol = TokenSymbol::new("MID").unwrap();
@@ -152,8 +152,9 @@ async fn main() -> Result<(), ClientError> {
     let faucet_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+        .with_component(AuthControlled::allow_all())
         .build()
         .unwrap();
 
@@ -166,7 +167,7 @@ async fn main() -> Result<(), ClientError> {
     );
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, faucet_account.id()).await.unwrap();
 
     // Resync to show newly deployed faucet
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -184,12 +185,12 @@ async fn main() -> Result<(), ClientError> {
         let mut init_seed = [0_u8; 32];
         client.rng().fill_bytes(&mut init_seed);
 
-        let key_pair = AuthSecretKey::new_falcon512_rpo();
+        let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
         let account = AccountBuilder::new(init_seed)
             .account_type(AccountType::RegularAccountUpdatableCode)
             .storage_mode(AccountStorageMode::Public)
-            .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+            .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
             .with_component(BasicWallet)
             .build()
             .unwrap();
@@ -203,7 +204,7 @@ async fn main() -> Result<(), ClientError> {
         client.add_account(&account, true).await?;
 
         // Add the key pair to the keystore
-        keystore.add_key(&key_pair).unwrap();
+        keystore.add_key(&key_pair, account.id()).await.unwrap();
     }
 
     // For demo purposes, Alice is the first account.
@@ -278,7 +279,7 @@ async fn main() -> Result<(), ClientError> {
             NoteType::Public
         };
 
-        let p2id_note = create_p2id_note(
+        let p2id_note = P2idNote::create(
             accounts[i].id(),
             accounts[i + 1].id(),
             vec![fungible_asset_send_amount.into()],
@@ -288,11 +289,9 @@ async fn main() -> Result<(), ClientError> {
         )
         .unwrap();
 
-        let output_note = OutputNote::Full(p2id_note.clone());
-
         // Time transaction request building
         let transaction_request = TransactionRequestBuilder::new()
-            .own_output_notes(vec![output_note])
+            .own_output_notes(vec![p2id_note.clone()])
             .build()
             .unwrap();
 
@@ -336,11 +335,7 @@ async fn main() -> Result<(), ClientError> {
     tokio::time::sleep(Duration::from_secs(3)).await;
     client.sync_state().await?;
     for account in accounts.clone() {
-        let new_account_record = client.get_account(account.id()).await.unwrap().unwrap();
-        let new_account = match new_account_record.account_data() {
-            AccountRecordData::Full(account) => account,
-            AccountRecordData::Partial(_) => panic!("account is missing full account data"),
-        };
+        let new_account = client.get_account(account.id()).await.unwrap().expect("account not found");
         let balance = new_account.vault().get_balance(faucet_account.id()).unwrap();
         println!(
             "Account: {} balance: {}",
@@ -359,19 +354,19 @@ The output of our program will look something like this:
 Latest block: 227040
 
 [STEP 1] Deploying a new fungible faucet.
-Faucet account ID: mtst1qqvhzywfzy4xugqqq0yqj28jxy3kr5hy
+Faucet account ID: mdev1qqvhzywfzy4xugqqq0yqj28jxy3kr5hy
 
 [STEP 2] Creating new accounts
-account id 0: mtst1qrdwf5hv6wnqzyqqq06hyfvqryn2nam3
-account id 1: mtst1qz7lwv4wh27xyyqqq026adcyc54ueccz
-account id 2: mtst1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c
-account id 3: mtst1qrdclj0zp3v7qyqqqdn92ad87cl0rctl
-account id 4: mtst1qre79420whvn2yqqq0udf4z8d5c3xwfj
-account id 5: mtst1qpmfryrdjfwazyqqqdslm7gdhur80xhk
-account id 6: mtst1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj
-account id 7: mtst1qrfmw4297mchwyqqqdfzq8dl2uu89uhq
-account id 8: mtst1qpevlxpnuetesyqqqdwmsgd4zua84nda
-account id 9: mtst1qre7lqnwt03zwyqqqvjdlj2w6yc87u4w
+account id 0: mdev1qrdwf5hv6wnqzyqqq06hyfvqryn2nam3
+account id 1: mdev1qz7lwv4wh27xyyqqq026adcyc54ueccz
+account id 2: mdev1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c
+account id 3: mdev1qrdclj0zp3v7qyqqqdn92ad87cl0rctl
+account id 4: mdev1qre79420whvn2yqqq0udf4z8d5c3xwfj
+account id 5: mdev1qpmfryrdjfwazyqqqdslm7gdhur80xhk
+account id 6: mdev1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj
+account id 7: mdev1qrfmw4297mchwyqqqdfzq8dl2uu89uhq
+account id 8: mdev1qpevlxpnuetesyqqqdwmsgd4zua84nda
+account id 9: mdev1qre7lqnwt03zwyqqqvjdlj2w6yc87u4w
 
 [STEP 3] Mint tokens
 Minting tokens for Alice...
@@ -379,71 +374,71 @@ Minting tokens for Alice...
 [STEP 4] Create unauthenticated note tx chain
 
 unauthenticated tx 1
-sender: mtst1qrdwf5hv6wnqzyqqq06hyfvqryn2nam3
-target: mtst1qz7lwv4wh27xyyqqq026adcyc54ueccz
+sender: mdev1qrdwf5hv6wnqzyqqq06hyfvqryn2nam3
+target: mdev1qz7lwv4wh27xyyqqq026adcyc54ueccz
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x31f48117c645c5b4ccff78ef356bad764798d4f207925e492ebbae1b86ef4f55
 Total time for loop iteration 0: 1.952243542s
 
 unauthenticated tx 2
-sender: mtst1qz7lwv4wh27xyyqqq026adcyc54ueccz
-target: mtst1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c
+sender: mdev1qz7lwv4wh27xyyqqq026adcyc54ueccz
+target: mdev1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x45b4c62c6e8e79a1c7200d1c84dc6304a88debd37b20b069dd739498827354c1
 Total time for loop iteration 1: 2.091625458s
 
 unauthenticated tx 3
-sender: mtst1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c
-target: mtst1qrdclj0zp3v7qyqqqdn92ad87cl0rctl
+sender: mdev1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c
+target: mdev1qrdclj0zp3v7qyqqqdn92ad87cl0rctl
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xb2241e10df8f6f891b910975a3b4f4fd47657c47de164138300d683cfca5dd61
 Total time for loop iteration 2: 1.846021291s
 
 unauthenticated tx 4
-sender: mtst1qrdclj0zp3v7qyqqqdn92ad87cl0rctl
-target: mtst1qre79420whvn2yqqq0udf4z8d5c3xwfj
+sender: mdev1qrdclj0zp3v7qyqqqdn92ad87cl0rctl
+target: mdev1qre79420whvn2yqqq0udf4z8d5c3xwfj
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xd3ea6fa1da6c317f055ac4b069388d93b88d526039e01531879e75598e0f8cff
 Total time for loop iteration 3: 1.877627958s
 
 unauthenticated tx 5
-sender: mtst1qre79420whvn2yqqq0udf4z8d5c3xwfj
-target: mtst1qpmfryrdjfwazyqqqdslm7gdhur80xhk
+sender: mdev1qre79420whvn2yqqq0udf4z8d5c3xwfj
+target: mdev1qpmfryrdjfwazyqqqdslm7gdhur80xhk
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x6098638ec0ff7331432c037331ee7372977abe20af5c56315985fd314e21548d
 Total time for loop iteration 4: 1.884586875s
 
 unauthenticated tx 6
-sender: mtst1qpmfryrdjfwazyqqqdslm7gdhur80xhk
-target: mtst1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj
+sender: mdev1qpmfryrdjfwazyqqqdslm7gdhur80xhk
+target: mdev1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x8258292e49e0cfdd96603450c2de6738afecb1e7482ede0fb68ea375e884e1d8
 Total time for loop iteration 5: 1.886505875s
 
 unauthenticated tx 7
-sender: mtst1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj
-target: mtst1qrfmw4297mchwyqqqdfzq8dl2uu89uhq
+sender: mdev1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj
+target: mdev1qrfmw4297mchwyqqqdfzq8dl2uu89uhq
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x9e0f84e00a9393bf6e5f224d55ccdf8bd0ef32ee20c3299e2dfccf1771001dfd
 Total time for loop iteration 6: 2.095149458s
 
 unauthenticated tx 8
-sender: mtst1qrfmw4297mchwyqqqdfzq8dl2uu89uhq
-target: mtst1qpevlxpnuetesyqqqdwmsgd4zua84nda
+sender: mdev1qrfmw4297mchwyqqqdfzq8dl2uu89uhq
+target: mdev1qpevlxpnuetesyqqqdwmsgd4zua84nda
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xa9db6445dfaa44ccf9dd52bf4cd8d9057946571ccb5299a7a56c59faf2ed2093
 Total time for loop iteration 7: 1.935587291s
 
 unauthenticated tx 9
-sender: mtst1qpevlxpnuetesyqqqdwmsgd4zua84nda
-target: mtst1qre7lqnwt03zwyqqqvjdlj2w6yc87u4w
+sender: mdev1qpevlxpnuetesyqqqdwmsgd4zua84nda
+target: mdev1qre7lqnwt03zwyqqqvjdlj2w6yc87u4w
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xba4bb4ae3c7aaf949cdd3be8c9ea52169f958e7dca8e9d4541fd5ac939393e41
 Total time for loop iteration 8: 1.964682833s
 
 Total execution time for unauthenticated note txs: 17.534611542s
 blocks: [BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047)]
-Account: mtst1qrdwf5hv6wnqzyqqq06hyfvqryn2nam3 balance: 80
-Account: mtst1qz7lwv4wh27xyyqqq026adcyc54ueccz balance: 0
-Account: mtst1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c balance: 0
-Account: mtst1qrdclj0zp3v7qyqqqdn92ad87cl0rctl balance: 0
-Account: mtst1qre79420whvn2yqqq0udf4z8d5c3xwfj balance: 0
-Account: mtst1qpmfryrdjfwazyqqqdslm7gdhur80xhk balance: 0
-Account: mtst1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj balance: 0
-Account: mtst1qrfmw4297mchwyqqqdfzq8dl2uu89uhq balance: 0
-Account: mtst1qpevlxpnuetesyqqqdwmsgd4zua84nda balance: 0
-Account: mtst1qre7lqnwt03zwyqqqvjdlj2w6yc87u4w balance: 20
+Account: mdev1qrdwf5hv6wnqzyqqq06hyfvqryn2nam3 balance: 80
+Account: mdev1qz7lwv4wh27xyyqqq026adcyc54ueccz balance: 0
+Account: mdev1qzzmpa7f3tcnkyqqqdgj4dan2q8r0s6c balance: 0
+Account: mdev1qrdclj0zp3v7qyqqqdn92ad87cl0rctl balance: 0
+Account: mdev1qre79420whvn2yqqq0udf4z8d5c3xwfj balance: 0
+Account: mdev1qpmfryrdjfwazyqqqdslm7gdhur80xhk balance: 0
+Account: mdev1qr0n4cxfddn2wyqqqv2vsc9mnqh0dtyj balance: 0
+Account: mdev1qrfmw4297mchwyqqqdfzq8dl2uu89uhq balance: 0
+Account: mdev1qpevlxpnuetesyqqqdwmsgd4zua84nda balance: 0
+Account: mdev1qre7lqnwt03zwyqqqvjdlj2w6yc87u4w balance: 20
 ```
 
 ## Conclusion

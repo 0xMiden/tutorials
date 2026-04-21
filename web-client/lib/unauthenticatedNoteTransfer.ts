@@ -4,20 +4,16 @@
  *
  * @throws {Error} If the function cannot be executed in a browser environment
  */
+import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+
 export async function unauthenticatedNoteTransfer(): Promise<void> {
   // Ensure this runs only in a browser context
   if (typeof window === 'undefined') return console.warn('Run in browser');
 
-  const {
-    MidenClient,
-    AccountType,
-    NoteVisibility,
-    StorageMode,
-  } = await import('@miden-sdk/miden-sdk');
+  await MidenClient.ready();
 
   const client = await MidenClient.create({
-    rpcUrl: 'local',
-    proverUrl: 'local',
+    rpcUrl: 'https://rpc.testnet.miden.io',
   });
 
   console.log('Latest block:', (await client.sync()).blockNum());
@@ -27,7 +23,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
   console.log('Creating account for Alice…');
   const alice = await client.accounts.create({
-    type: AccountType.MutableWallet,
+    type: AccountType.RegularAccountUpdatableCode,
     storage: StorageMode.Public,
   });
   console.log('Alice account ID:', alice.id().toString());
@@ -35,7 +31,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   const wallets = [];
   for (let i = 0; i < 5; i++) {
     const wallet = await client.accounts.create({
-      type: AccountType.MutableWallet,
+      type: AccountType.RegularAccountUpdatableCode,
       storage: StorageMode.Public,
     });
     wallets.push(wallet);
@@ -53,7 +49,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   console.log('Faucet ID:', faucet.id().toString());
 
   // ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
-  const mintTxId = await client.transactions.mint({
+  const { txId: mintTxId } = await client.transactions.mint({
     account: faucet,
     to: alice,
     amount: BigInt(10_000),
@@ -64,10 +60,8 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   await client.transactions.waitFor(mintTxId);
 
   // ── Consume the freshly minted note ──────────────────────────────────────────────
-  const noteList = await client.notes.listAvailable({ account: alice });
-  await client.transactions.consume({
+  await client.transactions.consumeAll({
     account: alice,
-    notes: noteList,
   });
 
   // ── Create unauthenticated note transfer chain ─────────────────────────────────────────────
@@ -90,7 +84,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
       returnNote: true,
     });
 
-    const consumeTxId = await client.transactions.consume({
+    const { txId: consumeTxId } = await client.transactions.consume({
       account: receiver,
       notes: [note],
     });

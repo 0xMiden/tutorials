@@ -5,11 +5,11 @@ sidebar_position: 6
 
 import { CodeSdkTabs } from '@site/src/components';
 
-_Using unauthenticated notes for optimistic note consumption with the Miden WebClient_
+_Using unauthenticated notes for optimistic note consumption with the Miden client_
 
 ## Overview
 
-In this tutorial, we will explore how to leverage unauthenticated notes on Miden to settle transactions faster than the blocktime using the Miden WebClient. Unauthenticated notes are essentially UTXOs that have not yet been fully committed into a block. This feature allows the notes to be created and consumed within the same batch during [batch production](https://0xmiden.github.io/miden-docs/imported/miden-base/src/blockchain.html#batch-production).
+In this tutorial, we will explore how to leverage unauthenticated notes on Miden to settle transactions faster than the blocktime using the Miden client. Unauthenticated notes are essentially UTXOs that have not yet been fully committed into a block. This feature allows the notes to be created and consumed within the same batch during [batch production](https://0xmiden.github.io/miden-docs/imported/miden-base/src/blockchain.html#batch-production).
 
 When using unauthenticated notes, both the creation and consumption of notes can happen within the same batch, enabling faster-than-blocktime settlement. This is particularly powerful for applications requiring high-frequency transactions or optimistic settlement patterns.
 
@@ -24,7 +24,7 @@ Alice ➡ Wallet 1 ➡ Wallet 2 ➡ Wallet 3 ➡ Wallet 4 ➡ Wallet 5
 ## What we'll cover
 
 - **Introduction to Unauthenticated Notes:** Understand what unauthenticated notes are and how they differ from standard notes.
-- **WebClient Setup:** Configure the Miden WebClient for browser-based transactions.
+- **Miden Client Setup:** Configure the Miden client for browser-based transactions.
 - **P2ID Note Creation:** Learn how to create Pay-to-ID notes for targeted transfers.
 - **Performance Insights:** Observe how unauthenticated notes can reduce transaction times dramatically.
 
@@ -40,10 +40,10 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 
 1. **Next.js Project Setup:**
    - Create a new Next.js application with TypeScript.
-   - Install the Miden WebClient SDK.
+   - Install the Miden SDK.
 
-2. **WebClient Initialization:**
-   - Set up the WebClient to connect with the Miden testnet.
+2. **Client Initialization:**
+   - Set up the Miden client to connect with the Miden testnet.
 
 - Configure a local prover for improved performance.
 
@@ -79,8 +79,8 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.13.0` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.13.0` },
+  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.14.0` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.14.0` },
 }} reactFilename="" tsFilename="" />
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -131,7 +131,9 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black text-slate-800 dark:text-slate-100">
       <div className="text-center">
         <h1 className="text-4xl font-semibold mb-4">Miden Web App</h1>
-        <p className="mb-6">Open your browser console to see WebClient logs.</p>
+        <p className="mb-6">
+          Open your browser console to see Miden client logs.
+        </p>
 
         <div className="max-w-sm w-full bg-gray-800/20 border border-gray-600 rounded-2xl p-6 mx-auto flex flex-col gap-4">
           <button
@@ -162,8 +164,8 @@ Copy and paste the following code into `lib/react/unauthenticatedNoteTransfer.ts
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function UnauthenticatedNoteTransferInner() {
 .const { isReady } = useMiden();
@@ -226,7 +228,7 @@ function UnauthenticatedNoteTransferInner() {
 ....noteType: NoteVisibility.Public,
 ....returnNote: true,
 ...});
-...const result = await consume({ accountId: wallet, notes: [note] });
+...const result = await consume({ accountId: wallet.id().toString(), notes: [note] });
 ...console.log(
 ....\`Transfer \${i + 1}: https://testnet.midenscan.com/tx/\${result.transactionId}\`,
 ...);
@@ -267,11 +269,10 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 ..AccountType,
 ..NoteVisibility,
 ..StorageMode,
-.} = await import('@miden-sdk/miden-sdk');
+.} = await import('@miden-sdk/miden-sdk/lazy');
 
 .const client = await MidenClient.create({
-..rpcUrl: 'local',
-..proverUrl: 'local',
+..rpcUrl: 'https://rpc.testnet.miden.io',
 .});
 
 .console.log('Latest block:', (await client.sync()).blockNum());
@@ -279,7 +280,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .// ── Creating accounts ──────────────────────────────────────────────────────
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.MutableWallet,
+..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice account ID:', alice.id().toString());
@@ -287,7 +288,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .const wallets = [];
 .for (let i = 0; i < 5; i++) {
 ..const wallet = await client.accounts.create({
-...type: AccountType.MutableWallet,
+...type: AccountType.RegularAccountUpdatableCode,
 ...storage: StorageMode.Public,
 ..});
 ..wallets.push(wallet);
@@ -342,7 +343,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 ...returnNote: true,
 ..});
 
-..const consumeTxId = await client.transactions.consume({
+..const { txId: consumeTxId } = await client.transactions.consume({
 ...account: receiver,
 ...notes: [note],
 ..});
@@ -447,12 +448,12 @@ Wallet 5 balance: 50 MID
 
 Unauthenticated notes on Miden offer a powerful mechanism for achieving faster asset settlements by allowing notes to be both created and consumed within the same block. In this guide, we walked through:
 
-- **Setting up the Miden WebClient** with a local prover
+- **Setting up the Miden client** with a local prover
 - **Creating P2ID Notes** for targeted asset transfers between specific accounts
 - **Building Transaction Chains** using unauthenticated input notes for sub-blocktime settlement
 - **Performance Observations** demonstrating how unauthenticated notes enable faster-than-blocktime transfers
 
-By following this guide, you should now have a clear understanding of how to build and deploy high-performance transactions using unauthenticated notes on Miden with the WebClient. Unauthenticated notes are the ideal approach for applications like central limit order books (CLOBs) or other DeFi platforms where transaction speed is critical.
+By following this guide, you should now have a clear understanding of how to build and deploy high-performance transactions using unauthenticated notes on Miden with the Miden client. Unauthenticated notes are the ideal approach for applications like central limit order books (CLOBs) or other DeFi platforms where transaction speed is critical.
 
 ### Resetting the `MidenClientDB`
 

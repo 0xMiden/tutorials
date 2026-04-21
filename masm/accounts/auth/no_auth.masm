@@ -1,4 +1,6 @@
-use miden::account
+use miden::protocol::native_account
+
+@auth_script
 pub proc auth__basic
-    push.1 exec.account::incr_nonce
+    exec.native_account::incr_nonce drop
 end

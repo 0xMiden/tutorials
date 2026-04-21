@@ -59,7 +59,6 @@ use miden::standards::wallets::basic->wallet
 # =================================================================================================
 
 const EXPECTED_DIGEST_PTR=0
-const ASSET_PTR=100
 
 # ERRORS
 # =================================================================================================
@@ -69,7 +68,7 @@ const ERROR_DIGEST_MISMATCH="Expected digest does not match computed digest"
 #! Inputs (arguments):  [HASH_PREIMAGE_SECRET]
 #! Outputs: []
 #!
-#! Note inputs are assumed to be as follows:
+#! Note storage is assumed to be as follows:
 #!  => EXPECTED_DIGEST
 begin
     # => HASH_PREIMAGE_SECRET
@@ -77,11 +76,11 @@ begin
     hash
     # => [DIGEST]
 
-    # Writing the note inputs to memory
-    push.EXPECTED_DIGEST_PTR exec.active_note::get_inputs drop drop
+    # Writing the note storage to memory
+    push.EXPECTED_DIGEST_PTR exec.active_note::get_storage drop drop
 
-    # Pad stack and load expected digest from memory
-    padw push.EXPECTED_DIGEST_PTR mem_loadw_be
+    # Pad stack and load expected digest from memory (LE: mem[addr] ends up on top)
+    padw push.EXPECTED_DIGEST_PTR mem_loadw_le
     # => [EXPECTED_DIGEST, DIGEST]
 
     # Assert that the note input matches the digest
@@ -93,19 +92,8 @@ begin
     # If the check is successful, we allow for the asset to be consumed
     # ---------------------------------------------------------------------------------------------
 
-    # Write the asset in note to memory address ASSET_PTR
-    push.ASSET_PTR exec.active_note::get_assets
-    # => [num_assets, dest_ptr]
-
-    drop
-    # => [dest_ptr]
-
-    # Load asset from memory
-    mem_loadw_be
-    # => [ASSET]
-
-    # Call receive asset in wallet
-    call.wallet::receive_asset
+    # Add all assets from the note to the account
+    exec.wallet::add_assets_to_account
     # => []
 end
 ```
@@ -113,15 +101,15 @@ end
 ### How the assembly code works:
 
 1. **Constants and Error Handling:**  
-   The code defines memory pointers (`EXPECTED_DIGEST_PTR` and `ASSET_PTR`) for better code organization and an error message for digest mismatches.
+   The code defines a memory pointer (`EXPECTED_DIGEST_PTR`) for storing the expected hash and an error message for digest mismatches.
 2. **Passing the Secret:**  
    The secret number is passed as `Note Arguments` into the note.
 3. **Hashing the Secret:**  
-   The `hash` instruction applies a hash permutation to the secret number, resulting in a digest that takes up four stack elements.
+   The `hash` instruction applies a Poseidon2 hash permutation to the secret number, resulting in a digest that takes up four stack elements.
 4. **Digest Comparison:**  
-   The assembly code loads the expected digest from the note inputs stored in memory and compares it with the computed hash. If they don't match, the transaction fails with a clear error message.
+   The assembly code loads the expected digest from note storage into memory, then reads it back with `mem_loadw_le` (which places `mem[addr]` on top, matching the hash output order) and compares with the computed hash. If they don't match, the transaction fails with a clear error message.
 5. **Asset Transfer:**  
-   If the hash of the number passed in as `Note Arguments` matches the hash stored in the note inputs, the script continues, and the asset stored in the note is loaded from memory and passed to Bob's wallet via the `wallet::receive_asset` function.
+   If the hash matches, `wallet::add_assets_to_account` transfers all note assets into the consuming account's vault.
 
 ### 5. Consuming the note
 
@@ -134,27 +122,27 @@ With the note created, Bob can now consume it—but only if he provides the corr
 The following Rust code demonstrates how to implement the steps outlined above using the Miden client library:
 
 ```rust no_run
-use miden_client::auth::AuthFalcon512Rpo;
+use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::{fs, path::Path, sync::Arc};
 use tokio::time::{sleep, Duration};
 
 use miden_client::{
     account::{
-        component::{BasicFungibleFaucet, BasicWallet},
+        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
         Account,
     },
     address::NetworkId,
     auth::AuthSecretKey,
     builder::ClientBuilder,
     crypto::FeltRng,
-    keystore::FilesystemKeyStore,
+    keystore::{FilesystemKeyStore, Keystore},
     note::{
-        Note, NoteAssets, NoteInputs, NoteMetadata, NoteRecipient, NoteTag, NoteType,
+        Note, NoteAssets, NoteMetadata, NoteRecipient, NoteStorage, NoteTag, NoteType,
     },
     rpc::{Endpoint, GrpcClient},
     store::TransactionFilter,
-    transaction::{OutputNote, TransactionId, TransactionRequestBuilder, TransactionStatus},
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -172,18 +160,18 @@ async fn create_basic_account(
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
 
     client.add_account(&account, false).await?;
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, account.id()).await.unwrap();
 
     Ok(account)
 }
@@ -195,7 +183,7 @@ async fn create_basic_faucet(
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
     let max_supply = Felt::new(1_000_000);
@@ -203,13 +191,14 @@ async fn create_basic_faucet(
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+        .with_component(AuthControlled::allow_all())
         .build()
         .unwrap();
 
     client.add_account(&account, false).await?;
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, account.id()).await.unwrap();
 
     Ok(account)
 }
@@ -349,16 +338,16 @@ async fn main() -> Result<(), ClientError> {
     let serial_num = client.rng().draw_word();
 
     let note_script = client.code_builder().compile_note_script(code).unwrap();
-    let note_inputs = NoteInputs::new(digest.to_vec()).unwrap();
-    let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
+    let note_storage = NoteStorage::new(digest.to_vec()).unwrap();
+    let recipient = NoteRecipient::new(serial_num, note_script, note_storage);
     let tag = NoteTag::new(0);
-    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public, tag);
+    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
     let vault = NoteAssets::new(vec![mint_amount.into()])?;
     let custom_note = Note::new(vault, metadata, recipient);
     println!("note hash: {:?}", custom_note.id().to_hex());
 
     let note_request = TransactionRequestBuilder::new()
-        .own_output_notes(vec![OutputNote::Full(custom_note.clone())])
+        .own_output_notes(vec![custom_note.clone()])
         .build()
         .unwrap();
 
@@ -401,11 +390,11 @@ The output of our program will look something like this:
 Latest block: 226943
 
 [STEP 1] Creating new accounts
-Alice's account ID: "mtst1qqufkq3xr0rr5yqqqwgrc20ctythccy6"
-Bob's account ID: "mtst1qz76c9fvhvms2yqqqvvw8tf6m5h86y2h"
+Alice's account ID: "mdev1qqufkq3xr0rr5yqqqwgrc20ctythccy6"
+Bob's account ID: "mdev1qz76c9fvhvms2yqqqvvw8tf6m5h86y2h"
 
 Deploying a new fungible faucet.
-Faucet account ID: "mtst1qpwsgjstpwvykgqqqwwzgz3u5vwuuywe"
+Faucet account ID: "mdev1qpwsgjstpwvykgqqqwwzgz3u5vwuuywe"
 
 [STEP 2] Mint tokens with P2ID
 Note 0x88d8c4a50c0e6342e58026b051fb6038867de21d3bd3963aec67fd6c45861faf not found. Waiting...

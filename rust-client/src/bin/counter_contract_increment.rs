@@ -3,29 +3,28 @@ use std::{fs, path::Path, sync::Arc};
 use miden_client::{
     account::{AccountId, StorageSlotName},
     assembly::{
-        Assembler, DefaultSourceManager, Library, Module, ModuleKind, Path as AssemblyPath,
+        DefaultSourceManager, Library, Module, ModuleKind, Path as AssemblyPath,
     },
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::{TransactionKernel, TransactionRequestBuilder},
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 
 fn create_library(
-    assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<Library, Box<dyn std::error::Error>> {
+) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
+    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
         source_code,
-        source_manager.clone(),
+        source_manager,
     )?;
-    let library = assembler.clone().assemble_library([module])?;
+    let library = assembler.assemble_library([module])?;
     Ok(library)
 }
 
@@ -60,22 +59,18 @@ async fn main() -> Result<(), ClientError> {
 
     // Define the Counter Contract account id from counter contract deploy
     let (_, counter_contract_id) =
-        AccountId::from_bech32("mtst1apfclszryn8a5qqae6sa6hscfgn4mnqp").unwrap();
+        AccountId::from_bech32("mtst1apsd609q5966cqra992t4a00tgstrkfk").unwrap();
 
     client
         .import_account_by_id(counter_contract_id)
         .await
         .unwrap();
 
-    let counter_contract_details = client
+    let counter_contract = client
         .get_account(counter_contract_id)
         .await
         .unwrap()
         .expect("counter contract not found");
-    let counter_contract = match counter_contract_details.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-    };
     println!(
         "Account details: {:?}",
         counter_contract.storage().slots().first().unwrap()
@@ -93,9 +88,7 @@ async fn main() -> Result<(), ClientError> {
     let counter_path = Path::new("../masm/accounts/counter.masm");
     let counter_code = fs::read_to_string(counter_path).unwrap();
 
-    let assembler = TransactionKernel::assembler();
     let account_component_lib = create_library(
-        assembler.clone(),
         "external_contract::counter_contract",
         &counter_code,
     )
@@ -128,15 +121,11 @@ async fn main() -> Result<(), ClientError> {
     client.sync_state().await.unwrap();
 
     // Retrieve updated contract data to see the incremented counter
-    let account_record = client
+    let account = client
         .get_account(counter_contract_id)
         .await
         .unwrap()
         .expect("counter contract not found");
-    let account = match account_record.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-    };
     let counter_slot_name =
         StorageSlotName::new("miden::tutorials::counter").expect("valid slot name");
     println!(

@@ -81,7 +81,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.10" }
+miden = { version = "0.12" }
 
 [package.metadata.component]
 package = "miden:init-tx-script"
@@ -315,30 +315,29 @@ async fn test_init_tx_script_enables_deposits() -> anyhow::Result<()> {
 
     // Create uninitialized bank account with named storage slots
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot.clone(), Word::default()),
-            StorageSlot::with_map(
-                balances_slot,
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
 
     let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Verify bank is NOT initialized
     let initial_storage = bank_account.storage().get_item(&initialized_slot)?;
     assert_eq!(
-        initial_storage[0].as_int(),
+        initial_storage[0].as_canonical_u64(),
         0,
         "Bank should start uninitialized"
     );
@@ -367,7 +366,7 @@ async fn test_init_tx_script_enables_deposits() -> anyhow::Result<()> {
     // Verify bank IS now initialized
     let final_storage = bank_account.storage().get_item(&initialized_slot)?;
     assert_eq!(
-        final_storage[0].as_int(),
+        final_storage[0].as_canonical_u64(),
         1,
         "Bank should be initialized after tx script"
     );
@@ -460,7 +459,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.10" }
+miden = { version = "0.12" }
 
 [package.metadata.component]
 package = "miden:init-tx-script"

@@ -4,33 +4,29 @@ use integration::helpers::{
 };
 
 use miden_client::{
-    account::{StorageMap, StorageSlot, StorageSlotName},
+    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
+    auth::AuthSchemeId,
     note::NoteAssets,
-    transaction::{OutputNote, TransactionScript},
+    transaction::{RawOutputNote, TransactionScript},
     Felt, Word,
 };
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
-/// Helper to create the bank account storage slots with named slot names
-fn bank_storage_slots() -> (StorageSlotName, StorageSlotName, Vec<StorageSlot>) {
+/// Storage slot names for the bank account component.
+///
+/// The component's initial storage (initialized = 0, empty balances map) is seeded
+/// automatically by `AccountComponent::from_package` using the component's schema,
+/// so no explicit `InitStorageData` entries are needed.
+fn bank_storage_slots() -> (StorageSlotName, StorageSlotName) {
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
-
-    let slots = vec![
-        StorageSlot::with_value(initialized_slot.clone(), Word::default()),
-        StorageSlot::with_map(
-            balances_slot.clone(),
-            StorageMap::with_entries([]).expect("Empty storage map"),
-        ),
-    ];
-
-    (initialized_slot, balances_slot, slots)
+    (initialized_slot, balances_slot)
 }
 
 #[tokio::test]
@@ -39,11 +35,20 @@ async fn deposit_test() -> anyhow::Result<()> {
     let mut builder = MockChain::builder();
 
     // Create a faucet to mint test assets
-    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", 1000, Some(10))?;
+    let faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth {
+            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+        },
+        "TEST",
+        1000,
+        Some(10),
+    )?;
 
     // Create note sender account (the depositor)
     let sender = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth,
+        Auth::BasicAuth {
+            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+        },
         [FungibleAsset::new(faucet.id(), 100)?.into()],
     )?;
 
@@ -61,15 +66,23 @@ async fn deposit_test() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create the bank account with named storage slots
-    let (_initialized_slot, balances_slot, storage_slots) = bank_storage_slots();
+    // Create the bank account. Seed the component's `initialized` value slot with
+    // Word::default() (uninitialized); the `balances` map starts empty by default.
+    let (initialized_slot, balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
-        storage_slots,
+        init_storage_data: {
+            let mut data = InitStorageData::default();
+            data.insert_value(
+                StorageValueName::from_slot_name(&initialized_slot),
+                Word::default(),
+            )?;
+            data
+        },
         ..Default::default()
     };
 
     let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Create a fungible asset to deposit
     let deposit_amount: u64 = 1000;
@@ -89,7 +102,7 @@ async fn deposit_test() -> anyhow::Result<()> {
 
     // Add bank account and deposit note to mockchain
     builder.add_account(bank_account.clone())?;
-    builder.add_output_note(OutputNote::Full(deposit_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
 
     // Build the mock chain
     let mut mock_chain = builder.build()?;
@@ -101,7 +114,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // This is done via a transaction script that calls bank.initialize()
 
     let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
+    let init_tx_script = TransactionScript::new(init_program);
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
@@ -135,7 +148,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     mock_chain.prove_next_block()?;
 
     // Create the key for the depositor (sender) in the storage map
-    // Key format: [prefix, suffix, faucet_prefix, faucet_suffix]
+    // Key format: [depositor_prefix, depositor_suffix, faucet_prefix, faucet_suffix]
     let depositor_key = Word::from([
         sender.id().prefix().as_felt(),
         sender.id().suffix(),
@@ -146,13 +159,13 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Get the depositor's balance from the bank's storage using named slot
     let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
 
-    // The balance should be stored as [amount, 0, 0, 0] in the Word
-    // But since we store just the Felt, check the first element
+    // The contract stores `balance` as a `Felt`; reading the map returns the
+    // single-Felt value widened into a Word at position [0] ([amount, 0, 0, 0]).
     let expected_balance = Word::from([
-        Felt::new(0),
-        Felt::new(0),
-        Felt::new(0),
         Felt::new(deposit_amount),
+        Felt::new(0),
+        Felt::new(0),
+        Felt::new(0),
     ]);
 
     assert_eq!(
@@ -176,11 +189,20 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
     // Create a faucet with enough capacity for a large deposit
     // MAX_DEPOSIT_AMOUNT in the contract is 1,000,000
     let large_amount: u64 = 2_000_000; // Exceeds MAX_DEPOSIT_AMOUNT
-    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", large_amount, Some(10))?;
+    let faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth {
+            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+        },
+        "TEST",
+        large_amount,
+        Some(10),
+    )?;
 
     // Create note sender account (the depositor) with large asset balance
     let sender = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth,
+        Auth::BasicAuth {
+            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+        },
         [FungibleAsset::new(faucet.id(), large_amount)?.into()],
     )?;
 
@@ -198,15 +220,22 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create the bank account with named storage slots
-    let (_initialized_slot, _balances_slot, storage_slots) = bank_storage_slots();
+    // Create the bank account; the component's schema seeds its own initial storage.
+    let (initialized_slot, _balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
-        storage_slots,
+        init_storage_data: {
+            let mut data = InitStorageData::default();
+            data.insert_value(
+                StorageValueName::from_slot_name(&initialized_slot),
+                Word::default(),
+            )?;
+            data
+        },
         ..Default::default()
     };
 
     let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Create a deposit note with amount exceeding the max
     let fungible_asset = FungibleAsset::new(faucet.id(), large_amount)?;
@@ -223,14 +252,14 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
 
     // Add bank account and deposit note to mockchain
     builder.add_account(bank_account.clone())?;
-    builder.add_output_note(OutputNote::Full(deposit_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
 
     // Build the mock chain
     let mut mock_chain = builder.build()?;
 
     // Initialize the bank first
     let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
+    let init_tx_script = TransactionScript::new(init_program);
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
@@ -272,11 +301,20 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
     let mut builder = MockChain::builder();
 
     // Create a faucet to mint test assets
-    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", 1000, Some(10))?;
+    let faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth {
+            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+        },
+        "TEST",
+        1000,
+        Some(10),
+    )?;
 
     // Create note sender account (the depositor)
     let sender = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth,
+        Auth::BasicAuth {
+            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+        },
         [FungibleAsset::new(faucet.id(), 100)?.into()],
     )?;
 
@@ -290,16 +328,23 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create the bank account with named storage slots
-    // Note: We intentionally do NOT initialize the bank
-    let (_initialized_slot, _balances_slot, storage_slots) = bank_storage_slots();
+    // Create the bank account; the component's schema seeds its own initial storage.
+    // Note: We intentionally do NOT initialize the bank (initialized stays at 0).
+    let (initialized_slot, _balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
-        storage_slots,
+        init_storage_data: {
+            let mut data = InitStorageData::default();
+            data.insert_value(
+                StorageValueName::from_slot_name(&initialized_slot),
+                Word::default(),
+            )?;
+            data
+        },
         ..Default::default()
     };
 
     let bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Create a deposit note
     let deposit_amount: u64 = 1000;
@@ -317,7 +362,7 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
 
     // Add bank account and deposit note to mockchain
     builder.add_account(bank_account.clone())?;
-    builder.add_output_note(OutputNote::Full(deposit_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
 
     // Build the mock chain
     let mock_chain = builder.build()?;

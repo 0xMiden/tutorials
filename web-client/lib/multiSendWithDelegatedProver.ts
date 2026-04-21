@@ -4,22 +4,24 @@
  *
  * @throws {Error} If the function cannot be executed in a browser environment
  */
+import {
+  MidenClient,
+  AccountType,
+  NoteVisibility,
+  StorageMode,
+  createP2IDNote,
+  NoteArray,
+  TransactionRequestBuilder,
+} from '@miden-sdk/miden-sdk/lazy';
+
 export async function multiSendWithDelegatedProver(): Promise<void> {
   // Ensure this runs only in a browser context
   if (typeof window === 'undefined') return console.warn('Run in browser');
 
-  const {
-    MidenClient,
-    AccountType,
-    NoteVisibility,
-    StorageMode,
-    createP2IDNote,
-    OutputNoteArray,
-    TransactionRequestBuilder,
-  } = await import('@miden-sdk/miden-sdk');
+  await MidenClient.ready();
 
   const client = await MidenClient.create({
-    rpcUrl: 'http://localhost:57291',
+    rpcUrl: 'https://rpc.testnet.miden.io',
   });
 
   console.log('Latest block:', (await client.sync()).blockNum());
@@ -27,7 +29,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   // ── Creating new account ──────────────────────────────────────────────────────
   console.log('Creating account for Alice…');
   const alice = await client.accounts.create({
-    type: AccountType.MutableWallet,
+    type: AccountType.RegularAccountUpdatableCode,
     storage: StorageMode.Public,
   });
   console.log('Alice account ID:', alice.id().toString());
@@ -43,7 +45,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   console.log('Faucet ID:', faucet.id().toString());
 
   // ── mint 10 000 MID to Alice ──────────────────────────────────────────────────────
-  const mintTxId = await client.transactions.mint({
+  const { txId: mintTxId } = await client.transactions.mint({
     account: faucet,
     to: alice,
     amount: BigInt(10_000),
@@ -54,10 +56,8 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   await client.transactions.waitFor(mintTxId);
 
   // ── consume the freshly minted notes ──────────────────────────────────────────────
-  const noteList = await client.notes.listAvailable({ account: alice });
-  await client.transactions.consume({
+  await client.transactions.consumeAll({
     account: alice,
-    notes: noteList,
   });
 
   // ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
@@ -78,7 +78,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
   // ── create all P2ID notes ───────────────────────────────────────────────────────────────
   const builder = new TransactionRequestBuilder();
-  const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
+  const txRequest = builder.withOwnOutputNotes(new NoteArray(p2idNotes)).build();
   await client.transactions.submit(alice, txRequest);
 
   console.log('All notes created ✅');

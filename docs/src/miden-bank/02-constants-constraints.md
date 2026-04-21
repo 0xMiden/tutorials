@@ -14,7 +14,7 @@ By the end of this section, you will have:
 
 - Defined constants for business rules
 - Used `assert!()` for transaction validation
-- Learned safe Felt comparison with `.as_u64()`
+- Learned safe Felt comparison with `.as_canonical_u64()`
 - Added a deposit method skeleton with validation
 - **Verified constraints work** by testing that invalid operations fail
 
@@ -62,15 +62,15 @@ The `assert!()` macro validates conditions during transaction execution:
 ```rust title="contracts/bank-account/src/lib.rs"
 pub fn initialize(&mut self) {
     // Check not already initialized
-    let current: Word = self.initialized.read();
+    let current: Word = self.initialized.get();
     assert!(
-        current[0].as_u64() == 0,
+        current[0].as_canonical_u64() == 0,
         "Bank already initialized"
     );
 
     // Set initialized flag to 1
     let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-    self.initialized.write(initialized_word);
+    self.initialized.set(initialized_word);
 }
 ```
 
@@ -101,12 +101,12 @@ if deposit_amount > felt!(1_000_000) {
 
 ```rust
 // CORRECT - convert to u64 first
-if deposit_amount.as_u64() > MAX_DEPOSIT_AMOUNT {
+if deposit_amount.as_canonical_u64() > MAX_DEPOSIT_AMOUNT {
     // This works correctly
 }
 ```
 
-The `.as_u64()` method extracts the underlying 64-bit integer from a Felt, allowing standard Rust comparisons.
+The `.as_canonical_u64()` method extracts the underlying 64-bit integer from a Felt, allowing standard Rust comparisons.
 
 ## Step 1: Add the Constant and Deposit Method
 
@@ -122,27 +122,27 @@ const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 impl Bank {
     /// Initialize the bank account, enabling deposits.
     pub fn initialize(&mut self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 0,
+            current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-        self.initialized.write(initialized_word);
+        self.initialized.set(initialized_word);
     }
 
     /// Get the balance for a depositor.
     pub fn get_balance(&self, depositor: AccountId) -> Felt {
         let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
-        self.balances.get(&key)
+        self.balances.get(key)
     }
 
     /// Check that the bank is initialized.
     fn require_initialized(&self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 1,
+            current[0].as_canonical_u64() == 1,
             "Bank not initialized - deposits not enabled"
         );
     }
@@ -156,13 +156,13 @@ impl Bank {
         self.require_initialized();
 
         // Extract the fungible amount from the asset
-        let deposit_amount = deposit_asset.inner[0];
+        let deposit_amount = deposit_asset.value[0];
 
         // ========================================================================
         // CONSTRAINT: Maximum deposit amount check
         // ========================================================================
         assert!(
-            deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
+            deposit_amount.as_canonical_u64() <= MAX_DEPOSIT_AMOUNT,
             "Deposit amount exceeds maximum allowed"
         );
 
@@ -178,9 +178,9 @@ We use a helper method to check initialization state:
 
 ```rust
 fn require_initialized(&self) {
-    let current: Word = self.initialized.read();
+    let current: Word = self.initialized.get();
     assert!(
-        current[0].as_u64() == 1,
+        current[0].as_canonical_u64() == 1,
         "Bank not initialized - deposits not enabled"
     );
 }
@@ -256,31 +256,30 @@ async fn test_constraints_are_defined() -> anyhow::Result<()> {
 
     // Create named storage slots
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
     // Create an uninitialized bank account
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot.clone(), Word::default()),
-            StorageSlot::with_map(
-                balances_slot,
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
 
     let bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Verify the bank starts uninitialized
     let initialized = bank_account.storage().get_item(&initialized_slot)?;
     assert_eq!(
-        initialized[0].as_int(),
+        initialized[0].as_canonical_u64(),
         0,
         "Bank should start uninitialized"
     );
@@ -288,7 +287,7 @@ async fn test_constraints_are_defined() -> anyhow::Result<()> {
     println!("Bank account created with constraints!");
     println!("  - MAX_DEPOSIT_AMOUNT: 1,000,000");
     println!("  - require_initialized() guard in place");
-    println!("  - Initialization status: {}", initialized[0].as_int());
+    println!("  - Initialization status: {}", initialized[0].as_canonical_u64());
     println!("\nPart 2 constraints test passed!");
 
     Ok(())
@@ -340,7 +339,7 @@ For now, the constraint logic is in place and we've verified the contract compil
 fn require_sufficient_balance(&self, depositor: AccountId, amount: Felt) {
     let balance = self.get_balance(depositor);
     assert!(
-        balance.as_u64() >= amount.as_u64(),
+        balance.as_canonical_u64() >= amount.as_canonical_u64(),
         "Insufficient balance"
     );
 }
@@ -354,9 +353,9 @@ This pattern is **mandatory** for any operation that subtracts from a balance. M
 
 ```rust
 fn require_not_paused(&self) {
-    let paused: Word = self.paused.read();
+    let paused: Word = self.paused.get();
     assert!(
-        paused[0].as_u64() == 0,
+        paused[0].as_canonical_u64() == 0,
         "Contract is paused"
     );
 }
@@ -385,37 +384,37 @@ const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 #[component]
 struct Bank {
     #[storage(description = "initialized")]
-    initialized: Value,
+    initialized: StorageValue<Word>,
 
     #[storage(description = "balances")]
-    balances: StorageMap,
+    balances: StorageMap<Word, Felt>,
 }
 
 #[component]
 impl Bank {
     /// Initialize the bank account, enabling deposits.
     pub fn initialize(&mut self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 0,
+            current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-        self.initialized.write(initialized_word);
+        self.initialized.set(initialized_word);
     }
 
     /// Get the balance for a depositor.
     pub fn get_balance(&self, depositor: AccountId) -> Felt {
         let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
-        self.balances.get(&key)
+        self.balances.get(key)
     }
 
     /// Check that the bank is initialized.
     fn require_initialized(&self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 1,
+            current[0].as_canonical_u64() == 1,
             "Bank not initialized - deposits not enabled"
         );
     }
@@ -425,11 +424,11 @@ impl Bank {
         // CONSTRAINT: Bank must be initialized
         self.require_initialized();
 
-        let deposit_amount = deposit_asset.inner[0];
+        let deposit_amount = deposit_asset.value[0];
 
         // CONSTRAINT: Maximum deposit amount check
         assert!(
-            deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
+            deposit_amount.as_canonical_u64() <= MAX_DEPOSIT_AMOUNT,
             "Deposit amount exceeds maximum allowed"
         );
 
@@ -444,7 +443,7 @@ impl Bank {
 
 1. **Constants** define immutable business rules at compile time
 2. **`assert!()`** enforces constraints - failures reject the transaction
-3. **Always use `.as_u64()`** for Felt comparisons, never direct operators
+3. **Always use `.as_canonical_u64()`** for Felt comparisons, never direct operators
 4. **Helper methods** like `require_initialized()` centralize validation logic
 5. **Failed assertions** mean no valid proof can be generated
 

@@ -174,7 +174,7 @@ for _ in 1..=4 {
     let send_amount = 50;
     let fungible_asset = FungibleAsset::new(faucet_account.id(), send_amount).unwrap();
 
-    let p2id_note = create_p2id_note(
+    let p2id_note = P2idNote::create(
         alice_account.id(),
         target_account_id,
         vec![fungible_asset.into()],
@@ -186,9 +186,8 @@ for _ in 1..=4 {
 }
 
 // Specifying output notes and creating a tx request to create them
-let output_notes: Vec<OutputNote> = p2id_notes.into_iter().map(OutputNote::Full).collect();
 let transaction_request = TransactionRequestBuilder::new()
-    .own_output_notes(output_notes)
+    .own_output_notes(p2id_notes)
     .build()
     .unwrap();
 
@@ -222,7 +221,7 @@ let target_account_id = AccountId::dummy(
 let send_amount = 50;
 let fungible_asset = FungibleAsset::new(faucet_account.id(), send_amount).unwrap();
 
-let p2id_note = create_p2id_note(
+let p2id_note = P2idNote::create(
     alice_account.id(),
     target_account_id,
     vec![fungible_asset.into()],
@@ -232,7 +231,7 @@ let p2id_note = create_p2id_note(
 )?;
 
 let transaction_request = TransactionRequestBuilder::new()
-    .own_output_notes(vec![OutputNote::Full(p2id_note)])
+    .own_output_notes(vec![p2id_note])
     .build()
     .unwrap();
 
@@ -250,23 +249,23 @@ Note: _In a production environment do not use `AccountId::dummy()`, this is simp
 Your `src/main.rs` function should now look like this:
 
 ```rust no_run
-use miden_client::auth::AuthFalcon512Rpo;
+use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::sync::Arc;
 use tokio::time::Duration;
 
 use miden_client::{
     account::{
-        component::{BasicFungibleFaucet, BasicWallet},
+        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
         AccountId,
     },
     address::NetworkId,
     auth::AuthSecretKey,
     builder::ClientBuilder,
-    keystore::FilesystemKeyStore,
-    note::{create_p2id_note, NoteAttachment, NoteType},
+    keystore::{FilesystemKeyStore, Keystore},
+    note::{NoteAttachment, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
-    transaction::{OutputNote, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -310,13 +309,13 @@ async fn main() -> Result<(), ClientError> {
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
@@ -325,7 +324,7 @@ async fn main() -> Result<(), ClientError> {
     client.add_account(&alice_account, false).await?;
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
     let alice_account_id_bech32 = alice_account.id().to_bech32(NetworkId::Testnet);
     println!("Alice's account ID: {:?}", alice_account_id_bech32);
@@ -345,14 +344,15 @@ async fn main() -> Result<(), ClientError> {
     let max_supply = Felt::new(1_000_000);
 
     // Generate key pair
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Build the faucet account
     let faucet_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+        .with_component(AuthControlled::allow_all())
         .build()
         .unwrap();
 
@@ -360,7 +360,7 @@ async fn main() -> Result<(), ClientError> {
     client.add_account(&faucet_account, false).await?;
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, faucet_account.id()).await.unwrap();
 
     let faucet_account_id_bech32 = faucet_account.id().to_bech32(NetworkId::Testnet);
     println!("Faucet account ID: {:?}", faucet_account_id_bech32);
@@ -469,7 +469,7 @@ async fn main() -> Result<(), ClientError> {
         let send_amount = 50;
         let fungible_asset = FungibleAsset::new(faucet_account.id(), send_amount).unwrap();
 
-        let p2id_note = create_p2id_note(
+        let p2id_note = P2idNote::create(
             alice_account.id(),
             target_account_id,
             vec![fungible_asset.into()],
@@ -481,9 +481,8 @@ async fn main() -> Result<(), ClientError> {
     }
 
     // Specifying output notes and creating a tx request to create them
-    let output_notes: Vec<OutputNote> = p2id_notes.into_iter().map(OutputNote::Full).collect();
     let transaction_request = TransactionRequestBuilder::new()
-        .own_output_notes(output_notes)
+        .own_output_notes(p2id_notes)
         .build()
         .unwrap();
 
@@ -509,7 +508,7 @@ async fn main() -> Result<(), ClientError> {
     let send_amount = 50;
     let fungible_asset = FungibleAsset::new(faucet_account.id(), send_amount).unwrap();
 
-    let p2id_note = create_p2id_note(
+    let p2id_note = P2idNote::create(
         alice_account.id(),
         target_account_id,
         vec![fungible_asset.into()],
@@ -519,7 +518,7 @@ async fn main() -> Result<(), ClientError> {
     )?;
 
     let transaction_request = TransactionRequestBuilder::new()
-        .own_output_notes(vec![OutputNote::Full(p2id_note)])
+        .own_output_notes(vec![p2id_note])
         .build()
         .unwrap();
 
@@ -550,10 +549,10 @@ The output will look like this:
 Latest block: 226896
 
 [STEP 1] Creating a new account for Alice
-Alice's account ID: "mtst1qp9czj052w3hvyqqqdtxmkh4myt45x2h"
+Alice's account ID: "mdev1qp9czj052w3hvyqqqdtxmkh4myt45x2h"
 
 [STEP 2] Deploying a new fungible faucet.
-Faucet account ID: "mtst1qrn8x36uckhhvgqqqdze8g6t7ggyufq0"
+Faucet account ID: "mdev1qrn8x36uckhhvgqqqdze8g6t7ggyufq0"
 
 [STEP 3] Minting 5 notes of 100 tokens each for Alice.
 tx request built

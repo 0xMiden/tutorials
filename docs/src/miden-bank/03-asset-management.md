@@ -51,12 +51,12 @@ Asset Layout: [amount, 0, faucet_suffix, faucet_prefix]
 | 2     | `faucet_suffix` | Second part of the faucet account ID |
 | 3     | `faucet_prefix` | First part of the faucet account ID  |
 
-Access these fields through `asset.inner`:
+Access amount through `asset.value` and faucet ID through `asset.key`:
 
 ```rust
-let amount = deposit_asset.inner[0];           // The token amount
-let faucet_suffix = deposit_asset.inner[2];    // Faucet ID suffix
-let faucet_prefix = deposit_asset.inner[3];    // Faucet ID prefix
+let amount = deposit_asset.value[0];           // The token amount
+let faucet_suffix = deposit_asset.key[2];      // Faucet ID suffix
+let faucet_prefix = deposit_asset.key[3];      // Faucet ID prefix
 ```
 
 ## Receiving Assets with add_asset()
@@ -90,14 +90,14 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     // ========================================================================
     self.require_initialized();
 
-    // Extract the fungible amount from the asset
-    let deposit_amount = deposit_asset.inner[0];
+    // Extract the fungible amount from the asset value word
+    let deposit_amount = deposit_asset.value[0];
 
     // ========================================================================
     // CONSTRAINT: Maximum deposit amount check
     // ========================================================================
     assert!(
-        deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
+        deposit_amount.as_canonical_u64() <= MAX_DEPOSIT_AMOUNT,
         "Deposit amount exceeds maximum allowed"
     );
 
@@ -109,12 +109,12 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     let key = Word::from([
         depositor.prefix,
         depositor.suffix,
-        deposit_asset.inner[3], // asset prefix (faucet)
-        deposit_asset.inner[2], // asset suffix (faucet)
+        deposit_asset.key[3], // faucet_prefix
+        deposit_asset.key[2], // faucet_suffix
     ]);
 
     // Update balance: current + deposit_amount
-    let current_balance: Felt = self.balances.get(&key);
+    let current_balance: Felt = self.balances.get(key);
     let new_balance = current_balance + deposit_amount;
     self.balances.set(key, new_balance);
 
@@ -131,10 +131,10 @@ We construct a composite key for balance tracking:
 
 ```rust
 let key = Word::from([
-    depositor.prefix,      // Who deposited
+    depositor.prefix,     // Who deposited
     depositor.suffix,
-    deposit_asset.inner[3], // Which asset type (faucet ID prefix)
-    deposit_asset.inner[2], // Which asset type (faucet ID suffix)
+    deposit_asset.key[3], // Which asset type (faucet ID prefix)
+    deposit_asset.key[2], // Which asset type (faucet ID suffix)
 ]);
 ```
 
@@ -162,7 +162,7 @@ let new_balance = current_balance - withdraw_amount;
 
 // CORRECT - Always validate first
 assert!(
-    current_balance.as_u64() >= withdraw_amount.as_u64(),
+    current_balance.as_canonical_u64() >= withdraw_amount.as_canonical_u64(),
     "Withdrawal amount exceeds available balance"
 );
 let new_balance = current_balance - withdraw_amount;
@@ -189,15 +189,15 @@ pub fn withdraw(
     // ========================================================================
     self.require_initialized();
 
-    // Extract the fungible amount from the asset
-    let withdraw_amount = withdraw_asset.inner[0];
+    // Extract the fungible amount from the asset value word
+    let withdraw_amount = withdraw_asset.value[0];
 
     // Create key from depositor's AccountId and asset faucet ID
     let key = Word::from([
         depositor.prefix,
         depositor.suffix,
-        withdraw_asset.inner[3],
-        withdraw_asset.inner[2],
+        withdraw_asset.key[3], // faucet_prefix
+        withdraw_asset.key[2], // faucet_suffix
     ]);
 
     // ========================================================================
@@ -206,9 +206,9 @@ pub fn withdraw(
     // Get current balance and validate sufficient funds exist.
     // This check is critical: Felt arithmetic is modular, so subtracting
     // more than the balance would silently wrap to a large positive number.
-    let current_balance: Felt = self.balances.get(&key);
+    let current_balance: Felt = self.balances.get(key);
     assert!(
-        current_balance.as_u64() >= withdraw_amount.as_u64(),
+        current_balance.as_canonical_u64() >= withdraw_amount.as_canonical_u64(),
         "Withdrawal amount exceeds available balance"
     );
 
@@ -261,8 +261,9 @@ use integration::helpers::{
 };
 use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
 use miden_client::asset::{Asset, FungibleAsset};
+use miden_client::auth::AuthSchemeId;
 use miden_client::note::NoteAssets;
-use miden_client::transaction::{OutputNote, TransactionScript};
+use miden_client::transaction::{RawOutputNote, TransactionScript};
 use miden_client::{Felt, Word};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
@@ -275,10 +276,10 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
     let mut builder = MockChain::builder();
 
     // Create a faucet for test tokens
-    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", 10_000_000, Some(10))?;
+    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", 10_000_000, Some(10))?;
 
     // Create sender wallet with tokens
-    let sender = builder.add_existing_wallet_with_assets(Auth::BasicAuth, [FungibleAsset::new(faucet.id(), 1000)?.into()])?;
+    let sender = builder.add_existing_wallet_with_assets(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, [FungibleAsset::new(faucet.id(), 1000)?.into()])?;
 
     // Build contracts
     let bank_package = Arc::new(build_project_in_dir(
@@ -298,25 +299,24 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
 
     // Create the bank account with storage slots
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot.clone(), Word::default()),
-            StorageSlot::with_map(
-                balances_slot.clone(),
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
 
     let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Add to mock chain
     builder.add_account(bank_account.clone())?;
@@ -338,7 +338,7 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
     )?;
 
     // Add note to builder before building
-    builder.add_output_note(OutputNote::Full(deposit_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
 
     let mut mock_chain = builder.build()?;
 
@@ -361,7 +361,7 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
     // Verify initialization
     let initialized = bank_account.storage().get_item(&initialized_slot)?;
     assert_eq!(
-        initialized[0].as_int(),
+        initialized[0].as_canonical_u64(),
         1,
         "Bank should be initialized"
     );
@@ -396,7 +396,7 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
     let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
 
     // Balance is stored as a single Felt in the last position of the Word
-    let balance_value = balance[3].as_int();
+    let balance_value = balance[3].as_canonical_u64();
 
     println!("Depositor balance: {}", balance_value);
     assert_eq!(
@@ -493,37 +493,37 @@ const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 #[component]
 struct Bank {
     #[storage(description = "initialized")]
-    initialized: Value,
+    initialized: StorageValue<Word>,
 
     #[storage(description = "balances")]
-    balances: StorageMap,
+    balances: StorageMap<Word, Felt>,
 }
 
 #[component]
 impl Bank {
     /// Initialize the bank account, enabling deposits.
     pub fn initialize(&mut self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 0,
+            current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-        self.initialized.write(initialized_word);
+        self.initialized.set(initialized_word);
     }
 
     /// Get the balance for a depositor.
     pub fn get_balance(&self, depositor: AccountId) -> Felt {
         let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
-        self.balances.get(&key)
+        self.balances.get(key)
     }
 
     /// Check that the bank is initialized.
     fn require_initialized(&self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 1,
+            current[0].as_canonical_u64() == 1,
             "Bank not initialized - deposits not enabled"
         );
     }
@@ -532,21 +532,21 @@ impl Bank {
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         self.require_initialized();
 
-        let deposit_amount = deposit_asset.inner[0];
+        let deposit_amount = deposit_asset.value[0];
 
         assert!(
-            deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
+            deposit_amount.as_canonical_u64() <= MAX_DEPOSIT_AMOUNT,
             "Deposit amount exceeds maximum allowed"
         );
 
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            deposit_asset.inner[3],
-            deposit_asset.inner[2],
+            deposit_asset.key[3], // faucet_prefix
+            deposit_asset.key[2], // faucet_suffix
         ]);
 
-        let current_balance: Felt = self.balances.get(&key);
+        let current_balance: Felt = self.balances.get(key);
         let new_balance = current_balance + deposit_amount;
         self.balances.set(key, new_balance);
 
@@ -564,19 +564,19 @@ impl Bank {
     ) {
         self.require_initialized();
 
-        let withdraw_amount = withdraw_asset.inner[0];
+        let withdraw_amount = withdraw_asset.value[0];
 
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            withdraw_asset.inner[3],
-            withdraw_asset.inner[2],
+            withdraw_asset.key[3], // faucet_prefix
+            withdraw_asset.key[2], // faucet_suffix
         ]);
 
         // CRITICAL: Validate balance BEFORE subtraction
-        let current_balance: Felt = self.balances.get(&key);
+        let current_balance: Felt = self.balances.get(key);
         assert!(
-            current_balance.as_u64() >= withdraw_amount.as_u64(),
+            current_balance.as_canonical_u64() >= withdraw_amount.as_canonical_u64(),
             "Withdrawal amount exceeds available balance"
         );
 
@@ -604,7 +604,7 @@ impl Bank {
 
 ## Key Takeaways
 
-1. **Asset layout**: `[amount, 0, faucet_suffix, faucet_prefix]`
+1. **Asset layout**: `value[0]` = amount; `key[2]` = faucet_suffix; `key[3]` = faucet_prefix
 2. **`native_account::add_asset()`** adds assets to the vault
 3. **`native_account::remove_asset()`** removes assets from the vault (Part 7)
 4. **Balance tracking** is application-level logic using `StorageMap`

@@ -37,9 +37,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.13.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.13.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.13.0" }
+miden-client = { version = "0.14", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -136,7 +136,6 @@ use miden_client::{
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::TransactionRequestBuilder,
     ClientError,
 };
@@ -146,7 +145,7 @@ fn create_library(
     assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<miden_client::assembly::Library, Box<dyn std::error::Error>> {
+) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
@@ -201,23 +200,18 @@ println!("\n[STEP 1] Reading data from public state");
 
 // Define the Counter Contract account id from counter contract deploy
 let (_, counter_contract_id) =
-    AccountId::from_bech32("mtst1arjemrxne8lj5qz4mg9c8mtyxg954483").unwrap();
+    AccountId::from_bech32("mtst1apsd609q5966cqra992t4a00tgstrkfk").unwrap();
 
 client
     .import_account_by_id(counter_contract_id)
     .await
     .unwrap();
 
-let counter_contract_details = client
+let counter_contract = client
     .get_account(counter_contract_id)
     .await
     .unwrap()
     .expect("counter contract not found");
-
-let counter_contract = match counter_contract_details.account_data() {
-    AccountRecordData::Full(account) => account,
-    AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-};
 println!(
     "Account details: {:?}",
     counter_contract.storage().slots().first().unwrap()
@@ -289,15 +283,11 @@ println!(
 client.sync_state().await.unwrap();
 
 // Retrieve updated contract data to see the incremented counter
-let account_record = client
+let account = client
     .get_account(counter_contract.id())
     .await
     .unwrap()
     .expect("counter contract not found");
-let account = match account_record.account_data() {
-    AccountRecordData::Full(account) => account,
-    AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-};
 let counter_slot_name =
     miden_client::account::StorageSlotName::new("miden::tutorials::counter")
         .expect("valid slot name");
@@ -327,7 +317,6 @@ use miden_client::{
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::TransactionRequestBuilder,
     ClientError,
 };
@@ -337,7 +326,7 @@ fn create_library(
     assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<miden_client::assembly::Library, Box<dyn std::error::Error>> {
+) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
@@ -379,23 +368,18 @@ async fn main() -> Result<(), ClientError> {
 
     // Define the Counter Contract account id from counter contract deploy
     let (_, counter_contract_id) =
-        AccountId::from_bech32("mtst1arjemrxne8lj5qz4mg9c8mtyxg954483").unwrap();
+        AccountId::from_bech32("mtst1apsd609q5966cqra992t4a00tgstrkfk").unwrap();
 
     client
         .import_account_by_id(counter_contract_id)
         .await
         .unwrap();
 
-    let counter_contract_details = client
+    let counter_contract = client
         .get_account(counter_contract_id)
         .await
         .unwrap()
         .expect("counter contract not found");
-
-    let counter_contract = match counter_contract_details.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-    };
     println!(
         "Account details: {:?}",
         counter_contract.storage().slots().first().unwrap()
@@ -448,15 +432,11 @@ async fn main() -> Result<(), ClientError> {
     client.sync_state().await.unwrap();
 
     // Retrieve updated contract data to see the incremented counter
-    let account_record = client
+    let account = client
         .get_account(counter_contract.id())
         .await
         .unwrap()
         .expect("counter contract not found");
-    let account = match account_record.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-    };
     let counter_slot_name =
         miden_client::account::StorageSlotName::new("miden::tutorials::counter")
             .expect("valid slot name");

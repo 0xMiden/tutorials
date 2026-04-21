@@ -1,6 +1,7 @@
 // lib/foreignProcedureInvocation.ts
 import counterContractCode from './masm/counter_contract.masm';
 import countReaderCode from './masm/count_reader.masm';
+import { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } from '@miden-sdk/miden-sdk/lazy';
 
 export async function foreignProcedureInvocation(): Promise<void> {
   if (typeof window === 'undefined') {
@@ -8,10 +9,9 @@ export async function foreignProcedureInvocation(): Promise<void> {
     return;
   }
 
-  const { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } =
-    await import('@miden-sdk/miden-sdk');
+  await MidenClient.ready();
 
-  const nodeEndpoint = 'http://localhost:57291';
+  const nodeEndpoint = 'https://rpc.testnet.miden.io';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
   console.log('Current block number: ', (await client.sync()).blockNum());
 
@@ -33,7 +33,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
   const counterAuth = AuthSecretKey.rpoFalconWithRNG(counterSeed);
 
   const counterAccount = await client.accounts.create({
-    type: AccountType.ImmutableContract,
+    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: counterSeed,
     auth: counterAuth,
@@ -75,7 +75,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
   const readerAuth = AuthSecretKey.rpoFalconWithRNG(readerSeed);
 
   let countReaderAccount = await client.accounts.create({
-    type: AccountType.ImmutableContract,
+    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: readerSeed,
     auth: readerAuth,
@@ -98,14 +98,17 @@ export async function foreignProcedureInvocation(): Promise<void> {
     use miden::core::sys
 
     begin
-    push.${getCountProcHash}
-    # => [GET_COUNT_HASH]
+    padw padw padw padw
+    # => [pad(16)]
 
-    push.${counterAccount.id().suffix()}
-    # => [account_id_suffix, GET_COUNT_HASH]
+    push.${getCountProcHash}
+    # => [GET_COUNT_HASH, pad(16)]
 
     push.${counterAccount.id().prefix()}
-    # => [account_id_prefix, account_id_suffix, GET_COUNT_HASH]
+    # => [account_id_prefix, GET_COUNT_HASH, pad(16)]
+
+    push.${counterAccount.id().suffix()}
+    # => [account_id_suffix, account_id_prefix, GET_COUNT_HASH, pad(16)]
 
     call.count_reader_contract::copy_count
     # => []
@@ -127,8 +130,8 @@ export async function foreignProcedureInvocation(): Promise<void> {
     foreignAccounts: [counterAccount],
   });
 
-  countReaderAccount = await client.accounts.get(countReaderAccount);
-  const countReaderStorage = countReaderAccount
+  const updatedCountReader = await client.accounts.get(countReaderAccount);
+  const countReaderStorage = updatedCountReader
     ?.storage()
     .getItem(countReaderSlotName);
 

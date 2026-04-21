@@ -37,9 +37,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.13.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.13.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.13.0" }
+miden-client = { version = "0.14", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -72,15 +72,14 @@ use miden_client::{
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::TransactionRequestBuilder,
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_client::{
     account::{
-        AccountBuilder, AccountComponent, AccountStorageMode, AccountType, StorageSlot,
-        StorageSlotName,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        AccountType, StorageSlot, StorageSlotName,
     },
     Word,
 };
@@ -89,7 +88,7 @@ fn create_library(
     assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<miden_client::assembly::Library, Box<dyn std::error::Error>> {
+) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
@@ -270,9 +269,9 @@ let component_code = CodeBuilder::new()
 let counter_component = AccountComponent::new(
     component_code,
     vec![StorageSlot::with_value(counter_slot_name.clone(), Word::default())],
+    AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
 )
-.unwrap()
-.with_supports_all_types();
+.unwrap();
 
 // Init seed for the counter contract
 let mut seed = [0_u8; 32];
@@ -289,7 +288,7 @@ let counter_contract = AccountBuilder::new(seed)
 
 println!(
     "counter_contract commitment: {:?}",
-    counter_contract.commitment()
+    counter_contract.to_commitment()
 );
 println!("counter_contract id: {:?}", counter_contract.id());
 println!("counter_contract storage: {:?}", counter_contract.storage());
@@ -308,7 +307,7 @@ After the program executes, you should see the counter contract hash and contrac
 ```text
 [STEP 1] Creating counter contract.
 counter_contract commitment: RpoDigest([3700134472268167470, 14878091556015233722, 3335592073702485043, 16978997897830363420])
-counter_contract id: "mtst1qql030hpsp0yyqra494lcwazxsym7add"
+counter_contract id: "mdev1qql030hpsp0yyqra494lcwazxsym7add"
 counter_contract storage: AccountStorage { slots: [Value([0, 0, 0, 0]), Value([0, 0, 0, 0])] }
 ```
 
@@ -369,15 +368,11 @@ println!(
 client.sync_state().await.unwrap();
 
 // Retrieve updated contract data to see the incremented counter
-let account_record = client
+let account = client
     .get_account(counter_contract.id())
     .await
     .unwrap()
     .expect("counter contract not found");
-let account = match account_record.account_data() {
-    AccountRecordData::Full(account) => account,
-    AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-};
 println!(
     "counter contract storage: {:?}",
     account.storage().get_item(&counter_slot_name)
@@ -409,15 +404,14 @@ use miden_client::{
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::TransactionRequestBuilder,
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_client::{
     account::{
-        AccountBuilder, AccountComponent, AccountStorageMode, AccountType, StorageSlot,
-        StorageSlotName,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        AccountType, StorageSlot, StorageSlotName,
     },
     Word,
 };
@@ -426,7 +420,7 @@ fn create_library(
     assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<miden_client::assembly::Library, Box<dyn std::error::Error>> {
+) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
@@ -479,9 +473,9 @@ async fn main() -> Result<(), ClientError> {
     let counter_component = AccountComponent::new(
         component_code,
         vec![StorageSlot::with_value(counter_slot_name.clone(), Word::default())],
+        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
     )
-    .unwrap()
-    .with_supports_all_types();
+    .unwrap();
 
     // Init seed for the counter contract
     let mut seed = [0_u8; 32];
@@ -498,7 +492,7 @@ async fn main() -> Result<(), ClientError> {
 
     println!(
         "counter_contract commitment: {:?}",
-        counter_contract.commitment()
+        counter_contract.to_commitment()
     );
     println!("counter_contract id: {:?}", counter_contract.id());
     println!("counter_contract storage: {:?}", counter_contract.storage());
@@ -555,15 +549,11 @@ async fn main() -> Result<(), ClientError> {
     client.sync_state().await.unwrap();
 
     // Retrieve updated contract data to see the incremented counter
-    let account_record = client
+    let account = client
         .get_account(counter_contract.id())
         .await
         .unwrap()
         .expect("counter contract not found");
-    let account = match account_record.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("counter contract is missing full account data"),
-    };
     println!(
         "counter contract storage: {:?}",
         account.storage().get_item(&counter_slot_name)
@@ -581,7 +571,7 @@ Latest block: 374255
 [STEP 1] Creating counter contract.
 one or more warnings were emitted
 counter_contract commitment: Word([3964727668949550262, 4265714847747507878, 5784293172192015964, 16803438753763367241])
-counter_contract id: "mtst1qre73e6qcrfevqqngx8wewvveacqqjh8p2a"
+counter_contract id: "mdev1qre73e6qcrfevqqngx8wewvveacqqjh8p2a"
 counter_contract storage: AccountStorage { slots: [Value(Word([0, 0, 0, 0]))] }
 
 [STEP 2] Call Counter Contract With Script

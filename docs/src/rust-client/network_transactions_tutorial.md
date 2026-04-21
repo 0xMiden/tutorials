@@ -49,9 +49,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.13.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.13.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.13.0" }
+miden-client = { version = "0.14", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -151,22 +151,23 @@ use miden_client::{
     auth::AuthSecretKey,
     crypto::FeltRng,
     builder::ClientBuilder,
-    keystore::FilesystemKeyStore,
+    keystore::{FilesystemKeyStore, Keystore},
     note::{
-        Note, NoteAssets, NoteInputs, NoteMetadata, NoteRecipient, NoteTag, NoteType,
+        NetworkAccountTarget, Note, NoteAssets, NoteError, NoteExecutionHint, NoteMetadata,
+        NoteRecipient, NoteStorage, NoteTag, NoteType,
     },
     rpc::{Endpoint, GrpcClient},
-    store::{AccountRecordData, TransactionFilter},
-    transaction::{OutputNote, TransactionId, TransactionRequestBuilder, TransactionStatus},
+    store::TransactionFilter,
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     Client, ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_client::auth::{self, AuthFalcon512Rpo};
+use miden_client::auth::{self, AuthSchemeId, AuthSingleSig};
 use miden_client::transaction::TransactionKernel;
 use miden_client::{
     account::{
-        AccountBuilder, AccountComponent, AccountStorageMode, AccountType, StorageSlot,
-        StorageSlotName,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        AccountType, StorageSlot, StorageSlotName,
     },
     assembly::{
         Assembler,
@@ -217,7 +218,7 @@ async fn wait_for_tx(
 fn create_library(
     account_code: String,
     library_path: &str,
-) -> Result<Library, Box<dyn std::error::Error>> {
+) -> Result<std::sync::Arc<Library>, Box<dyn std::error::Error>> {
     let assembler: Assembler = TransactionKernel::assembler();
     let source_manager = Arc::new(DefaultSourceManager::default());
     let module = Module::parser(ModuleKind::Library).parse_str(
@@ -262,13 +263,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
@@ -277,7 +278,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client.add_account(&alice_account, false).await?;
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
     println!(
         "Alice's account ID: {:?}",
@@ -314,9 +315,9 @@ let component_code = CodeBuilder::new()
 let counter_component = AccountComponent::new(
     component_code,
     vec![StorageSlot::with_value(counter_slot_name.clone(), [Felt::new(0); 4].into())], // Initialize counter storage to 0
+    AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
 )
-.unwrap()
-.with_supports_all_types();
+.unwrap();
 
 // Generate a random seed for the account
 let mut init_seed = [0_u8; 32];
@@ -415,20 +416,25 @@ let note_script = client
     .with_dynamically_linked_library(&library)?
     .compile_note_script(&network_note_code)?;
 
-// Create note recipient with empty inputs
-let note_inputs = NoteInputs::new([].to_vec())?;
-let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
+// Create note recipient with empty storage
+let note_storage = NoteStorage::new([].to_vec())?;
+let recipient = NoteRecipient::new(serial_num, note_script, note_storage);
 
 // Set up note metadata - tag it with the counter contract ID so it gets consumed
 let tag = NoteTag::with_account_target(counter_contract.id());
-let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public, tag);
+let attachment = NetworkAccountTarget::new(counter_contract.id(), NoteExecutionHint::Always)
+    .map_err(|e| NoteError::other(e.to_string()))?
+    .into();
+let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public)
+    .with_tag(tag)
+    .with_attachment(attachment);
 
 // Create the complete note
 let increment_note = Note::new(NoteAssets::default(), metadata, recipient);
 
 // Build and submit the transaction containing the note
 let note_req = TransactionRequestBuilder::new()
-    .own_output_notes(vec![OutputNote::Full(increment_note)])
+    .own_output_notes(vec![increment_note])
     .build()?;
 
 let note_tx_id = client
@@ -459,15 +465,9 @@ for _ in 0..10 {
     // Checking updated state
     let new_account_state = client.get_account(counter_contract.id()).await.unwrap();
 
-    if let Some(account_record) = new_account_state.as_ref() {
-        let account = match account_record.account_data() {
-            AccountRecordData::Full(account) => account,
-            AccountRecordData::Partial(_) => {
-                panic!("counter contract is missing full account data")
-            }
-        };
+    if let Some(account) = new_account_state.as_ref() {
         let count: Word = account.storage().get_item(&counter_slot_name).unwrap().into();
-        let val = count.get(3).unwrap().as_int();
+        let val = count[0].as_canonical_u64();
         if val >= 2 {
             println!("🔢 Final counter value: {}", val);
             return Ok(());
@@ -504,22 +504,23 @@ use miden_client::{
     auth::AuthSecretKey,
     crypto::FeltRng,
     builder::ClientBuilder,
-    keystore::FilesystemKeyStore,
+    keystore::{FilesystemKeyStore, Keystore},
     note::{
-        Note, NoteAssets, NoteInputs, NoteMetadata, NoteRecipient, NoteTag, NoteType,
+        NetworkAccountTarget, Note, NoteAssets, NoteError, NoteExecutionHint, NoteMetadata,
+        NoteRecipient, NoteStorage, NoteTag, NoteType,
     },
     rpc::{Endpoint, GrpcClient},
-    store::{AccountRecordData, TransactionFilter},
-    transaction::{OutputNote, TransactionId, TransactionRequestBuilder, TransactionStatus},
+    store::TransactionFilter,
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     Client, ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_client::auth::{self, AuthFalcon512Rpo};
+use miden_client::auth::{self, AuthSchemeId, AuthSingleSig};
 use miden_client::transaction::TransactionKernel;
 use miden_client::{
     account::{
-        AccountBuilder, AccountComponent, AccountStorageMode, AccountType, StorageSlot,
-        StorageSlotName,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        AccountType, StorageSlot, StorageSlotName,
     },
     assembly::{
         Assembler,
@@ -570,7 +571,7 @@ async fn wait_for_tx(
 fn create_library(
     account_code: String,
     library_path: &str,
-) -> Result<Library, Box<dyn std::error::Error>> {
+) -> Result<std::sync::Arc<Library>, Box<dyn std::error::Error>> {
     let assembler: Assembler = TransactionKernel::assembler();
     let source_manager = Arc::new(DefaultSourceManager::default());
     let module = Module::parser(ModuleKind::Library).parse_str(
@@ -615,13 +616,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
@@ -630,7 +631,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client.add_account(&alice_account, false).await?;
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
     println!(
         "Alice's account ID: {:?}",
@@ -654,9 +655,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter_component = AccountComponent::new(
         component_code,
         vec![StorageSlot::with_value(counter_slot_name.clone(), [Felt::new(0); 4].into())], // Initialize counter storage to 0
+        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
     )
-    .unwrap()
-    .with_supports_all_types();
+    .unwrap();
 
     // Generate a random seed for the account
     let mut init_seed = [0_u8; 32];
@@ -736,19 +737,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile_note_script(&network_note_code)?;
 
     // Create note recipient with empty inputs
-    let note_inputs = NoteInputs::new([].to_vec())?;
-    let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
+    let note_storage = NoteStorage::new([].to_vec())?;
+    let recipient = NoteRecipient::new(serial_num, note_script, note_storage);
 
     // Set up note metadata - tag it with the counter contract ID so it gets consumed
     let tag = NoteTag::with_account_target(counter_contract.id());
-    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public, tag);
+    let attachment = NetworkAccountTarget::new(counter_contract.id(), NoteExecutionHint::Always)
+        .map_err(|e| NoteError::other(e.to_string()))?
+        .into();
+    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public)
+        .with_tag(tag)
+        .with_attachment(attachment);
 
     // Create the complete note
     let increment_note = Note::new(NoteAssets::default(), metadata, recipient);
 
     // Build and submit the transaction containing the note
     let note_req = TransactionRequestBuilder::new()
-        .own_output_notes(vec![OutputNote::Full(increment_note)])
+        .own_output_notes(vec![increment_note])
         .build()?;
 
     let note_tx_id = client
@@ -779,15 +785,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Checking updated state
         let new_account_state = client.get_account(counter_contract.id()).await.unwrap();
 
-        if let Some(account_record) = new_account_state.as_ref() {
-            let account = match account_record.account_data() {
-                AccountRecordData::Full(account) => account,
-                AccountRecordData::Partial(_) => {
-                    panic!("counter contract is missing full account data")
-                }
-            };
+        if let Some(account) = new_account_state.as_ref() {
             let count: Word = account.storage().get_item(&counter_slot_name).unwrap().into();
-            let val = count.get(3).unwrap().as_int();
+            let val = count[0].as_canonical_u64();
             if val >= 2 {
                 println!("🔢 Final counter value: {}", val);
                 return Ok(());
@@ -824,22 +824,22 @@ cargo run --release --bin network_notes_counter_contract
 Expected output:
 
 ```text
-Latest block: 508977
+Latest block: 4342
 
 [STEP 1] Creating a new account for Alice
-Alice's account ID: "mtst1qrpk3gmyv2p06ypgh7gss9hs0gl80gwl"
+Alice's account ID: "mtst1azkn605dchqv7yrd9crnvrkknvw8j4d3"
 
 [STEP 2] Creating a network counter smart contract
-contract id: "mtst1qz95e5k55xeh5sz2zann5xtp4uq9hpht"
+contract id: "mtst1ar5dqpk49zjsvsqenfuqzskcvvmf9spc"
 
 [STEP 3] Deploy network counter smart contract
-View transaction on MidenScan: https://testnet.midenscan.com/tx/0xbe8dddab0403544a28c9a24d0400837cfd639b030670cf436ba113261fbdfce0
-✅ transaction 0xbe8dddab0403544a28c9a24d0400837cfd639b030670cf436ba113261fbdfce0 committed
+View transaction on MidenScan: https://testnet.midenscan.com/tx/0xe28fa8e527335499d972e653dfd944ad591752e537a41b151e7b80d598c5660c
+✅ transaction 0xe28fa8e527335499d972e653dfd944ad591752e537a41b151e7b80d598c5660c committed
 
 [STEP 4] Creating a network note for network counter contract
-View transaction on MidenScan: https://testnet.midenscan.com/tx/0x0bb5f6b786eb0f129d944975e3fae226084441eaf422f187657afbd74641327c
+View transaction on MidenScan: https://testnet.midenscan.com/tx/0x3cd653f2848f2fbc3de76d7b0a92c82d23ad1f9f24c9fb86d58772534e17ee30
 network increment note created, waiting for onchain commitment
-✅ transaction 0x0bb5f6b786eb0f129d944975e3fae226084441eaf422f187657afbd74641327c committed
+✅ transaction 0x3cd653f2848f2fbc3de76d7b0a92c82d23ad1f9f24c9fb86d58772534e17ee30 committed
 🔢 Final counter value: 2
 ```
 

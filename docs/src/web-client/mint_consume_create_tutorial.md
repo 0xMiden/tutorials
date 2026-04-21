@@ -5,7 +5,7 @@ sidebar_position: 3
 
 import { CodeSdkTabs } from '@site/src/components';
 
-_Using the Miden WebClient in TypeScript to mint, consume, and transfer assets_
+_Using the Miden client in TypeScript to mint, consume, and transfer assets_
 
 ## Overview
 
@@ -22,7 +22,7 @@ In the previous tutorial, we set up the foundation - creating Alice's wallet and
 This tutorial builds directly on the previous one. Make sure you have:
 
 - Completed the "Creating Accounts and Deploying Faucets" tutorial
-- Your Next.js app with the Miden WebClient set up
+- Your Next.js app with the Miden client set up
 
 ## Understanding Notes in Miden
 
@@ -118,7 +118,7 @@ Now that Alice has tokens in her account, she can send some to Bob:
 
 <CodeSdkTabs example={{
 react: { code: `// 6. Send 100 tokens to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 console.log("Sending tokens to Bob's account...");
 await send({
 .from: aliceId,
@@ -129,7 +129,7 @@ await send({
 });
 console.log('Tokens sent successfully!');` },
 typescript: { code: `// 7. Send tokens from Alice to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 console.log("Sending tokens to Bob's account...");
 
 await client.transactions.send({
@@ -158,8 +158,8 @@ Here's the complete `lib/react/createMintConsume.tsx` (React) or `lib/createMint
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function CreateMintConsumeInner() {
 .const { isReady } = useMiden();
@@ -212,7 +212,7 @@ function CreateMintConsumeInner() {
 ..console.log('Notes consumed.');
 
 ..// 7. Send 100 tokens to Bob
-..const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+..const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 ..console.log("Sending tokens to Bob's account...");
 ..await send({
 ...from: aliceId,
@@ -248,7 +248,7 @@ export async function createMintConsume(): Promise<void> {
 .}
 
 .// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient, AccountType, NoteVisibility, StorageMode } = await import('@miden-sdk/miden-sdk');
+.const { MidenClient, AccountType, NoteVisibility, StorageMode } = await import('@miden-sdk/miden-sdk/lazy');
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -261,7 +261,7 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.MutableWallet,
+..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -307,7 +307,7 @@ export async function createMintConsume(): Promise<void> {
 .console.log('Notes consumed.');
 
 .// 7. Send tokens to Bob
-.const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+.const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 .console.log("Sending tokens to Bob's account...");
 .await client.transactions.send({
 ..account: alice,
@@ -320,7 +320,7 @@ export async function createMintConsume(): Promise<void> {
 }` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
-Let's run the function again. Reload the page and click "Start WebClient".
+Let's run the function again. Reload the page and click "Start".
 
 The output will look like this:
 

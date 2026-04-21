@@ -4,18 +4,18 @@ use tokio::time::{sleep, Duration, Instant};
 
 use miden_client::{
     account::{
-        component::{BasicFungibleFaucet, BasicWallet},
+        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
         AccountBuilder, AccountStorageMode, AccountType,
     },
     address::NetworkId,
     asset::{FungibleAsset, TokenSymbol},
-    auth::{AuthFalcon512Rpo, AuthSecretKey},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    keystore::FilesystemKeyStore,
-    note::{create_p2id_note, Note, NoteAttachment, NoteType},
+    keystore::{FilesystemKeyStore, Keystore},
+    note::{Note, NoteAttachment, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
-    store::{AccountRecordData, TransactionFilter},
-    transaction::{OutputNote, TransactionId, TransactionRequestBuilder, TransactionStatus},
+    store::TransactionFilter,
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     utils::{Deserializable, Serializable},
     Client, ClientError, Felt,
 };
@@ -87,7 +87,7 @@ async fn main() -> Result<(), ClientError> {
     client.rng().fill_bytes(&mut init_seed);
 
     // Generate key pair
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Faucet parameters
     let symbol = TokenSymbol::new("MID").unwrap();
@@ -98,8 +98,9 @@ async fn main() -> Result<(), ClientError> {
     let faucet_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+        .with_component(AuthControlled::allow_all())
         .build()
         .unwrap();
 
@@ -112,7 +113,7 @@ async fn main() -> Result<(), ClientError> {
     );
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, faucet_account.id()).await.unwrap();
 
     // Resync to show newly deployed faucet
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -130,12 +131,12 @@ async fn main() -> Result<(), ClientError> {
         let mut init_seed = [0_u8; 32];
         client.rng().fill_bytes(&mut init_seed);
 
-        let key_pair = AuthSecretKey::new_falcon512_rpo();
+        let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
         let account = AccountBuilder::new(init_seed)
             .account_type(AccountType::RegularAccountUpdatableCode)
             .storage_mode(AccountStorageMode::Public)
-            .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+            .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
             .with_component(BasicWallet)
             .build()
             .unwrap();
@@ -149,7 +150,7 @@ async fn main() -> Result<(), ClientError> {
         client.add_account(&account, true).await?;
 
         // Add the key pair to the keystore
-        keystore.add_key(&key_pair).unwrap();
+        keystore.add_key(&key_pair, account.id()).await.unwrap();
     }
 
     // For demo purposes, Alice is the first account.
@@ -223,7 +224,7 @@ async fn main() -> Result<(), ClientError> {
             NoteType::Public
         };
 
-        let p2id_note = create_p2id_note(
+        let p2id_note = P2idNote::create(
             accounts[i].id(),
             accounts[i + 1].id(),
             vec![fungible_asset_send_amount.into()],
@@ -233,7 +234,7 @@ async fn main() -> Result<(), ClientError> {
         )
         .unwrap();
 
-        let output_note = OutputNote::Full(p2id_note.clone());
+        let output_note = p2id_note.clone();
 
         // Time transaction request building
         let transaction_request = TransactionRequestBuilder::new()
@@ -281,13 +282,7 @@ async fn main() -> Result<(), ClientError> {
     tokio::time::sleep(Duration::from_secs(3)).await;
     client.sync_state().await?;
     for account in accounts.clone() {
-        let new_account_record = client.get_account(account.id()).await.unwrap().unwrap();
-        let new_account = match new_account_record.account_data() {
-            AccountRecordData::Full(account) => account,
-            AccountRecordData::Partial(_) => {
-                panic!("account is missing full account data")
-            }
-        };
+        let new_account = client.get_account(account.id()).await.unwrap().unwrap();
         let balance = new_account
             .vault()
             .get_balance(faucet_account.id())

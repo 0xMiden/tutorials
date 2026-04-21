@@ -1,52 +1,43 @@
 //! Common helper functions for scripts and tests
 
-use std::{borrow::Borrow, collections::BTreeSet, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use anyhow::{bail, Context, Result};
 use cargo_miden::{run, OutputType};
 use miden_client::{
     account::{
-        component::{AccountComponentMetadata, AuthFalcon512Rpo, BasicWallet, NoAuth},
-        Account, AccountBuilder, AccountComponent, AccountId, AccountStorageMode, AccountType,
-        StorageSlot,
+        component::{BasicWallet, InitStorageData, NoAuth},
+        Account, AccountBuilder, AccountComponent, AccountStorageMode, AccountType,
     },
-    auth::{AuthSecretKey, PublicKeyCommitment},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::{rpo_falcon512::SecretKey, FeltRng},
-    keystore::FilesystemKeyStore,
-    note::{Note, NoteInputs, NoteMetadata, NoteRecipient, NoteScript, NoteTag, NoteType},
+    crypto::{FeltRng, RandomCoin},
+    keystore::{FilesystemKeyStore, Keystore},
+    note::{Note, NoteAssets, NoteScript, NoteTag, NoteType},
     rpc::{Endpoint, GrpcClient},
     utils::Deserializable,
-    Client, Word,
+    Client,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_core::Felt;
-use miden_mast_package::{Package, SectionId};
+use miden_mast_package::Package;
+use miden_standards::testing::note::NoteBuilder;
 use rand::RngCore;
 
 /// Test setup configuration containing initialized client and keystore
 pub struct ClientSetup {
+    /// The configured Miden client instance.
     pub client: Client<FilesystemKeyStore>,
+    /// The filesystem-backed keystore used by the client.
     pub keystore: Arc<FilesystemKeyStore>,
 }
 
-/// Initializes test infrastructure with client and keystore
-///
-/// # Returns
-/// A `ClientSetup` containing the initialized client and keystore
-///
-/// # Errors
-/// Returns an error if RPC connection fails, keystore initialization fails,
-/// or client building fails
+/// Initializes test infrastructure with client and keystore.
 pub async fn setup_client() -> Result<ClientSetup> {
-    // Initialize RPC connection
     let endpoint = Endpoint::testnet();
     let timeout_ms = 10_000;
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
-    // Initialize keystore
     let keystore_path = std::path::PathBuf::from("../keystore");
-
     let keystore =
         Arc::new(FilesystemKeyStore::new(keystore_path).context("Failed to initialize keystore")?);
 
@@ -64,17 +55,7 @@ pub async fn setup_client() -> Result<ClientSetup> {
     Ok(ClientSetup { client, keystore })
 }
 
-/// Builds a Miden project in the specified directory
-///
-/// # Arguments
-/// * `dir` - Path to the directory containing the Cargo.toml
-/// * `release` - Whether to build in release mode
-///
-/// # Returns
-/// The compiled `Package`
-///
-/// # Errors
-/// Returns an error if compilation fails or if the output is not in the expected format
+/// Builds a Miden project in the specified directory via the `cargo-miden` library.
 pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
     let profile = if release { "--release" } else { "--debug" };
     let manifest_path = dir.join("Cargo.toml");
@@ -109,13 +90,14 @@ pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
     Package::read_from_bytes(&package_bytes).context("Failed to deserialize package from bytes")
 }
 
-/// Configuration for creating an account with a custom component
-#[derive(Clone)]
+/// Configuration for creating an account with a custom component.
 pub struct AccountCreationConfig {
+    /// The account type to create.
     pub account_type: AccountType,
+    /// The account storage visibility mode.
     pub storage_mode: AccountStorageMode,
-    pub storage_slots: Vec<StorageSlot>,
-    pub supported_types: Option<Vec<AccountType>>,
+    /// Initial component storage data keyed by storage slot schema.
+    pub init_storage_data: InitStorageData,
 }
 
 impl Default for AccountCreationConfig {
@@ -123,82 +105,27 @@ impl Default for AccountCreationConfig {
         Self {
             account_type: AccountType::RegularAccountImmutableCode,
             storage_mode: AccountStorageMode::Public,
-            storage_slots: vec![],
-            supported_types: None,
+            init_storage_data: InitStorageData::default(),
         }
     }
 }
 
-/// Creates an account component from a compiled package
-///
-/// # Arguments
-/// * `package` - The compiled package containing account component metadata
-/// * `config` - Configuration for account creation
-///
-/// # Returns
-/// An `AccountComponent` configured according to the provided config
-///
-/// # Errors
-/// Returns an error if the package doesn't contain account component metadata or deserialization fails
+/// Creates an account component from a compiled package.
 pub fn account_component_from_package(
     package: Arc<Package>,
     config: &AccountCreationConfig,
 ) -> Result<AccountComponent> {
-    // Find the account component metadata section in the package
-    let account_component_metadata = package.sections.iter().find_map(|s| {
-        if s.id == SectionId::ACCOUNT_COMPONENT_METADATA {
-            Some(s.data.borrow())
-        } else {
-            None
-        }
-    });
-
-    let account_component = match account_component_metadata {
-        None => bail!("Package missing account component metadata"),
-        Some(bytes) => {
-            let metadata = AccountComponentMetadata::read_from_bytes(bytes)
-                .context("Failed to deserialize account component metadata")?;
-
-            let component = AccountComponent::new(
-                package.unwrap_library().as_ref().clone(),
-                config.storage_slots.clone(),
-            )
-            .context("Failed to create account component")?
-            .with_metadata(metadata);
-
-            // Use supported types from config if provided, otherwise default to RegularAccountImmutableCode
-            let supported_types = if let Some(types) = &config.supported_types {
-                BTreeSet::from_iter(types.clone())
-            } else {
-                BTreeSet::from_iter([AccountType::RegularAccountImmutableCode])
-            };
-
-            component.with_supported_types(supported_types)
-        }
-    };
-
-    Ok(account_component)
+    AccountComponent::from_package(package.as_ref(), &config.init_storage_data)
+        .context("Failed to create account component from package")
 }
 
-/// Creates an account with a custom component from a compiled package
-///
-/// # Arguments
-/// * `client` - The Miden client instance
-/// * `package` - The compiled package containing the account component
-/// * `config` - Configuration for account creation
-///
-/// # Returns
-/// The created `Account`
-///
-/// # Errors
-/// Returns an error if account creation or client operations fail
+/// Creates an account with a custom component from a compiled package.
 pub async fn create_account_from_package(
     client: &mut Client<FilesystemKeyStore>,
     package: Arc<Package>,
     config: AccountCreationConfig,
 ) -> Result<Account> {
-    let account_component = account_component_from_package(package, &config)
-        .context("Failed to create account component from package")?;
+    let account_component = account_component_from_package(package, &config)?;
 
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
@@ -221,12 +148,12 @@ pub async fn create_account_from_package(
     Ok(account)
 }
 
-pub async fn create_testing_account_from_package(
+/// Creates an existing (pre-built) account instance from a compiled package for testing.
+pub fn create_testing_account_from_package(
     package: Arc<Package>,
     config: AccountCreationConfig,
 ) -> Result<Account> {
-    let account_component = account_component_from_package(package, &config)
-        .context("Failed to create account component from package")?;
+    let account_component = account_component_from_package(package, &config)?;
 
     let account = AccountBuilder::new([3u8; 32])
         .account_type(config.account_type)
@@ -239,12 +166,16 @@ pub async fn create_testing_account_from_package(
     Ok(account)
 }
 
-/// Configuration for creating a note
+/// Configuration for creating a note.
 pub struct NoteCreationConfig {
+    /// The note visibility type.
     pub note_type: NoteType,
+    /// The note tag to attach to the metadata.
     pub tag: NoteTag,
-    pub assets: miden_client::note::NoteAssets,
-    pub inputs: Vec<Felt>,
+    /// Assets to include in the note.
+    pub assets: NoteAssets,
+    /// Storage (note inputs) passed to the note script.
+    pub storage: Vec<miden_client::Felt>,
 }
 
 impl Default for NoteCreationConfig {
@@ -252,82 +183,63 @@ impl Default for NoteCreationConfig {
         Self {
             note_type: NoteType::Public,
             tag: NoteTag::new(0),
-            assets: Default::default(),
-            inputs: Default::default(),
+            assets: NoteAssets::default(),
+            storage: Vec::new(),
         }
     }
 }
 
-/// Creates a note from a compiled package
-///
-/// # Arguments
-/// * `client` - The Miden client instance
-/// * `package` - The compiled package containing the note script
-/// * `sender_id` - The ID of the account sending the note
-/// * `config` - Configuration for note creation
-///
-/// # Returns
-/// The created `Note`
-///
-/// # Errors
-/// Returns an error if note creation fails
+/// Creates a note from a compiled note-script package using the client's RNG
+/// for a fresh serial number. Suitable for submitting to a live network.
 pub fn create_note_from_package(
     client: &mut Client<FilesystemKeyStore>,
     package: Arc<Package>,
-    sender_id: AccountId,
+    sender_id: miden_client::account::AccountId,
     config: NoteCreationConfig,
 ) -> Result<Note> {
-    let note_program = package.unwrap_program();
-    let note_script = NoteScript::from_parts(
-        note_program.mast_forest().clone(),
-        note_program.entrypoint(),
-    );
-
+    let note_script = NoteScript::from_package(package.as_ref())
+        .context("Failed to build note script from package")?;
     let serial_num = client.rng().draw_word();
-    let note_inputs = NoteInputs::new(config.inputs).context("Failed to create note inputs")?;
-    let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
 
-    let metadata = NoteMetadata::new(sender_id, config.note_type, config.tag);
-
-    Ok(Note::new(config.assets, metadata, recipient))
+    NoteBuilder::new(sender_id, &mut RandomCoin::new(note_script.root()))
+        .package((*package).clone())
+        .note_type(config.note_type)
+        .tag(config.tag.into())
+        .add_assets(config.assets.iter().copied())
+        .note_storage(config.storage)
+        .context("Failed to attach note storage")?
+        .serial_number(serial_num)
+        .build()
+        .context("Failed to build note from package")
 }
 
+/// Creates a deterministic note from a compiled note-script package for testing.
+///
+/// The note script is resolved from the package's `@note_script`-attributed procedure
+/// via `NoteScript::from_package`, so the note contract must be compiled with
+/// `miden >= 0.12`. The note is built with `NoteBuilder`, which derives the serial
+/// number from the note-script digest for deterministic test runs.
 pub fn create_testing_note_from_package(
     package: Arc<Package>,
-    sender_id: AccountId,
+    sender_id: miden_client::account::AccountId,
     config: NoteCreationConfig,
 ) -> Result<Note> {
-    let note_program = package.unwrap_program();
-    let note_script = NoteScript::from_parts(
-        note_program.mast_forest().clone(),
-        note_program.entrypoint(),
-    );
+    let note_script = NoteScript::from_package(package.as_ref())
+        .context("Failed to build note script from package")?;
+    let mut rng = RandomCoin::new(note_script.root());
 
-    // get 4 random u64s and convert them to a word
-    let random_u64s = [0_u64; 4];
-    let serial_num =
-        Word::try_from(random_u64s).context("Failed to convert random u64s to word")?;
-
-    let note_inputs = NoteInputs::new(config.inputs).context("Failed to create note inputs")?;
-    let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
-
-    let metadata = NoteMetadata::new(sender_id, config.note_type, config.tag);
-
-    Ok(Note::new(config.assets, metadata, recipient))
+    NoteBuilder::new(sender_id, &mut rng)
+        .package((*package).clone())
+        .note_type(config.note_type)
+        .tag(config.tag.into())
+        .add_assets(config.assets.iter().copied())
+        .note_storage(config.storage)
+        .context("Failed to attach note storage")?
+        .build()
+        .context("Failed to build note from package")
 }
 
-/// Creates a basic wallet account with authentication
-///
-/// # Arguments
-/// * `client` - The Miden client instance
-/// * `keystore` - The keystore for storing authentication keys
-/// * `config` - Configuration for account creation
-///
-/// # Returns
-/// The created `Account` with basic wallet functionality
-///
-/// # Errors
-/// Returns an error if account creation, key generation, or keystore operations fail
+/// Creates a basic wallet account with Falcon512Poseidon2 authentication.
 pub async fn create_basic_wallet_account(
     client: &mut Client<FilesystemKeyStore>,
     keystore: Arc<FilesystemKeyStore>,
@@ -336,14 +248,15 @@ pub async fn create_basic_wallet_account(
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = SecretKey::with_rng(client.rng());
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let builder = AccountBuilder::new(init_seed)
         .account_type(config.account_type)
         .storage_mode(config.storage_mode)
-        .with_auth_component(AuthFalcon512Rpo::new(PublicKeyCommitment::from(
+        .with_auth_component(AuthSingleSig::new(
             key_pair.public_key().to_commitment(),
-        )))
+            AuthSchemeId::Falcon512Poseidon2,
+        ))
         .with_component(BasicWallet);
 
     let account = builder
@@ -356,7 +269,8 @@ pub async fn create_basic_wallet_account(
         .context("Failed to add account to client")?;
 
     keystore
-        .add_key(&AuthSecretKey::Falcon512Rpo(key_pair))
+        .add_key(&key_pair, account.id())
+        .await
         .context("Failed to add key to keystore")?;
 
     Ok(account)

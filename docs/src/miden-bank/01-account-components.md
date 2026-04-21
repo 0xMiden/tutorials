@@ -22,13 +22,13 @@ By the end of this section, you will have:
 In Part 0, we created a minimal bank with just an `initialized` flag. Now we'll add balance tracking:
 
 ```text
-Part 0:                          Part 1:
-┌────────────────────┐             ┌──────────────────────────┐
-│ Bank               │             │ Bank                     │
-│ ─────────────────  │    ──►      │ ──────────────────────── │
-│ initialized (Value)│             │ initialized (Value)      │
-│                    │             │ balances (StorageMap)    │ ◄── NEW
-└────────────────────┘             └──────────────────────────┘
+Part 0:                                   Part 1:
+┌──────────────────────────────┐             ┌──────────────────────────────────┐
+│ Bank                         │             │ Bank                             │
+│ ────────────────────────     │    ──►      │ ────────────────────────────     │
+│ initialized (StorageValue)   │             │ initialized (StorageValue<Word>) │
+│                              │             │ balances (StorageMap<Word, Felt>)│ ◄── NEW
+└──────────────────────────────┘             └──────────────────────────────────┘
 ```
 
 ## The #[component] Attribute
@@ -60,12 +60,12 @@ struct Bank {
     /// Tracks whether the bank has been initialized (deposits enabled).
     /// Word layout: [is_initialized (0 or 1), 0, 0, 0]
     #[storage(description = "initialized")]
-    initialized: Value,
+    initialized: StorageValue<Word>,
 
     /// Maps depositor AccountId -> balance (as Felt)
     /// Key: [prefix, suffix, asset_prefix, asset_suffix]
     #[storage(description = "balances")]
-    balances: StorageMap,
+    balances: StorageMap<Word, Felt>,
 }
 ```
 
@@ -75,44 +75,44 @@ We've added a `StorageMap` that will track each depositor's balance. The compile
 
 Miden accounts have storage slots that persist state on-chain. Each slot holds one `Word` (4 Felts = 32 bytes). The Miden Rust compiler provides two abstractions:
 
-### Value Storage
+### StorageValue Storage
 
-The `Value` type provides access to a single storage slot:
+The `StorageValue<Word>` type provides access to a single storage slot:
 
 ```rust
 #[storage(description = "initialized")]
-initialized: Value,
+initialized: StorageValue<Word>,
 ```
 
-Use `Value` when you need to store a single `Word` of data.
+Use `StorageValue<Word>` when you need to store a single `Word` of data.
 
 **Reading and writing:**
 
 ```rust
-// Read returns a Word
-let current: Word = self.initialized.read();
+// Get returns a Word
+let current: Word = self.initialized.get();
 
 // Check the first element (our flag)
-if current[0].as_u64() == 0 {
+if current[0].as_canonical_u64() == 0 {
     // Not initialized
 }
 
-// Write a new value
+// Set a new value
 let new_value = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-self.initialized.write(new_value);
+self.initialized.set(new_value);
 ```
 
 :::tip Type Annotations
-The `.read()` method requires a type annotation: `let current: Word = self.initialized.read();`
+The `.get()` method requires a type annotation: `let current: Word = self.initialized.get();`
 :::
 
 ### StorageMap
 
-The `StorageMap` type provides key-value storage within a slot:
+The `StorageMap<Word, Felt>` type provides key-value storage within a slot:
 
 ```rust
 #[storage(description = "balances")]
-balances: StorageMap,
+balances: StorageMap<Word, Felt>,
 ```
 
 Use `StorageMap` when you need to store multiple values indexed by keys.
@@ -144,12 +144,12 @@ Unlike `Value::read()` which returns a `Word`, `StorageMap::get()` returns a sin
 
 Plan your storage layout carefully:
 
-| Name          | Type         | Purpose             |
-| ------------- | ------------ | ------------------- |
-| `initialized` | `Value`      | Initialization flag |
-| `balances`    | `StorageMap` | Depositor balances  |
+| Name          | Type                     | Purpose             |
+| ------------- | ------------------------ | ------------------- |
+| `initialized` | `StorageValue<Word>`     | Initialization flag |
+| `balances`    | `StorageMap<Word, Felt>` | Depositor balances  |
 
-The `description` attribute generates named slot identifiers (e.g., `miden::component::miden_bank_account::initialized`) used in tests to reference specific slots. The compiler auto-assigns slot numbers based on field order.
+The `description` attribute generates named slot identifiers (e.g., `miden_bank_account::bank::initialized`) used in tests to reference specific slots. The naming convention is `{package_name}::{component_struct}::{field_name}`. The compiler auto-assigns slot numbers based on field order.
 
 ## Step 2: Implement Component Methods
 
@@ -160,31 +160,31 @@ Now let's add methods to our Bank. The `#[component]` attribute is also used on 
 impl Bank {
     /// Initialize the bank account, enabling deposits.
     pub fn initialize(&mut self) {
-        // Read current value from storage
-        let current: Word = self.initialized.read();
+        // Get current value from storage
+        let current: Word = self.initialized.get();
 
         // Check not already initialized
         assert!(
-            current[0].as_u64() == 0,
+            current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
         // Set initialized flag to 1
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-        self.initialized.write(initialized_word);
+        self.initialized.set(initialized_word);
     }
 
     /// Get the balance for a depositor.
     pub fn get_balance(&self, depositor: AccountId) -> Felt {
         let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
-        self.balances.get(&key)
+        self.balances.get(key)
     }
 
     /// Check that the bank is initialized.
     fn require_initialized(&self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 1,
+            current[0].as_canonical_u64() == 1,
             "Bank not initialized - deposits not enabled"
         );
     }
@@ -249,27 +249,26 @@ async fn test_bank_account_storage() -> anyhow::Result<()> {
     )?);
 
     // Create named storage slots matching the contract's storage layout
-    // The naming convention is: miden::component::{package_name_underscored}::{field_name}
+    // The naming convention is: {package_name}::{component_struct}::{field_name}
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot.clone(), Word::default()),
-            StorageSlot::with_map(
-                balances_slot.clone(),
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
 
     let bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // =========================================================================
     // VERIFY: Check initial storage state
@@ -285,7 +284,7 @@ async fn test_bank_account_storage() -> anyhow::Result<()> {
 
     println!("Bank account created successfully!");
     println!("  Account ID: {:?}", bank_account.id());
-    println!("  Initialized flag: {:?}", initialized_value[0].as_int());
+    println!("  Initialized flag: {:?}", initialized_value[0].as_canonical_u64());
 
     // =========================================================================
     // VERIFY: Storage slots are correctly configured
@@ -365,43 +364,43 @@ struct Bank {
     /// Tracks whether the bank has been initialized (deposits enabled).
     /// Word layout: [is_initialized (0 or 1), 0, 0, 0]
     #[storage(description = "initialized")]
-    initialized: Value,
+    initialized: StorageValue<Word>,
 
     /// Maps depositor AccountId -> balance (as Felt)
     /// Key: [prefix, suffix, asset_prefix, asset_suffix]
     #[storage(description = "balances")]
-    balances: StorageMap,
+    balances: StorageMap<Word, Felt>,
 }
 
 #[component]
 impl Bank {
     /// Initialize the bank account, enabling deposits.
     pub fn initialize(&mut self) {
-        // Read current value from storage
-        let current: Word = self.initialized.read();
+        // Get current value from storage
+        let current: Word = self.initialized.get();
 
         // Check not already initialized
         assert!(
-            current[0].as_u64() == 0,
+            current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
         // Set initialized flag to 1
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-        self.initialized.write(initialized_word);
+        self.initialized.set(initialized_word);
     }
 
     /// Get the balance for a depositor.
     pub fn get_balance(&self, depositor: AccountId) -> Felt {
         let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
-        self.balances.get(&key)
+        self.balances.get(key)
     }
 
     /// Check that the bank is initialized.
     fn require_initialized(&self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 1,
+            current[0].as_canonical_u64() == 1,
             "Bank not initialized - deposits not enabled"
         );
     }
@@ -413,8 +412,8 @@ impl Bank {
 ## Key Takeaways
 
 1. **`#[component]`** marks structs and impl blocks as Miden account components
-2. **`Value`** stores a single Word, read with `.read()`, write with `.write()`
-3. **`StorageMap`** stores key-value pairs, access with `.get()` and `.set()`
+2. **`StorageValue<Word>`** stores a single Word, read with `.get()`, write with `.set()`
+3. **`StorageMap<Word, Felt>`** stores key-value pairs, access with `.get()` and `.set()`
 4. **Storage slots** are identified by name (auto-assigned by compiler), each holds 4 Felts (32 bytes)
 5. **Public methods** are callable by other contracts via generated bindings
 

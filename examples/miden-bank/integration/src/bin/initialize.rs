@@ -19,7 +19,7 @@ use integration::helpers::{
 
 use anyhow::{Context, Result};
 use miden_client::{
-    account::{StorageMap, StorageSlot, StorageSlotName},
+    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
     transaction::{TransactionRequestBuilder, TransactionScript},
     Word,
 };
@@ -52,26 +52,18 @@ async fn main() -> Result<()> {
     );
     println!("  ✓ Init transaction script built");
 
-    // Create the bank account with named storage slots:
-    // - initialized: Value (starts as 0)
-    // - balances: StorageMap
+    // Create the bank account. Seed the component's `initialized` value slot with
+    // Word::default() (uninitialized); the `balances` map starts empty by default.
     println!("\nCreating bank account...");
-    let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
-            .expect("Valid slot name");
-    let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
-            .expect("Valid slot name");
-
+    let initialized_slot = StorageSlotName::new("miden_bank_account::bank::initialized")
+        .context("Valid slot name")?;
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot, Word::default()),
-            StorageSlot::with_map(
-                balances_slot,
-                StorageMap::with_entries([])
-                    .context("Failed to create empty storage map")?,
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
 
@@ -95,7 +87,7 @@ async fn main() -> Result<()> {
     println!("\nInitializing bank account...");
 
     let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
+    let init_tx_script = TransactionScript::new(init_program);
 
     // Build transaction request with the init script
     // The script will call bank_account.initialize()

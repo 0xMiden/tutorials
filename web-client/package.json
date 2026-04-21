@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@miden-sdk/miden-sdk": "file:../../miden-client/crates/web-client",
-    "@miden-sdk/react": "file:../../miden-client/packages/react-sdk",
+    "@miden-sdk/miden-sdk": "0.14.4",
+    "@miden-sdk/react": "0.14.4",
     "next": "15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

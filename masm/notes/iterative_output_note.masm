@@ -5,10 +5,12 @@ use miden::core::sys
 use miden::standards::wallets::basic->wallet
 
 # Memory Addresses
-const ASSET=0
-const ASSET_HALF=4
-const ACCOUNT_ID_PREFIX=8
-const TAG=10
+# get_assets writes: ASSET_KEY at ASSET_KEY_PTR, ASSET_VALUE at ASSET_KEY_PTR+4 (ASSET_SIZE=8)
+const ASSET_KEY_PTR=0
+const ASSET_VALUE_PTR=4
+const ASSET_HALF_VALUE_PTR=8    # half-amount ASSET_VALUE stored here
+const ACCOUNT_ID_PREFIX=12      # storage: [prefix, suffix, tag, 0]
+const TAG=14                    # = ACCOUNT_ID_PREFIX + 2
 
 # => []
 begin
@@ -16,25 +18,24 @@ begin
     dropw
     # => []
 
-    # Get asset contained in note
-    push.ASSET exec.active_note::get_assets drop drop
+    # Get asset contained in note into memory (ASSET_KEY at 0, ASSET_VALUE at 4)
+    push.ASSET_KEY_PTR exec.active_note::get_assets drop drop
     # => []
 
-    mem_loadw_be.ASSET
-    # => [ASSET]
+    # Load ASSET_VALUE and compute half amount
+    padw push.ASSET_VALUE_PTR mem_loadw_le
+    # => [av0, av1, av2, av3]  (av0 = amount for fungible asset, av1/av2/av3 = 0)
 
-    # Compute half amount of asset
-    swap.3 push.2 div swap.3
-    # => [ASSET_HALF]
+    # Halve the amount (av0 is amount for fungible assets in v0.14)
+    push.2 div
+    # => [av0/2, av1, av2, av3]
 
-    mem_storew_be.ASSET_HALF dropw
+    # Store as ASSET_HALF_VALUE
+    mem_storew_le.ASSET_HALF_VALUE_PTR dropw
     # => []
 
-    mem_loadw_be.ASSET
-    # => [ASSET]
-
-    # Receive the entire asset amount to the wallet
-    call.wallet::receive_asset
+    # Receive all assets from note into the account wallet
+    exec.wallet::add_assets_to_account
     # => []
 
     # Push script hash
@@ -45,22 +46,23 @@ begin
     exec.active_note::get_serial_number
     # => [SERIAL_NUM, SCRIPT_HASH]
 
-    # Increment serial number by 1
-    push.1 add
+    # Increment the last element of the serial number by 1
+    # (serial_num[3] is at depth 3; matches Rust: serial_num[3] + 1)
+    swap.3 push.1 add swap.3
     # => [SERIAL_NUM+1, SCRIPT_HASH]
 
-    # Load note inputs into memory for recipient and tag
+    # Load note storage into memory for recipient construction
     push.ACCOUNT_ID_PREFIX
-    exec.active_note::get_inputs
-    # => [num_inputs, dest_ptr, SERIAL_NUM+1, SCRIPT_HASH]
+    exec.active_note::get_storage
+    # => [num_storage_items, dest_ptr, SERIAL_NUM+1, SCRIPT_HASH]
 
     swap
-    # => [dest_ptr, num_inputs, SERIAL_NUM+1, SCRIPT_HASH]
+    # => [dest_ptr, num_storage_items, SERIAL_NUM+1, SCRIPT_HASH]
 
     exec.note::build_recipient
     # => [RECIPIENT]
 
-    # Push note type to stack (public note)
+    # Push note type to stack (public note = 1)
     push.1
     # => [note_type, RECIPIENT]
 
@@ -68,16 +70,24 @@ begin
     mem_load.TAG
     # => [tag, note_type, RECIPIENT]
 
-    call.output_note::create
-    # => [note_idx, pad(15) ...]
+    exec.output_note::create
+    # => [note_idx]
 
-    padw mem_loadw_be.ASSET_HALF
-    # => [ASSET / 2, note_idx]
+    # Build [ASSET_KEY, ASSET_HALF_VALUE, note_idx] for move_asset_to_note
+    # Inputs: [ASSET_KEY, ASSET_VALUE, note_idx, pad(7)]
+
+    # Push ASSET_HALF_VALUE (note_idx moves to depth 4)
+    padw push.ASSET_HALF_VALUE_PTR mem_loadw_le
+    # => [ASSET_HALF_VALUE, note_idx]
+
+    # Push ASSET_KEY (ASSET_HALF_VALUE moves to depth 4, note_idx to depth 8)
+    padw push.ASSET_KEY_PTR mem_loadw_le
+    # => [ASSET_KEY, ASSET_HALF_VALUE, note_idx]
 
     call.wallet::move_asset_to_note
-    # => [ASSET, note_idx, pad(11)]
+    # => [pad(16)]
 
-    dropw drop
+    dropw dropw dropw dropw
     # => []
 
     exec.sys::truncate_stack

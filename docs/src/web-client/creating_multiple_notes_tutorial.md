@@ -5,7 +5,7 @@ sidebar_position: 4
 
 import { CodeSdkTabs } from '@site/src/components';
 
-_Using the Miden WebClient in TypeScript to create several P2ID notes in a single transaction_
+_Using the Miden client in TypeScript to create several P2ID notes in a single transaction_
 
 ## Overview
 
@@ -19,7 +19,7 @@ The entire flow is wrapped in a helper called `multiSendWithDelegatedProver()` t
 
 ## What we'll cover
 
-1. Setting‑up the WebClient
+1. Setting-up the Miden client
 2. Building three P2ID notes worth 100 `MID` each
 3. Submitting the transaction _using delegated proving_
 
@@ -61,8 +61,8 @@ proving service. This means your browser never has to generate the full ZK proof
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.13.0` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.13.0` },
+  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.14.4` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.14.4` },
 }} reactFilename="" tsFilename="" />
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -113,7 +113,9 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black text-slate-800 dark:text-slate-100">
       <div className="text-center">
         <h1 className="text-4xl font-semibold mb-4">Miden Web App</h1>
-        <p className="mb-6">Open your browser console to see WebClient logs.</p>
+        <p className="mb-6">
+          Open your browser console to see Miden client logs.
+        </p>
 
         <div className="max-w-sm w-full bg-gray-800/20 border border-gray-600 rounded-2xl p-6 mx-auto flex flex-col gap-4">
           <button
@@ -131,9 +133,9 @@ export default function Home() {
 }
 ```
 
-## Step 3 — Initialize the WebClient
+## Step 3 — Initialize the Miden client
 
-Create `lib/react/multiSendWithDelegatedProver.tsx` (React) or `lib/multiSendWithDelegatedProver.ts` (TypeScript) and add the following code. This snippet initializes the WebClient.
+Create `lib/react/multiSendWithDelegatedProver.tsx` (React) or `lib/multiSendWithDelegatedProver.ts` (TypeScript) and add the following code. This snippet initializes the Miden client.
 
 ```
 mkdir -p lib
@@ -142,8 +144,8 @@ mkdir -p lib
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function MultiSendInner() {
 .const { isReady } = useMiden();
@@ -185,9 +187,9 @@ export default function MultiSendWithDelegatedProver() {
 ..NoteVisibility,
 ..StorageMode,
 ..createP2IDNote,
-..OutputNoteArray,
+..NoteArray,
 ..TransactionRequestBuilder,
-.} = await import('@miden-sdk/miden-sdk');
+.} = await import('@miden-sdk/miden-sdk/lazy');
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -235,7 +237,7 @@ await consume({ accountId: aliceId, notes });`},
   typescript: { code:`// ── Creating new account ──────────────────────────────────────────────────────
 console.log('Creating account for Alice…');
 const alice = await client.accounts.create({
-.type: AccountType.MutableWallet,
+.type: AccountType.RegularAccountUpdatableCode,
 .storage: StorageMode.Public,
 });
 console.log('Alice account ID:', alice.id().toString());
@@ -305,7 +307,7 @@ const p2idNotes = recipientAddresses.map((addr) =>
 
 // ── create all P2ID notes ───────────────────────────────────────────────────────────────
 const builder = new TransactionRequestBuilder();
-const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
+const txRequest = builder.withOwnOutputNotes(new NoteArray(p2idNotes)).build();
 await client.transactions.submit(alice, txRequest);
 
 console.log('All notes created ✅');` },
@@ -318,8 +320,8 @@ Your library file should now look like this:
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function MultiSendInner() {
 .const { isReady } = useMiden();
@@ -410,9 +412,9 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 ..NoteVisibility,
 ..StorageMode,
 ..createP2IDNote,
-..OutputNoteArray,
+..NoteArray,
 ..TransactionRequestBuilder,
-.} = await import('@miden-sdk/miden-sdk');
+.} = await import('@miden-sdk/miden-sdk/lazy');
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -423,7 +425,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .// ── Creating new account ──────────────────────────────────────────────────────
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.MutableWallet,
+..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice account ID:', alice.id().toString());
@@ -474,7 +476,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
 .// ── create all P2ID notes ───────────────────────────────────────────────────────────────
 .const builder = new TransactionRequestBuilder();
-.const txRequest = builder.withOwnOutputNotes(new OutputNoteArray(p2idNotes)).build();
+.const txRequest = builder.withOwnOutputNotes(new NoteArray(p2idNotes)).build();
 .await client.transactions.submit(alice, txRequest);
 
 .console.log('All notes created ✅');

@@ -1,22 +1,18 @@
 /**
  * Mint 100 MIDEN tokens on testnet to a fixed recipient using a local prover.
  */
-export async function mintTestnetToAddress(): Promise<void> {
+import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+
+export async function mintToAddress(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('Run in browser');
     return;
   }
 
-  const {
-    MidenClient,
-    AccountType,
-    NoteVisibility,
-    StorageMode,
-  } = await import('@miden-sdk/miden-sdk');
+  await MidenClient.ready();
 
   const client = await MidenClient.create({
-    rpcUrl: 'local',
-    proverUrl: 'local',
+    rpcUrl: 'https://rpc.testnet.miden.io',
   });
 
   console.log('Latest block:', (await client.sync()).blockNum());
@@ -34,11 +30,11 @@ export async function mintTestnetToAddress(): Promise<void> {
 
   // ── Mint to recipient ───────────────────────────────────────────────────────
   const recipientAddress =
-    'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+    'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
   console.log('Recipient address:', recipientAddress);
 
   console.log('Minting 100 MIDEN tokens...');
-  const mintTxId = await client.transactions.mint({
+  const { txId: mintTxId } = await client.transactions.mint({
     account: faucet,
     to: recipientAddress,
     amount: BigInt(100),

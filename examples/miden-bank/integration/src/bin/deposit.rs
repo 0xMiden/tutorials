@@ -25,7 +25,7 @@ use integration::helpers::{
 use anyhow::{bail, Context, Result};
 use miden_client::{
     account::AccountId,
-    transaction::{OutputNote, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
 };
 use std::{env, path::Path, sync::Arc};
 
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
 
     match bank_account_record {
         Some(record) => {
-            println!("  ✓ Bank account found: {}", record.account_data().id().to_hex());
+            println!("  ✓ Bank account found: {}", record.id().to_hex());
         }
         None => {
             bail!(
@@ -119,7 +119,7 @@ async fn main() -> Result<()> {
     // Publish the deposit note
     println!("\nPublishing deposit note...");
     let note_publish_request = TransactionRequestBuilder::new()
-        .own_output_notes(vec![OutputNote::Full(deposit_note.clone())])
+        .own_output_notes(vec![deposit_note.clone()])
         .build()
         .context("Failed to build note publish transaction request")?;
 
