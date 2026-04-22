@@ -18,7 +18,7 @@ use miden::{Felt};
 /// # Implementation Notes
 /// In Miden Rust contracts, constants are defined using standard Rust `const` syntax.
 /// The value is a u64 which can be compared against a Felt's underlying representation
-/// using the `as_u64()` method.
+/// using the `as_canonical_u64()` method.
 ///
 /// # Error Handling
 /// When this limit is exceeded, the contract uses `assert!()` to fail the transaction.
@@ -39,12 +39,12 @@ struct Bank {
     /// Word layout: [is_initialized (0 or 1), 0, 0, 0]
     /// Must be set to 1 via `initialize()` before deposits are accepted.
     #[storage(description = "initialized")]
-    initialized: Value,
+    initialized: StorageValue<Word>,
 
     /// Maps depositor AccountId -> balance (as Felt)
-    /// Key is derived from AccountId: [prefix, suffix, asset_prefix, asset_suffix]
+    /// Key is derived from AccountId: [prefix, suffix, faucet_prefix, faucet_suffix]
     #[storage(description = "balances")]
-    balances: StorageMap,
+    balances: StorageMap<Word, Felt>,
 }
 
 #[component]
@@ -59,15 +59,15 @@ impl Bank {
     /// Panics if the bank is already initialized.
     pub fn initialize(&mut self) {
         // Check not already initialized
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 0,
+            current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
         // Set initialized flag to 1
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-        self.initialized.write(initialized_word);
+        self.initialized.set(initialized_word);
     }
 
     /// Check that the bank is initialized.
@@ -78,28 +78,11 @@ impl Bank {
     /// # Panics
     /// Panics if the bank has not been initialized.
     fn require_initialized(&self) {
-        let current: Word = self.initialized.read();
+        let current: Word = self.initialized.get();
         assert!(
-            current[0].as_u64() == 1,
+            current[0].as_canonical_u64() == 1,
             "Bank not initialized - deposits not enabled"
         );
-    }
-
-    /// Returns the P2ID note script root digest.
-    ///
-    /// This is a constant value derived from the standard P2ID note script in miden-standards.
-    /// The digest is the MAST root of the compiled P2ID note script.
-    ///
-    /// Note: This value is version-specific to miden-standards. If the P2ID script changes
-    /// in a future version, this digest will need to be updated.
-    ///
-    fn p2id_note_root() -> Digest {
-        Digest::from_word(Word::new([
-            Felt::from_u64_unchecked(13362761878458161062),
-            Felt::from_u64_unchecked(15090726097241769395),
-            Felt::from_u64_unchecked(444910447169617901),
-            Felt::from_u64_unchecked(3558201871398422326),
-        ]))
     }
 
     /// Get the balance for a depositor.
@@ -111,7 +94,7 @@ impl Bank {
     /// The depositor's current balance as a Felt
     pub fn get_balance(&self, depositor: AccountId) -> Felt {
         let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
-        self.balances.get(&key)
+        self.balances.get(key)
     }
 
     /// Deposit an asset into the bank for a specific depositor.
@@ -130,27 +113,28 @@ impl Bank {
         // Ensure the bank is initialized before accepting deposits
         self.require_initialized();
 
-        // Extract the fungible amount from the asset
-        // Asset inner layout for fungible: [amount, 0, faucet_suffix, faucet_prefix]
-        let deposit_amount = deposit_asset.inner[0];
+        // Extract the fungible amount from the asset value word
+        // Asset value layout for fungible: [amount, 0, 0, 0]
+        let deposit_amount = deposit_asset.value[0];
 
         // Validate deposit amount does not exceed maximum
         assert!(
-            deposit_amount.as_u64() <= MAX_DEPOSIT_AMOUNT,
+            deposit_amount.as_canonical_u64() <= MAX_DEPOSIT_AMOUNT,
             "Deposit amount exceeds maximum allowed"
         );
 
         // Create key from depositor's AccountId and asset faucet ID
+        // Asset key layout for fungible: [asset_id_suffix=0, asset_id_prefix=0, faucet_suffix, faucet_prefix]
         // This allows tracking balances per depositor per asset type
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            deposit_asset.inner[3], // asset prefix (faucet)
-            deposit_asset.inner[2], // asset suffix (faucet)
+            deposit_asset.key[3], // faucet_prefix
+            deposit_asset.key[2], // faucet_suffix
         ]);
 
         // Update balance: current + deposit_amount
-        let current_balance: Felt = self.balances.get(&key);
+        let current_balance: Felt = self.balances.get(key);
         let new_balance = current_balance + deposit_amount;
         self.balances.set(key, new_balance);
 
@@ -169,6 +153,8 @@ impl Bank {
     /// * `tag` - The note tag for the P2ID output note (allows caller to specify routing)
     /// * `note_type` - Note type: 1 = Public (stored on-chain), 2 = Private (off-chain)
     ///
+    /// The P2ID script root is read from the active note's storage (items 10-13).
+    ///
     /// # Panics
     /// Panics if the withdrawal amount exceeds the depositor's current balance.
     /// Panics if the bank has not been initialized.
@@ -183,23 +169,23 @@ impl Bank {
         // Ensure the bank is initialized before processing withdrawals
         self.require_initialized();
 
-        // Extract the fungible amount from the asset
-        let withdraw_amount = withdraw_asset.inner[0];
+        // Extract the fungible amount from the asset value word
+        let withdraw_amount = withdraw_asset.value[0];
 
         // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            withdraw_asset.inner[3], // asset prefix (faucet)
-            withdraw_asset.inner[2], // asset suffix (faucet)
+            withdraw_asset.key[3], // faucet_prefix
+            withdraw_asset.key[2], // faucet_suffix
         ]);
 
         // Get current balance and validate sufficient funds exist.
         // This check is critical: Felt arithmetic is modular, so subtracting
         // more than the balance would silently wrap to a large positive number.
-        let current_balance: Felt = self.balances.get(&key);
+        let current_balance: Felt = self.balances.get(key);
         assert!(
-            current_balance.as_u64() >= withdraw_amount.as_u64(),
+            current_balance.as_canonical_u64() >= withdraw_amount.as_canonical_u64(),
             "Withdrawal amount exceeds available balance"
         );
 
@@ -207,8 +193,14 @@ impl Bank {
         let new_balance = current_balance - withdraw_amount;
         self.balances.set(key, new_balance);
 
+        // Read the P2ID script root from the withdraw-request note's storage (items 10-13).
+        // This avoids hardcoding a version-specific MAST root constant and keeps the
+        // withdraw function parameter count within the WIT flat-params limit (≤ 16).
+        let storage = active_note::get_storage();
+        let script_root = Word::from([storage[10], storage[11], storage[12], storage[13]]);
+
         // Create a P2ID note to send the requested asset back to the depositor
-        self.create_p2id_note(serial_num, &withdraw_asset, depositor, tag, note_type);
+        self.create_p2id_note(serial_num, &withdraw_asset, depositor, tag, note_type, script_root);
     }
 
     /// Create a P2ID (Pay-to-ID) note to send assets to a recipient.
@@ -219,6 +211,7 @@ impl Bank {
     /// * `recipient_id` - The AccountId that can consume this note
     /// * `tag` - The note tag (passed by caller to allow proper P2ID routing)
     /// * `note_type` - Note type as Felt: 1 = Public, 2 = Private
+    /// * `script_root` - The P2ID note script MAST root (Poseidon2-hashed)
     fn create_p2id_note(
         &mut self,
         serial_num: Word,
@@ -226,6 +219,7 @@ impl Bank {
         recipient_id: AccountId,
         tag: Felt,
         note_type: Felt,
+        script_root: Word,
     ) {
         // Convert the passed tag Felt to a Tag
         // The caller is responsible for computing the proper P2ID tag
@@ -236,17 +230,14 @@ impl Bank {
         // 1 = Public (stored on-chain), 2 = Private (off-chain)
         let note_type = NoteType::from(note_type);
 
-        // Get the P2ID note script root digest
-        let script_root = Self::p2id_note_root();
-
         // Compute the recipient hash from:
         // - serial_num: unique identifier for this note instance
         // - script_root: the P2ID note script's MAST root
-        // - inputs: the target account ID [suffix, prefix]
+        // - storage: the target account ID [suffix, prefix]
         //
         // This matches the standard P2ID recipient format used by miden-standards:
-        // NoteInputs::new(vec![target.suffix(), target.prefix().as_felt()])
-        let recipient = Recipient::compute(
+        // NoteStorage::new(vec![target.suffix(), target.prefix().as_felt()])
+        let recipient = note::build_recipient(
             serial_num,
             script_root,
             vec![

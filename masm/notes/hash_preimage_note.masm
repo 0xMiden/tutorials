@@ -5,7 +5,6 @@ use miden::standards::wallets::basic->wallet
 # =================================================================================================
 
 const EXPECTED_DIGEST_PTR=0
-const ASSET_PTR=100
 
 # ERRORS
 # =================================================================================================
@@ -15,7 +14,7 @@ const ERROR_DIGEST_MISMATCH="Expected digest does not match computed digest"
 #! Inputs (arguments):  [HASH_PREIMAGE_SECRET]
 #! Outputs: []
 #!
-#! Note inputs are assumed to be as follows:
+#! Note storage is assumed to be as follows:
 #!  => EXPECTED_DIGEST
 begin
     # => HASH_PREIMAGE_SECRET
@@ -23,11 +22,11 @@ begin
     hash
     # => [DIGEST]
 
-    # Writing the note inputs to memory
-    push.EXPECTED_DIGEST_PTR exec.active_note::get_inputs drop drop
+    # Writing the note storage to memory
+    push.EXPECTED_DIGEST_PTR exec.active_note::get_storage drop drop
 
-    # Pad stack and load expected digest from memory
-    padw push.EXPECTED_DIGEST_PTR mem_loadw_be
+    # Pad stack and load expected digest from memory (LE: mem[addr] ends up on top)
+    padw push.EXPECTED_DIGEST_PTR mem_loadw_le
     # => [EXPECTED_DIGEST, DIGEST]
 
     # Assert that the note input matches the digest
@@ -39,18 +38,7 @@ begin
     # If the check is successful, we allow for the asset to be consumed
     # ---------------------------------------------------------------------------------------------
 
-    # Write the asset in note to memory address ASSET_PTR
-    push.ASSET_PTR exec.active_note::get_assets
-    # => [num_assets, dest_ptr]
-
-    drop
-    # => [dest_ptr]
-
-    # Load asset from memory
-    mem_loadw_be
-    # => [ASSET]
-
-    # Call receive asset in wallet
-    call.wallet::receive_asset
+    # Add all assets from the note to the account
+    exec.wallet::add_assets_to_account
     # => []
 end

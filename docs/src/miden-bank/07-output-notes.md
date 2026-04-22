@@ -102,23 +102,23 @@ impl Bank {
         // Ensure the bank is initialized before processing withdrawals
         self.require_initialized();
 
-        // Extract the fungible amount from the asset
-        let withdraw_amount = withdraw_asset.inner[0];
+        // Extract the fungible amount from the asset value word
+        let withdraw_amount = withdraw_asset.value[0];
 
         // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            withdraw_asset.inner[3], // asset prefix (faucet)
-            withdraw_asset.inner[2], // asset suffix (faucet)
+            withdraw_asset.key[3], // faucet_prefix
+            withdraw_asset.key[2], // faucet_suffix
         ]);
 
         // Get current balance and validate sufficient funds exist.
         // This check is critical: Felt arithmetic is modular, so subtracting
         // more than the balance would silently wrap to a large positive number.
-        let current_balance: Felt = self.balances.get(&key);
+        let current_balance: Felt = self.balances.get(key);
         assert!(
-            current_balance.as_u64() >= withdraw_amount.as_u64(),
+            current_balance.as_canonical_u64() >= withdraw_amount.as_canonical_u64(),
             "Withdrawal amount exceeds available balance"
         );
 
@@ -126,8 +126,13 @@ impl Bank {
         let new_balance = current_balance - withdraw_amount;
         self.balances.set(key, new_balance);
 
+        // Read the P2ID script root from the withdraw-request note's storage (items 10-13).
+        // This avoids hardcoding a version-specific MAST root constant.
+        let storage = active_note::get_storage();
+        let script_root = Word::from([storage[10], storage[11], storage[12], storage[13]]);
+
         // Create a P2ID note to send the requested asset back to the depositor
-        self.create_p2id_note(serial_num, &withdraw_asset, depositor, tag, note_type);
+        self.create_p2id_note(serial_num, &withdraw_asset, depositor, tag, note_type, script_root);
     }
 }
 ```
@@ -136,33 +141,16 @@ impl Bank {
 Always validate `current_balance >= withdraw_amount` BEFORE subtraction. Miden uses modular field arithmetic - subtracting a larger value silently wraps to a massive positive number!
 :::
 
-## Step 2: Add the P2ID Note Root
+## Step 2: How the P2ID Script Root is Supplied
 
-The P2ID note uses a standard script from miden-standards. Add this helper function:
+Instead of hardcoding a version-specific MAST root constant in the bank contract, the P2ID script root is passed through the withdraw-request note's storage (items 10-13). The `withdraw()` method reads it directly from the active note:
 
-```rust title="contracts/bank-account/src/lib.rs"
-#[component]
-impl Bank {
-    // ... other methods ...
-
-    /// Returns the P2ID note script root digest.
-    ///
-    /// This is a constant value derived from the standard P2ID note script in miden-standards.
-    /// The digest is the MAST root of the compiled P2ID note script.
-    fn p2id_note_root() -> Digest {
-        Digest::from_word(Word::new([
-            Felt::from_u64_unchecked(13362761878458161062),
-            Felt::from_u64_unchecked(15090726097241769395),
-            Felt::from_u64_unchecked(444910447169617901),
-            Felt::from_u64_unchecked(3558201871398422326),
-        ]))
-    }
-}
+```rust
+let storage = active_note::get_storage();
+let script_root = Word::from([storage[10], storage[11], storage[12], storage[13]]);
 ```
 
-:::warning Version-Specific
-This digest is specific to miden-standards version. If the P2ID script changes in a future version, this digest must be updated.
-:::
+This design keeps the bank contract version-agnostic: callers embed the P2ID script root they want to use into the note storage when they create the withdraw-request note. The test uses `P2idNote::script_root()` from the `miden_client` crate to obtain the correct value at test time.
 
 ## Step 3: Implement create_p2id_note
 
@@ -181,6 +169,7 @@ impl Bank {
     /// * `recipient_id` - The AccountId that can consume this note
     /// * `tag` - The note tag (passed by caller to allow proper P2ID routing)
     /// * `note_type` - Note type as Felt: 1 = Public, 2 = Private
+    /// * `script_root` - The P2ID note script MAST root (Poseidon2-hashed)
     fn create_p2id_note(
         &mut self,
         serial_num: Word,
@@ -188,6 +177,7 @@ impl Bank {
         recipient_id: AccountId,
         tag: Felt,
         note_type: Felt,
+        script_root: Word,
     ) {
         // Convert the passed tag Felt to a Tag
         // The caller is responsible for computing the proper P2ID tag
@@ -198,16 +188,13 @@ impl Bank {
         // 1 = Public (stored on-chain), 2 = Private (off-chain)
         let note_type = NoteType::from(note_type);
 
-        // Get the P2ID note script root digest
-        let script_root = Self::p2id_note_root();
-
         // Compute the recipient hash from:
         // - serial_num: unique identifier for this note instance
         // - script_root: the P2ID note script's MAST root
-        // - inputs: the target account ID
+        // - storage: the target account ID
         //
         // The P2ID script expects inputs as [suffix, prefix]
-        let recipient = Recipient::compute(
+        let recipient = note::build_recipient(
             serial_num,
             script_root,
             vec![
@@ -228,13 +215,13 @@ impl Bank {
 }
 ```
 
-### Understanding Recipient::compute()
+### Understanding note::build_recipient()
 
-| Parameter     | Description                               |
-| ------------- | ----------------------------------------- |
-| `serial_num`  | Unique 4-Felt value preventing note reuse |
-| `script_root` | The P2ID script's MAST root digest        |
-| `inputs`      | Script inputs (account ID for P2ID)       |
+| Parameter     | Description                                |
+| ------------- | ------------------------------------------ |
+| `serial_num`  | Unique 4-Felt value preventing note reuse  |
+| `script_root` | The P2ID script's MAST root digest         |
+| `storage`     | Script storage items (account ID for P2ID) |
 
 :::warning Array Ordering
 Note the order: `suffix` comes before `prefix`. This is the opposite of how `AccountId` fields are typically accessed. See [Common Pitfalls](https://docs.miden.xyz/builder/tutorials/rust-compiler/pitfalls#array-ordering-rustmasm-reversal) for details.
@@ -268,7 +255,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.10" }
+miden = { version = "0.12" }
 
 [package.metadata.component]
 package = "miden:withdraw-request-note"
@@ -323,16 +310,17 @@ use crate::bindings::miden::bank_account::bank_account;
 /// # Flow
 /// 1. Note is created by a depositor specifying the withdrawal details
 /// 2. Bank account consumes this note
-/// 3. Note script reads the sender (depositor) and inputs
+/// 3. Note script reads the sender (depositor) and storage items
 /// 4. Calls `bank_account::withdraw(depositor, asset, serial_num, tag, note_type)`
 /// 5. Bank updates the depositor's balance
-/// 6. Bank creates a P2ID note with the specified parameters to send assets back
+/// 6. Bank reads P2ID script root from storage[10-13] and creates a P2ID output note
 ///
-/// # Note Inputs (10 Felts)
-/// [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
+/// # Note Storage (14 Felts)
+/// [0-3]: withdraw asset encoded as [amount, 0, faucet_suffix, faucet_prefix]
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
 /// [9]: note_type (1 = Public, 2 = Private)
+/// [10-13]: P2ID script_root (MAST root of the P2ID note script, Poseidon2-hashed)
 #[note]
 struct WithdrawRequestNote;
 
@@ -343,20 +331,26 @@ impl WithdrawRequestNote {
         // The depositor is whoever created/sent this note
         let depositor = active_note::get_sender();
 
-        // Get the inputs
-        let inputs = active_note::get_inputs();
+        // Get the storage items
+        let storage = active_note::get_storage();
 
-        // Asset: [amount, 0, faucet_suffix, faucet_prefix]
-        let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));
+        // Asset: reconstruct from [amount, 0, faucet_suffix, faucet_prefix] encoding
+        let withdraw_asset = Asset::new(
+            Word::from([felt!(0), felt!(0), storage[2], storage[3]]),
+            Word::from([storage[0], felt!(0), felt!(0), felt!(0)]),
+        );
 
         // Serial number: full 4 Felts (random/unique per note)
-        let serial_num = Word::from([inputs[4], inputs[5], inputs[6], inputs[7]]);
+        let serial_num = Word::from([storage[4], storage[5], storage[6], storage[7]]);
 
         // Tag: single Felt for P2ID note routing
-        let tag = inputs[8];
+        let tag = storage[8];
 
         // Note type: 1 = Public, 2 = Private
-        let note_type = inputs[9];
+        let note_type = storage[9];
+
+        // Note: P2ID script root (storage[10..13]) is read by the bank account
+        // directly from the active note's storage inside bank_account::withdraw.
 
         // Call the bank account to withdraw the assets
         bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
@@ -364,12 +358,12 @@ impl WithdrawRequestNote {
 }
 ```
 
-### Note Input Layout
+### Note Storage Layout
 
-The withdraw-request-note expects 10 Felt inputs:
+The withdraw-request-note uses 14 Felt storage items:
 
 ```text
-Note Inputs (10 Felts):
+Note Storage (14 Felts):
 ┌───────────────────────────────────────────────────────────────────────────┐
 │ Index │ Value           │ Description                                     │
 ├───────┼─────────────────┼─────────────────────────────────────────────────┤
@@ -380,6 +374,7 @@ Note Inputs (10 Felts):
 │ 4-7   │ serial_num      │ Unique ID for the output P2ID note (4 Felts)    │
 │ 8     │ tag             │ Note routing tag for P2ID note                  │
 │ 9     │ note_type       │ 1 (Public) or 2 (Private)                       │
+│ 10-13 │ script_root     │ P2ID script MAST root (Poseidon2-hashed, 4 Felts)│
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -407,7 +402,7 @@ Let's test the complete withdraw flow. This test:
 
 1. Creates a bank account and initializes it
 2. Creates a deposit note and processes it
-3. Creates a withdraw-request note with the 10-Felt input layout
+3. Creates a withdraw-request note with the 14-Felt storage layout
 4. Processes the withdrawal and verifies a P2ID output note is created
 
 ```rust title="integration/tests/part7_withdraw_test.rs"
@@ -418,8 +413,9 @@ use integration::helpers::{
 use miden_client::{
     account::{StorageMap, StorageSlotName},
     asset::{Asset, FungibleAsset},
-    note::{build_p2id_recipient, Note, NoteAssets, NoteMetadata, NoteTag, NoteType},
-    transaction::{OutputNote, TransactionScript},
+    auth::AuthSchemeId,
+    note::{P2idNote, P2idNoteStorage, Note, NoteAssets, NoteMetadata, NoteTag, NoteType},
+    transaction::{RawOutputNote, TransactionScript},
     Felt, Word,
 };
 use miden_testing::{Auth, MockChain};
@@ -436,9 +432,9 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 
     // Create faucet and sender (depositor)
     let faucet =
-        builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", deposit_amount, Some(10))?;
+        builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", deposit_amount, Some(10))?;
     let sender = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth,
+        Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 },
         [FungibleAsset::new(faucet.id(), deposit_amount)?.into()],
     )?;
 
@@ -462,24 +458,23 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 
     // Create bank account with named storage slots
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            miden_client::account::StorageSlot::with_value(initialized_slot, Word::default()),
-            miden_client::account::StorageSlot::with_map(
-                balances_slot,
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
     let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Create deposit note
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
@@ -495,10 +490,10 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 
     // Add accounts and notes to builder
     builder.add_account(bank_account.clone())?;
-    builder.add_output_note(OutputNote::Full(deposit_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
 
     // =========================================================================
-    // CRAFT WITHDRAW REQUEST NOTE (10-Felt input layout)
+    // CRAFT WITHDRAW REQUEST NOTE (14-Felt storage layout)
     // =========================================================================
     let withdraw_amount = deposit_amount / 2;
 
@@ -516,12 +511,16 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 
     let note_type_felt = Felt::new(1); // Public
 
-    // Note inputs: 10 Felts
+    // Get the P2ID script root (Poseidon2-hashed MAST root)
+    let p2id_script_root = P2idNote::script_root();
+
+    // Note storage: 14 Felts
     // [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
     // [4-7]: serial_num
     // [8]: tag
     // [9]: note_type
-    let withdraw_request_note_inputs = vec![
+    // [10-13]: P2ID script_root
+    let withdraw_request_note_storage = vec![
         Felt::new(withdraw_amount),
         Felt::new(0),
         faucet.id().suffix(),
@@ -532,18 +531,22 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
         p2id_output_note_serial_num[3],
         p2id_tag_felt,
         note_type_felt,
+        p2id_script_root[0],
+        p2id_script_root[1],
+        p2id_script_root[2],
+        p2id_script_root[3],
     ];
 
     let withdraw_request_note = create_testing_note_from_package(
         withdraw_request_note_package.clone(),
         sender.id(),
         NoteCreationConfig {
-            inputs: withdraw_request_note_inputs,
+            storage: withdraw_request_note_storage,
             ..Default::default()
         },
     )?;
 
-    builder.add_output_note(OutputNote::Full(withdraw_request_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(withdraw_request_note.clone()));
 
     // =========================================================================
     // EXECUTE: Initialize, Deposit, Withdraw
@@ -576,14 +579,11 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
     println!("Step 2: Deposited {} tokens", deposit_amount);
 
     // Process withdraw with expected P2ID output note
-    let recipient = build_p2id_recipient(sender.id(), p2id_output_note_serial_num)?;
+    let recipient = P2idNoteStorage::new(sender.id()).into_recipient(p2id_output_note_serial_num);
     let p2id_output_note_asset = FungibleAsset::new(faucet.id(), withdraw_amount)?;
     let p2id_output_note_assets = NoteAssets::new(vec![p2id_output_note_asset.into()])?;
-    let p2id_output_note_metadata = NoteMetadata::new(
-        bank_account.id(),
-        NoteType::Public,
-        p2id_tag,
-    );
+    let p2id_output_note_metadata = NoteMetadata::new(bank_account.id(), NoteType::Public)
+        .with_tag(p2id_tag);
     let p2id_output_note = Note::new(
         p2id_output_note_assets,
         p2id_output_note_metadata,
@@ -592,7 +592,7 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 
     let withdraw_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[withdraw_request_note.id()], &[])?
-        .extend_expected_output_notes(vec![OutputNote::Full(p2id_output_note)])
+        .extend_expected_output_notes(vec![RawOutputNote::Full(p2id_output_note)])
         .build()?;
     let executed_withdraw = withdraw_tx_context.execute().await?;
     bank_account.apply_delta(&executed_withdraw.account_delta())?;
@@ -668,11 +668,12 @@ use crate::bindings::miden::bank_account::bank_account;
 /// When consumed by the Bank account, this note requests a withdrawal and
 /// the bank creates a P2ID note to send assets back to the depositor.
 ///
-/// # Note Inputs (10 Felts)
-/// [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
+/// # Note Storage (14 Felts)
+/// [0-3]: withdraw asset encoded as [amount, 0, faucet_suffix, faucet_prefix]
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
 /// [9]: note_type (1 = Public, 2 = Private)
+/// [10-13]: P2ID script_root (MAST root of the P2ID note script, Poseidon2-hashed)
 #[note]
 struct WithdrawRequestNote;
 
@@ -683,20 +684,26 @@ impl WithdrawRequestNote {
         // The depositor is whoever created/sent this note
         let depositor = active_note::get_sender();
 
-        // Get the inputs
-        let inputs = active_note::get_inputs();
+        // Get the storage items
+        let storage = active_note::get_storage();
 
-        // Asset: [amount, 0, faucet_suffix, faucet_prefix]
-        let withdraw_asset = Asset::new(Word::from([inputs[0], inputs[1], inputs[2], inputs[3]]));
+        // Asset: reconstruct from [amount, 0, faucet_suffix, faucet_prefix] encoding
+        let withdraw_asset = Asset::new(
+            Word::from([felt!(0), felt!(0), storage[2], storage[3]]),
+            Word::from([storage[0], felt!(0), felt!(0), felt!(0)]),
+        );
 
         // Serial number: full 4 Felts (random/unique per note)
-        let serial_num = Word::from([inputs[4], inputs[5], inputs[6], inputs[7]]);
+        let serial_num = Word::from([storage[4], storage[5], storage[6], storage[7]]);
 
         // Tag: single Felt for P2ID note routing
-        let tag = inputs[8];
+        let tag = storage[8];
 
         // Note type: 1 = Public, 2 = Private
-        let note_type = inputs[9];
+        let note_type = storage[9];
+
+        // Note: P2ID script root (storage[10..13]) is read by the bank account
+        // directly from the active note's storage inside bank_account::withdraw.
 
         // Call the bank account to withdraw the assets
         bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
@@ -708,7 +715,7 @@ impl WithdrawRequestNote {
 
 ## Key Takeaways
 
-1. **`Recipient::compute()`** creates a cryptographic commitment from serial number, script root, and inputs
+1. **`note::build_recipient()`** creates a cryptographic commitment from serial number, script root, and storage items
 2. **`output_note::create()`** creates the note with tag, note type, and recipient
 3. **`output_note::add_asset()`** attaches assets to the created note
 4. **P2ID pattern** uses a standard script with account ID as input

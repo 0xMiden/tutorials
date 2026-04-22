@@ -1,19 +1,19 @@
 use miden_client::{
     account::{
-        AccountBuilder, AccountComponent, AccountId, AccountStorageMode, AccountType, StorageSlot,
-        StorageSlotName, StorageSlotType,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
+        AccountStorageMode, AccountType, StorageMapKey, StorageSlot, StorageSlotName,
+        StorageSlotType,
     },
     assembly::{
-        Assembler, CodeBuilder, DefaultSourceManager, Module, ModuleKind, Path as AssemblyPath,
+        CodeBuilder, DefaultSourceManager, Module, ModuleKind, Path as AssemblyPath,
     },
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{
-        domain::account::{AccountStorageRequirements, StorageMapKey},
+        domain::account::AccountStorageRequirements,
         Endpoint, GrpcClient,
     },
-    store::AccountRecordData,
     transaction::{ForeignAccount, TransactionKernel, TransactionRequestBuilder},
     Client, ClientError, Word,
 };
@@ -37,11 +37,7 @@ pub async fn get_oracle_foreign_accounts(
         .expect("RPC failed")
         .expect("oracle account not found");
 
-    let oracle_account = match oracle_record.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("oracle account is missing full account data"),
-    };
-    let storage = oracle_account.storage();
+    let storage = oracle_record.storage();
     let publisher_count_slot = storage
         .slots()
         .iter()
@@ -55,7 +51,7 @@ pub async fn get_oracle_foreign_accounts(
 
     let publisher_count = storage
         .get_item(&publisher_count_slot)
-        .map(|word| word[0].as_int())
+        .map(|word| word[0].as_canonical_u64())
         .unwrap_or(0);
 
     let publisher_id_slots: Vec<StorageSlotName> = storage
@@ -87,13 +83,7 @@ pub async fn get_oracle_foreign_accounts(
             .await
             .expect("RPC failed")
             .expect("publisher account not found");
-        let publisher_account = match publisher_record.account_data() {
-            AccountRecordData::Full(account) => account,
-            AccountRecordData::Partial(_) => {
-                panic!("publisher account is missing full account data")
-            }
-        };
-        let map_slot_names: Vec<StorageSlotName> = publisher_account
+        let map_slot_names: Vec<StorageSlotName> = publisher_record
             .storage()
             .slots()
             .iter()
@@ -119,17 +109,17 @@ pub async fn get_oracle_foreign_accounts(
 }
 
 fn create_library(
-    assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<miden_client::assembly::Library, Box<dyn std::error::Error>> {
+) -> Result<Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
+    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
         source_code,
-        source_manager.clone(),
+        source_manager,
     )?;
-    let library = assembler.clone().assemble_library([module])?;
+    let library = assembler.assemble_library([module])?;
     Ok(library)
 }
 
@@ -160,8 +150,10 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Get all foreign accounts for oracle data
     // -------------------------------------------------------------------------
-    let oracle_bech32 = "mtst1qq0zffxzdykm7qqqqdt24cc2du5ghx99";
-    let (_, oracle_account_id) = AccountId::from_bech32(oracle_bech32).unwrap();
+    let oracle_bech32 = std::env::args()
+        .nth(1)
+        .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
+    let (_, oracle_account_id) = AccountId::from_bech32(&oracle_bech32).unwrap();
     let btc_usd_pair_id = 120195681;
     let foreign_accounts: Vec<ForeignAccount> =
         get_oracle_foreign_accounts(&mut client, oracle_account_id, btc_usd_pair_id).await?;
@@ -189,9 +181,9 @@ async fn main() -> Result<(), ClientError> {
             contract_slot_name.clone(),
             Word::default(),
         )],
+        AccountComponentMetadata::new("external_contract::oracle_reader", AccountType::all()),
     )
-    .unwrap()
-    .with_supports_all_types();
+    .unwrap();
 
     let mut seed = [0_u8; 32];
     client.rng().fill_bytes(&mut seed);
@@ -215,10 +207,9 @@ async fn main() -> Result<(), ClientError> {
     let script_path = Path::new("../masm/scripts/oracle_reader_script.masm");
     let script_code = fs::read_to_string(script_path).unwrap();
 
-    let assembler = TransactionKernel::assembler();
     let library_path = "external_contract::oracle_reader";
     let account_component_lib =
-        create_library(assembler.clone(), library_path, &contract_code).unwrap();
+        create_library(library_path, &contract_code).unwrap();
 
     let tx_script = client
         .code_builder()

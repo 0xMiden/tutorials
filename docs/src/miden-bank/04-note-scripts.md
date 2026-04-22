@@ -77,7 +77,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.10" }
+miden = { version = "0.12" }
 
 [package.metadata.component]
 package = "miden:deposit-note"
@@ -172,14 +172,14 @@ for asset in assets {
 
 Returns an iterator over all assets attached to the note.
 
-### get_inputs() - Note Parameters
+### get_storage() - Note Parameters
 
 ```rust
-let inputs = active_note::get_inputs();
-let first_input = inputs[0];
+let storage = active_note::get_storage();
+let first_item = storage[0];
 ```
 
-Returns a vector of `Felt` values passed when the note was created. We'll use inputs in the withdraw request note (Part 7).
+Returns a slice of `Felt` values passed when the note was created. We'll use storage items in the withdraw request note (Part 7).
 
 ## Step 4: Update the Workspace
 
@@ -270,9 +270,10 @@ use integration::helpers::{
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
 use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
-use miden_client::note::NoteAssets;
-use miden_client::transaction::{OutputNote, TransactionScript};
 use miden_client::asset::{Asset, FungibleAsset};
+use miden_client::auth::AuthSchemeId;
+use miden_client::note::NoteAssets;
+use miden_client::transaction::{RawOutputNote, TransactionScript};
 use miden_client::{Felt, Word};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
@@ -285,10 +286,10 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
     let mut builder = MockChain::builder();
 
     // Create a faucet for test tokens
-    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", 10_000_000, Some(10))?;
+    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", 10_000_000, Some(10))?;
 
     // Create sender (depositor) wallet
-    let sender = builder.add_existing_wallet_with_assets(Auth::BasicAuth, [FungibleAsset::new(faucet.id(), 1000)?.into()])?;
+    let sender = builder.add_existing_wallet_with_assets(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, [FungibleAsset::new(faucet.id(), 1000)?.into()])?;
 
     // Build all contracts
     let bank_package = Arc::new(build_project_in_dir(
@@ -308,25 +309,24 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
 
     // Create bank account
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot, Word::default()),
-            StorageSlot::with_map(
-                balances_slot.clone(),
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
 
     let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     builder.add_account(bank_account.clone())?;
 
@@ -344,7 +344,7 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
         },
     )?;
 
-    builder.add_output_note(OutputNote::Full(deposit_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
     let mut mock_chain = builder.build()?;
 
     // =========================================================================
@@ -390,7 +390,7 @@ async fn test_deposit_note_credits_depositor() -> anyhow::Result<()> {
     ]);
 
     let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
-    let balance_value = balance[3].as_int();
+    let balance_value = balance[3].as_canonical_u64();
 
     println!("Step 3: Verified balance = {}", balance_value);
 
@@ -449,11 +449,12 @@ For withdrawals, we'll use note inputs to pass parameters. Here's a preview of t
 ```rust title="contracts/withdraw-request-note/src/lib.rs (preview)"
 /// Withdraw Request Note Script
 ///
-/// # Note Inputs (10 Felts)
-/// [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
+/// # Note Storage (14 Felts)
+/// [0-3]: withdraw asset encoded as [amount, 0, faucet_suffix, faucet_prefix]
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
 /// [9]: note_type (1 = Public, 2 = Private)
+/// [10-13]: P2ID script_root (MAST root of the P2ID note script, Poseidon2-hashed)
 #[note]
 struct WithdrawRequestNote;
 
@@ -462,19 +463,23 @@ impl WithdrawRequestNote {
     #[note_script]
     fn run(self, _arg: Word) {
         let depositor = active_note::get_sender();
-        let inputs = active_note::get_inputs();
+        let storage = active_note::get_storage();
 
-        // Parse parameters from inputs
-        let withdraw_asset = Asset::new(Word::from([
-            inputs[0], inputs[1], inputs[2], inputs[3]
-        ]));
+        // Parse parameters from storage
+        let withdraw_asset = Asset::new(
+            Word::from([felt!(0), felt!(0), storage[2], storage[3]]),
+            Word::from([storage[0], felt!(0), felt!(0), felt!(0)]),
+        );
 
         let serial_num = Word::from([
-            inputs[4], inputs[5], inputs[6], inputs[7]
+            storage[4], storage[5], storage[6], storage[7]
         ]);
 
-        let tag = inputs[8];
-        let note_type = inputs[9];
+        let tag = storage[8];
+        let note_type = storage[9];
+
+        // Note: P2ID script root (storage[10..13]) is read by the bank account
+        // directly from the active note's storage inside bank_account::withdraw.
 
         bank_account::withdraw(depositor, withdraw_asset, serial_num, tag, note_type);
     }
@@ -523,7 +528,7 @@ impl DepositNote {
 1. **`#[note]`** marks the struct and impl block, with **`#[note_script]`** on the entry point method `fn run(self, _arg: Word)`
 2. **`active_note::get_sender()`** returns who created the note
 3. **`active_note::get_assets()`** returns assets attached to the note
-4. **`active_note::get_inputs()`** returns parameterized data
+4. **`active_note::get_storage()`** returns parameterized data
 5. **Note scripts execute once** when consumed - no persistent state
 6. **Build order matters** - account components first, then note scripts
 

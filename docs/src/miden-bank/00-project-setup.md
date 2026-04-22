@@ -98,7 +98,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.10" }
+miden = { version = "0.12" }
 
 [package.metadata.component]
 package = "miden:bank-account"
@@ -141,30 +141,30 @@ struct Bank {
     /// Tracks whether the bank has been initialized (deposits enabled).
     /// Word layout: [is_initialized (0 or 1), 0, 0, 0]
     #[storage(description = "initialized")]
-    initialized: Value,
+    initialized: StorageValue<Word>,
 
     /// Maps depositor AccountId -> balance (as Felt).
     /// We'll use this to track user balances in Part 1.
     #[storage(description = "balances")]
-    balances: StorageMap,
+    balances: StorageMap<Word, Felt>,
 }
 
 #[component]
 impl Bank {
     /// Initialize the bank account, enabling deposits.
     pub fn initialize(&mut self) {
-        // Read current value from storage
-        let current: Word = self.initialized.read();
+        // Get current value from storage
+        let current: Word = self.initialized.get();
 
         // Check not already initialized
         assert!(
-            current[0].as_u64() == 0,
+            current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
         // Set initialized flag to 1
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
-        self.initialized.write(initialized_word);
+        self.initialized.set(initialized_word);
     }
 
     /// Get the balance for a depositor.
@@ -174,15 +174,15 @@ impl Bank {
     /// in at least one public method.
     pub fn get_balance(&self, depositor: AccountId) -> Felt {
         let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
-        self.balances.get(&key)
+        self.balances.get(key)
     }
 }
 ```
 
 This is our starting point with two storage slots:
 
-- `initialized`: A `Value` slot to track whether the bank is ready
-- `balances`: A `StorageMap` to track user balances (we'll use this starting in Part 1)
+- `initialized`: A `StorageValue<Word>` slot to track whether the bank is ready
+- `balances`: A `StorageMap<Word, Felt>` to track user balances (we'll use this starting in Part 1)
 
 :::note Compiler Requirement
 Account components must use WIT binding types (like `AccountId`, `Asset`, etc.) in at least one public method signature for the compiler to generate the required bindings correctly. The `get_balance` method serves this purpose.
@@ -209,7 +209,7 @@ edition = "2021"
 ```
 
 :::info Contracts Are Excluded
-In v0.13, contracts are excluded from the Cargo workspace and built independently by `cargo miden`. Each contract specifies its own `miden` dependency directly. Only the `integration` crate remains a workspace member.
+In v0.14, contracts are excluded from the Cargo workspace and built independently by `cargo miden`. Each contract specifies its own `miden` dependency directly. Only the `integration` crate remains a workspace member.
 :::
 
 ## Step 5: Build and Verify
@@ -260,25 +260,24 @@ async fn test_bank_account_builds_and_loads() -> anyhow::Result<()> {
 
     // Create named storage slots matching the contract's storage layout
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot, Word::default()),
-            StorageSlot::with_map(
-                balances_slot,
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
 
     let bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Verify the account was created
     println!("Bank account created with ID: {:?}", bank_account.id());

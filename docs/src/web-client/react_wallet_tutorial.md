@@ -59,7 +59,7 @@ First, create a new Vite + React project and install the Miden React SDK.
 // main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MidenProvider } from '@miden-sdk/react';
+import { MidenProvider } from '@miden-sdk/react/lazy';
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -67,7 +67,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <MidenProvider
       config={{
         rpcUrl: 'testnet',
-        prover: 'testnet',
+        prover: 'local',
       }}
     >
       <App />
@@ -78,7 +78,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 The `MidenProvider` accepts a `config` object with the following options:
 
-- `rpcUrl`: The RPC endpoint to connect to (`"testnet"`, `"devnet"`, or a custom URL)
+- `rpcUrl`: The RPC endpoint to connect to (`"testnet"` or a custom URL)
 - `prover`: The prover to use (`"testnet"` for delegated proving, or `"local"` for local proving)
 
 ---
@@ -89,7 +89,7 @@ The `useMiden()` hook provides access to the client's initialization state. Use 
 
 ```tsx
 // App.tsx
-import { useMiden } from '@miden-sdk/react';
+import { useMiden } from '@miden-sdk/react/lazy';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -113,7 +113,7 @@ The `useMiden()` hook returns:
 The `useAccounts()` hook provides access to all accounts stored in the client. Use it to check if the user has any existing wallets.
 
 ```tsx
-import { useMiden, useAccounts } from '@miden-sdk/react';
+import { useMiden, useAccounts } from '@miden-sdk/react/lazy';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -145,7 +145,7 @@ The `useAccounts()` hook returns:
 The `useCreateWallet()` hook provides a function to create new wallet accounts.
 
 ```tsx
-import { useMiden, useAccounts, useCreateWallet } from '@miden-sdk/react';
+import { useMiden, useAccounts, useCreateWallet } from '@miden-sdk/react/lazy';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -188,7 +188,7 @@ The `useCreateWallet()` hook returns:
 The `useAccount(accountId)` hook provides detailed information about a specific account, including its assets and balances.
 
 ```tsx
-import { useAccount, formatAssetAmount } from '@miden-sdk/react';
+import { useAccount, formatAssetAmount } from '@miden-sdk/react/lazy';
 
 function Wallet({ accountId }: { accountId: string }) {
   const { account, assets } = useAccount(accountId);
@@ -237,7 +237,7 @@ The `formatAssetAmount(amount, decimals)` utility formats a raw amount with the 
 The `useNotes({ accountId })` hook provides access to notes that can be consumed by the account.
 
 ```tsx
-import { useNotes, formatNoteSummary } from '@miden-sdk/react';
+import { useNotes, formatNoteSummary } from '@miden-sdk/react/lazy';
 
 function UnclaimedNotes({ accountId }: { accountId: string }) {
   const { consumableNoteSummaries } = useNotes({ accountId });
@@ -273,7 +273,7 @@ The `formatNoteSummary(summary)` utility formats a note summary for display.
 The `useConsume()` hook provides a function to consume (claim) notes and add their assets to the account.
 
 ```tsx
-import { useConsume, formatNoteSummary } from '@miden-sdk/react';
+import { useConsume, formatNoteSummary } from '@miden-sdk/react/lazy';
 
 function UnclaimedNotes({
   accountId,
@@ -323,8 +323,8 @@ The `useSend()` hook provides a function to send tokens to other accounts.
 
 ```tsx
 import { useState, type ChangeEvent } from 'react';
-import { useSend, parseAssetAmount } from '@miden-sdk/react';
-import { NoteVisibility } from '@miden-sdk/miden-sdk';
+import { useSend, parseAssetAmount } from '@miden-sdk/react/lazy';
+import { NoteVisibility } from '@miden-sdk/miden-sdk/lazy';
 
 function SendForm({
   accountId,
@@ -430,7 +430,7 @@ Here is the complete wallet application combining all the features we've covered
 ```tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MidenProvider } from '@miden-sdk/react';
+import { MidenProvider } from '@miden-sdk/react/lazy';
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -438,7 +438,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <MidenProvider
       config={{
         rpcUrl: 'testnet',
-        prover: 'testnet',
+        prover: 'local',
       }}
     >
       <App />
@@ -455,7 +455,7 @@ import {
   formatAssetAmount,
   formatNoteSummary,
   parseAssetAmount,
-} from '@miden-sdk/react';
+} from '@miden-sdk/react/lazy';
 import {
   useMiden,
   useAccounts,
@@ -464,8 +464,8 @@ import {
   useCreateWallet,
   useConsume,
   useSend,
-} from '@miden-sdk/react';
-import { NoteVisibility } from '@miden-sdk/miden-sdk';
+} from '@miden-sdk/react/lazy';
+import { NoteVisibility } from '@miden-sdk/miden-sdk/lazy';
 
 const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
   <div className="panel">
@@ -668,7 +668,7 @@ By default, the Miden React SDK manages keys internally using the browser's Inde
 The `useSigner()` hook from `@miden-sdk/react` provides a unified interface for interacting with any signer provider. When you wrap your app with a signer provider (Para, Turnkey, MidenFi, etc.), the hook returns the signer context with connection state and methods.
 
 ```tsx
-import { useSigner } from '@miden-sdk/react';
+import { useSigner } from '@miden-sdk/react/lazy';
 
 function ConnectButton() {
   const signer = useSigner();
@@ -711,7 +711,7 @@ yarn add @miden-sdk/use-miden-para-react
 
 ```tsx
 import { ParaSignerProvider } from '@miden-sdk/use-miden-para-react';
-import { MidenProvider, useSigner } from '@miden-sdk/react';
+import { MidenProvider, useSigner } from '@miden-sdk/react/lazy';
 
 function App() {
   return (
@@ -763,7 +763,7 @@ yarn add @miden-sdk/miden-turnkey-react @turnkey/sdk-browser
 
 ```tsx
 import { TurnkeySignerProvider } from '@miden-sdk/miden-turnkey-react';
-import { MidenProvider, useSigner } from '@miden-sdk/react';
+import { MidenProvider, useSigner } from '@miden-sdk/react/lazy';
 
 function App() {
   return (
@@ -816,11 +816,11 @@ yarn add @miden-sdk/miden-wallet-adapter-react
 
 ```tsx
 import { MidenFiSignerProvider } from '@miden-sdk/miden-wallet-adapter-react';
-import { MidenProvider, useSigner } from '@miden-sdk/react';
+import { MidenProvider, useSigner } from '@miden-sdk/react/lazy';
 
 function App() {
   return (
-    <MidenFiSignerProvider network="Testnet">
+    <MidenFiSignerProvider network="testnet">
       <MidenProvider config={{ rpcUrl: 'testnet' }}>
         <Wallet />
       </MidenProvider>
@@ -845,11 +845,11 @@ function Wallet() {
 
 **MidenFiSignerProvider Props:**
 
-| Prop                    | Type                     | Description                            |
-| ----------------------- | ------------------------ | -------------------------------------- |
-| `network`               | `"Testnet" \| "Mainnet"` | Target network                         |
-| `privateDataPermission` | `boolean`                | Whether to request private data access |
-| `allowedPrivateData`    | `string[]`               | List of allowed private data types     |
+| Prop                    | Type                      | Description                            |
+| ----------------------- | ------------------------- | -------------------------------------- |
+| `network`               | `"testnet" \| "localnet"` | Target network                         |
+| `privateDataPermission` | `boolean`                 | Whether to request private data access |
+| `allowedPrivateData`    | `string[]`                | List of allowed private data types     |
 
 ---
 
@@ -859,8 +859,8 @@ If you need to integrate with a different signing service, you can build your ow
 
 ```tsx
 import { useState, useCallback, type ReactNode } from 'react';
-import { SignerContext, type SignerContextValue } from '@miden-sdk/react';
-import { AccountStorageMode } from '@miden-sdk/miden-sdk';
+import { SignerContext, type SignerContextValue } from '@miden-sdk/react/lazy';
+import { AccountStorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 interface CustomSignerProviderProps {
   children: ReactNode;

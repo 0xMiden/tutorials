@@ -4,8 +4,8 @@
 // lib/multiSendWithDelegatedProver.ts is used for Playwright tests instead.
 'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useMultiSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function MultiSendInner() {
   const { isReady } = useMiden();
@@ -45,7 +45,7 @@ function MultiSendInner() {
 
     // 4. Consume the freshly minted notes
     const notes = await waitForConsumableNotes({ accountId: alice });
-    await consume({ accountId: alice, notes });
+    await consume({ accountId: alice.id().toString(), notes });
 
     // 5. Send 100 MID to three recipients in a single transaction
     await sendMany({

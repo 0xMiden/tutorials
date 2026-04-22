@@ -3,35 +3,34 @@ use std::{fs, path::Path, sync::Arc};
 
 use miden_client::{
     account::{
-        AccountBuilder, AccountComponent, AccountStorageMode, AccountType, StorageMap, StorageSlot,
-        StorageSlotName,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent,
+        AccountStorageMode, AccountType, StorageMap, StorageSlot, StorageSlotName,
     },
     assembly::{
-        Assembler, CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
+        CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
         Path as AssemblyPath,
     },
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::{TransactionKernel, TransactionRequestBuilder},
     ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 
 fn create_library(
-    assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<Library, Box<dyn std::error::Error>> {
+) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
+    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
         source_code,
-        source_manager.clone(),
+        source_manager,
     )?;
-    let library = assembler.clone().assemble_library([module])?;
+    let library = assembler.assemble_library([module])?;
     Ok(library)
 }
 
@@ -68,9 +67,6 @@ async fn main() -> Result<(), ClientError> {
     let file_path = Path::new("../masm/accounts/mapping_example_contract.masm");
     let account_code = fs::read_to_string(file_path).unwrap();
 
-    // Prepare assembler (debug mode = true)
-    let assembler: Assembler = TransactionKernel::assembler();
-
     // Using an empty storage value in slot 0 since this is usually reserved
     // for the account pub_key and metadata
     let empty_slot_name =
@@ -87,10 +83,12 @@ async fn main() -> Result<(), ClientError> {
     let component_code = CodeBuilder::new()
         .compile_component_code("miden_by_example::mapping_example_contract", &account_code)
         .unwrap();
-    let mapping_contract_component =
-        AccountComponent::new(component_code, vec![empty_storage_slot, storage_slot_map])
-            .unwrap()
-            .with_supports_all_types();
+    let mapping_contract_component = AccountComponent::new(
+        component_code,
+        vec![empty_storage_slot, storage_slot_map],
+        AccountComponentMetadata::new("miden_by_example::mapping_example_contract", AccountType::all()),
+    )
+    .unwrap();
 
     // Init seed for the counter contract
     let mut init_seed = [0_u8; 32];
@@ -120,7 +118,6 @@ async fn main() -> Result<(), ClientError> {
 
     // Create the library from the account source code using the helper function.
     let account_component_lib = create_library(
-        assembler.clone(),
         "miden_by_example::mapping_example_contract",
         &account_code,
     )
@@ -153,15 +150,11 @@ async fn main() -> Result<(), ClientError> {
 
     client.sync_state().await.unwrap();
 
-    let account_record = client
+    let account = client
         .get_account(mapping_example_contract.id())
         .await
         .unwrap()
         .expect("mapping contract not found");
-    let account = match account_record.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("mapping contract is missing full account data"),
-    };
     let key = [Felt::new(0), Felt::new(0), Felt::new(0), Felt::new(0)].into();
     println!(
         "Mapping state\n Index: {:?}\n Key: {:?}\n Value: {:?}",

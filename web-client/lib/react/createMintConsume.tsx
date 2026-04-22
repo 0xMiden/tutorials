@@ -4,8 +4,8 @@
 // is used for Playwright tests instead.
 'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function CreateMintConsumeInner() {
   const { isReady } = useMiden();
@@ -52,11 +52,11 @@ function CreateMintConsumeInner() {
 
     // 6. Consume minted notes
     console.log('Consuming minted notes...');
-    await consume({ accountId: alice, notes });
+    await consume({ accountId: alice.id().toString(), notes });
     console.log('Notes consumed.');
 
     // 7. Send 100 tokens to Bob
-    const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+    const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
     console.log("Sending tokens to Bob's account...");
     await send({
       from: alice,

@@ -48,9 +48,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.13.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.13.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.13.0" }
+miden-client = { version = "0.14", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -70,7 +70,7 @@ Before interacting with the Miden network, we must instantiate the client. In th
 Copy and paste the following code into your `src/main.rs` file.
 
 ```rust no_run
-use miden_client::auth::AuthFalcon512Rpo;
+use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -84,9 +84,9 @@ use miden_client::{
     auth::AuthSecretKey,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
-    note::{create_p2id_note, NoteType},
+    note::{NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
-    transaction::{OutputNote, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -161,13 +161,13 @@ println!("\n[STEP 1] Creating a new account for Alice");
 let mut init_seed = [0_u8; 32];
 client.rng().fill_bytes(&mut init_seed);
 
-let key_pair = AuthSecretKey::new_falcon512_rpo();
+let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
 // Build the account
 let alice_account = AccountBuilder::new(init_seed)
     .account_type(AccountType::RegularAccountUpdatableCode)
     .storage_mode(AccountStorageMode::Public)
-    .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+    .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
     .with_component(BasicWallet)
     .build()
     .unwrap();
@@ -176,7 +176,8 @@ let alice_account = AccountBuilder::new(init_seed)
 client.add_account(&alice_account, false).await?;
 
 // Add the key pair to the keystore
-keystore.add_key(&key_pair).unwrap();
+use miden_client::keystore::Keystore;
+keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
 let alice_account_id_bech32 = alice_account.id().to_bech32(NetworkId::Testnet);
 println!("Alice's account ID: {:?}", alice_account_id_bech32);
@@ -206,13 +207,13 @@ let decimals = 8;
 let max_supply = Felt::new(1_000_000);
 
 // Generate key pair
-let key_pair = AuthSecretKey::new_falcon512_rpo();
+let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
 // Build the faucet account
 let faucet_account = AccountBuilder::new(init_seed)
     .account_type(AccountType::FungibleFaucet)
     .storage_mode(AccountStorageMode::Public)
-    .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+    .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
     .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
     .build()
     .unwrap();
@@ -221,7 +222,8 @@ let faucet_account = AccountBuilder::new(init_seed)
 client.add_account(&faucet_account, false).await?;
 
 // Add the key pair to the keystore
-keystore.add_key(&key_pair).unwrap();
+use miden_client::keystore::Keystore;
+keystore.add_key(&key_pair, faucet_account.id()).await.unwrap();
 
 let faucet_account_id_bech32 = faucet_account.id().to_bech32(NetworkId::Testnet);
 println!("Faucet account ID: {:?}", faucet_account_id_bech32);
@@ -238,23 +240,23 @@ _When tokens are minted from this faucet, each token batch is represented as a "
 Your updated `main()` function in `src/main.rs` should look like this:
 
 ```rust no_run
-use miden_client::auth::AuthFalcon512Rpo;
+use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::sync::Arc;
 use tokio::time::Duration;
 
 use miden_client::{
     account::{
-        component::{BasicFungibleFaucet, BasicWallet},
+        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
         AccountId,
     },
     address::NetworkId,
     auth::AuthSecretKey,
     builder::ClientBuilder,
-    keystore::FilesystemKeyStore,
-    note::{create_p2id_note, NoteType},
+    keystore::{FilesystemKeyStore, Keystore},
+    note::{NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
-    transaction::{OutputNote, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -298,13 +300,13 @@ async fn main() -> Result<(), ClientError> {
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
@@ -313,7 +315,7 @@ async fn main() -> Result<(), ClientError> {
     client.add_account(&alice_account, false).await?;
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
     let alice_account_id_bech32 = alice_account.id().to_bech32(NetworkId::Testnet);
     println!("Alice's account ID: {:?}", alice_account_id_bech32);
@@ -333,14 +335,15 @@ async fn main() -> Result<(), ClientError> {
     let max_supply = Felt::new(1_000_000);
 
     // Generate key pair
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Build the faucet account
     let faucet_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+        .with_component(AuthControlled::allow_all())
         .build()
         .unwrap();
 
@@ -348,7 +351,7 @@ async fn main() -> Result<(), ClientError> {
     client.add_account(&faucet_account, false).await?;
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, faucet_account.id()).await.unwrap();
 
     let faucet_account_id_bech32 = faucet_account.id().to_bech32(NetworkId::Testnet);
     println!("Faucet account ID: {:?}", faucet_account_id_bech32);

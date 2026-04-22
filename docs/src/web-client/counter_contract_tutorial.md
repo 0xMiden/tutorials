@@ -3,18 +3,18 @@ title: 'Incrementing the Count of the Counter Contract'
 sidebar_position: 5
 ---
 
-_Using the Miden WebClient to interact with a custom smart contract_
+_Using the Miden client to interact with a custom smart contract_
 
 ## Overview
 
-In this tutorial, we will interact with a counter contract already deployed on chain by incrementing the count using the Miden WebClient.
+In this tutorial, we will deploy a custom counter smart contract and increment its count using the Miden client. Each run creates a fresh counter account, deploys it to the network, and immediately calls its `increment_count` procedure via a transaction script — so the final count is always `1`.
 
-Using a script, we will invoke the increment function within the counter contract to update the count. This tutorial provides a foundational understanding of interacting with custom smart contracts on Miden.
+This tutorial provides a foundational understanding of building and interacting with custom smart contracts on Miden.
 
 ## What we'll cover
 
-- Interacting with a custom smart contract on Miden
-- Calling procedures in an account from a script
+- Deploying a custom smart contract on Miden from a web client
+- Calling procedures in an account from a transaction script
 
 ## Prerequisites
 
@@ -40,9 +40,9 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
    cd miden-web-app
    ```
 
-3. Install the Miden WebClient SDK:
+3. Install the Miden SDK:
    ```bash
-   yarn add @miden-sdk/miden-sdk@0.13.0
+   yarn add @miden-sdk/miden-sdk@0.14.4
    ```
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -78,7 +78,9 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black text-slate-800 dark:text-slate-100">
       <div className="text-center">
         <h1 className="text-4xl font-semibold mb-4">Miden Web App</h1>
-        <p className="mb-6">Open your browser console to see WebClient logs.</p>
+        <p className="mb-6">
+          Open your browser console to see Miden client logs.
+        </p>
 
         <div className="max-w-sm w-full bg-gray-800/20 border border-gray-600 rounded-2xl p-6 mx-auto flex flex-col gap-4">
           <button
@@ -189,6 +191,13 @@ Copy and paste the following code into the `lib/incrementCounterContract.ts` fil
 ```ts
 // lib/incrementCounterContract.ts
 import counterContractCode from './masm/counter_contract.masm';
+import {
+  AccountType,
+  AuthSecretKey,
+  StorageMode,
+  StorageSlot,
+  MidenClient,
+} from '@miden-sdk/miden-sdk/lazy';
 
 export async function incrementCounterContract(): Promise<void> {
   if (typeof window === 'undefined') {
@@ -196,18 +205,13 @@ export async function incrementCounterContract(): Promise<void> {
     return;
   }
 
-  // dynamic import → only in the browser, so WASM is loaded client‑side
-  const { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } =
-    await import('@miden-sdk/miden-sdk');
+  // Wait for the WASM module to finish initializing before touching any
+  // wasm-bindgen type (see setup_guide.md "Entry points: eager vs lazy").
+  await MidenClient.ready();
 
   const nodeEndpoint = 'https://rpc.testnet.miden.io';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
   console.log('Current block number: ', (await client.sync()).blockNum());
-
-  // Import the counter contract from testnet by its bech32 address
-  const counterContractAccount = await client.accounts.getOrImport(
-    'mtst1arjemrxne8lj5qz4mg9c8mtyxg954483',
-  );
 
   const counterSlotName = 'miden::tutorials::counter';
 
@@ -224,7 +228,7 @@ export async function incrementCounterContract(): Promise<void> {
 
   // Create the counter contract account
   const account = await client.accounts.create({
-    type: AccountType.ImmutableContract,
+    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: walletSeed,
     auth,
@@ -249,20 +253,24 @@ export async function incrementCounterContract(): Promise<void> {
     ],
   });
 
-  // Executing the transaction script against the counter contract
+  // Executing the transaction script against the counter contract — this
+  // deploys the counter and runs `increment_count` in a single transaction.
   await client.transactions.execute({
-    account: account.id(),
+    account,
     script,
   });
 
-  // Logging the count of counter contract
-  const counter = await client.accounts.get(counterContractAccount.id());
+  console.log('Counter contract ID:', account.id().toString());
 
-  // Here we get the first Word from storage of the counter contract
-  // A word is comprised of 4 Felts, 2**64 - 2**32 + 1
+  // Logging the count of the counter contract we just incremented
+  const counter = await client.accounts.get(account);
+
+  // Here we get the Word from storage of the counter contract.
+  // The counter is stored as a Felt widened to Word [count, 0, 0, 0];
+  // toU64s() preserves native order so the value lives at index 0.
   const count = counter?.storage().getItem(counterSlotName);
 
-  const counterValue = Number(count!.toU64s()[3]);
+  const counterValue = Number(count!.toU64s()[0]);
 
   console.log('Count: ', counterValue);
 }
@@ -276,11 +284,14 @@ yarn dev
 
 Open the browser console and click the button "Increment Counter Contract".
 
-This is what you should see in the browser console:
+This is what you should see in the browser console (block number and account
+ID will vary with live testnet state; the tutorial deploys a fresh counter and
+increments it exactly once before reading, so the final count is always `1`):
 
 ```
-Current block number:  2168
-incrementCounterContract.ts:153 Count:  3
+Current block number:  <testnet block>
+Counter contract ID: <testnet_account_id>
+Count:  1
 ```
 
 ## Miden Assembly Counter Contract Explainer
@@ -360,13 +371,13 @@ const counterAccountComponent = await client.compile.component({
 
 ### Creating the contract account
 
-Use `client.accounts.create()` with `type: AccountType.ImmutableContract` to build and register the contract. You must supply a `seed` (for deterministic ID derivation) and a raw `AuthSecretKey` — the client stores the key automatically:
+Use `client.accounts.create()` with `type: AccountType.RegularAccountImmutableCode` to build and register the contract. You must supply a `seed` (for deterministic ID derivation) and a raw `AuthSecretKey` — the client stores the key automatically:
 
 ```ts
 const auth = AuthSecretKey.rpoFalconWithRNG(walletSeed);
 
 const account = await client.accounts.create({
-  type: AccountType.ImmutableContract,
+  type: AccountType.RegularAccountImmutableCode,
   storage: StorageMode.Public,
   seed: walletSeed,
   auth,
@@ -394,7 +405,7 @@ Then execute it with `client.transactions.execute()`:
 
 ```ts
 await client.transactions.execute({
-  account: account.id(),
+  account,
   script,
 });
 ```

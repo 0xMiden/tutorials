@@ -5,11 +5,11 @@ sidebar_position: 2
 
 import { CodeSdkTabs } from '@site/src/components';
 
-_Using the Miden WebClient in TypeScript to create accounts and deploy faucets_
+_Using the Miden client in TypeScript to create accounts and deploy faucets_
 
 ## Overview
 
-In this tutorial, we'll build a simple Next.js application that demonstrates the fundamentals of interacting with the Miden blockchain using the WebClient SDK. We'll walk through creating a Miden account for Alice and deploying a fungible faucet contract that can mint tokens. This sets the foundation for more complex operations like issuing assets and transferring them between accounts.
+In this tutorial, we'll build a simple Next.js application that demonstrates the fundamentals of interacting with the Miden blockchain using the Miden SDK. We'll walk through creating a Miden account for Alice and deploying a fungible faucet contract that can mint tokens. This sets the foundation for more complex operations like issuing assets and transferring them between accounts.
 
 ## What we'll cover
 
@@ -56,8 +56,8 @@ It is useful to think of notes on Miden as "cryptographic cashier's checks" that
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.13.0` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.13.0` },
+  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.14.4` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.14.4` },
 }} reactFilename="" tsFilename="" />
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -71,9 +71,9 @@ It is useful to think of notes on Miden as "cryptographic cashier's checks" that
   }
 ```
 
-## Step 2: Set up the WebClient
+## Step 2: Set up the Miden client
 
-The WebClient is your gateway to interact with the Miden blockchain. It handles state synchronization, transaction creation, and proof generation. Let's set it up.
+The Miden client is your gateway to interact with the Miden blockchain. It handles state synchronization, transaction creation, and proof generation. Let's set it up.
 
 ### Create the library file
 
@@ -87,8 +87,8 @@ mkdir -p lib
 react: { code: `// lib/react/createMintConsume.tsx
 'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
-import { StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react/lazy';
+import { StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function CreateMintConsumeInner() {
 .const { isReady } = useMiden();
@@ -117,15 +117,17 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
+import { MidenClient, AccountType, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
 ..console.warn('webClient() can only run in the browser');
 ..return;
 .}
 
-.// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient, AccountType, StorageMode } =
-..await import('@miden-sdk/miden-sdk');
+.// Wait for the WASM module to finish initializing before touching any
+.// wasm-bindgen type (see setup_guide.md "Entry points: eager vs lazy").
+.await MidenClient.ready();
 
 .// Connect to Miden testnet RPC endpoint
 .const client = await MidenClient.create({
@@ -183,7 +185,9 @@ export default function Home() {
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black text-slate-800 dark:text-slate-100">
       <div className="text-center">
         <h1 className="text-4xl font-semibold mb-4">Miden Web App</h1>
-        <p className="mb-6">Open your browser console to see WebClient logs.</p>
+        <p className="mb-6">
+          Open your browser console to see Miden client logs.
+        </p>
 
         <div className="max-w-sm w-full bg-gray-800/20 border border-gray-600 rounded-2xl p-6 mx-auto flex flex-col gap-4">
           <button
@@ -215,13 +219,17 @@ react: { code: `const run = async () => {
 .console.log('Alice ID:', alice.id().toString());
 };` },
 typescript: { code: `// lib/createMintConsume.ts
+import { MidenClient } from '@miden-sdk/miden-sdk/lazy';
+
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
 ..console.warn('webClient() can only run in the browser');
 ..return;
 .}
 
-.const { MidenClient } = await import('@miden-sdk/miden-sdk');
+.// Wait for the WASM module to finish initializing before touching any
+.// wasm-bindgen type (see setup_guide.md "Entry points: eager vs lazy").
+.await MidenClient.ready();
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -234,7 +242,7 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.MutableWallet, // Mutable: account code can be upgraded later
+..type: AccountType.RegularAccountUpdatableCode, // Mutable: account code can be upgraded later
 ..storage: StorageMode.Public, // Public: account state is visible on-chain
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -288,7 +296,7 @@ console.log('Setup complete.');` },
 
 In this tutorial, we've successfully:
 
-1. Set up a Next.js application with the Miden WebClient SDK
+1. Set up a Next.js application with the Miden SDK
 2. Connected to the Miden testnet
 3. Created a wallet account for Alice
 4. Deployed a fungible faucet that can mint custom tokens
@@ -298,8 +306,8 @@ Your final `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.t
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react';
-import { StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet } from '@miden-sdk/react/lazy';
+import { StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function CreateMintConsumeInner() {
 .const { isReady } = useMiden();
@@ -342,15 +350,17 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
+import { MidenClient, AccountType, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
 ..console.warn('webClient() can only run in the browser');
 ..return;
 .}
 
-.// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient, AccountType, StorageMode } =
-..await import('@miden-sdk/miden-sdk');
+.// Wait for the WASM module to finish initializing before touching any
+.// wasm-bindgen type (see setup_guide.md "Entry points: eager vs lazy").
+.await MidenClient.ready();
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -363,7 +373,7 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.MutableWallet,
+..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());

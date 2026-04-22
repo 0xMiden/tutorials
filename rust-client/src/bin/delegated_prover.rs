@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use miden_client::{
     account::{component::BasicWallet, AccountBuilder, AccountStorageMode, AccountType},
-    auth::{AuthFalcon512Rpo, AuthSecretKey},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    keystore::FilesystemKeyStore,
+    keystore::{FilesystemKeyStore, Keystore},
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::{
         LocalTransactionProver, ProvingOptions, TransactionProver, TransactionRequestBuilder,
     },
@@ -43,18 +42,18 @@ async fn main() -> Result<(), ClientError> {
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(AccountStorageMode::Private)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
 
     client.add_account(&alice_account, false).await?;
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
     // -------------------------------------------------------------------------
     // Setup the local tx prover
@@ -101,15 +100,11 @@ async fn main() -> Result<(), ClientError> {
 
     client.sync_state().await.unwrap();
 
-    let account_record = client
+    let account = client
         .get_account(alice_account.id())
         .await
         .unwrap()
         .expect("alice account not found");
-    let account = match account_record.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("alice account is missing full account data"),
-    };
 
     println!("Alice nonce has increased: {:?}", account.nonce());
 

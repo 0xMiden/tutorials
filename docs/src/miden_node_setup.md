@@ -29,8 +29,11 @@ On **Ubuntu**, see the [node installation page](https://docs.miden.xyz/miden-nod
 Install the miden-node crate using this command:
 
 ```bash
-cargo install miden-node --locked --version 0.13.0
+# Installs from GitHub (crates.io publication was not verified):
+cargo install --locked --git https://github.com/0xMiden/miden-node --tag v0.14.6 miden-node
 ```
+
+Check the [miden-node releases](https://github.com/0xMiden/miden-node/releases) for the latest version compatible with your target network.
 
 ### Step 2: Initializing the node
 

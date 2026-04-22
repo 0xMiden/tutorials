@@ -5,7 +5,7 @@ sidebar_position: 3
 
 import { CodeSdkTabs } from '@site/src/components';
 
-_Using the Miden WebClient in TypeScript to mint, consume, and transfer assets_
+_Using the Miden client in TypeScript to mint, consume, and transfer assets_
 
 ## Overview
 
@@ -22,7 +22,7 @@ In the previous tutorial, we set up the foundation - creating Alice's wallet and
 This tutorial builds directly on the previous one. Make sure you have:
 
 - Completed the "Creating Accounts and Deploying Faucets" tutorial
-- Your Next.js app with the Miden WebClient set up
+- Your Next.js app with the Miden client set up
 
 ## Understanding Notes in Miden
 
@@ -53,7 +53,7 @@ console.log('Mint tx:', mintResult.transactionId);
 await waitForCommit(mintResult.transactionId);`},
   typescript: { code:`// 4. Mint tokens from the faucet to Alice
 console.log("Minting tokens to Alice...");
-const mintTxId = await client.transactions.mint({
+const { txId: mintTxId } = await client.transactions.mint({
 .account: faucet, // Faucet account (who mints the tokens)
 .to: alice, // Target account (who receives the tokens)
 .amount: BigInt(1000), // Amount to mint (in base units)
@@ -70,45 +70,30 @@ await client.transactions.waitFor(mintTxId);` },
 1. **client.transactions.mint()**: Creates, proves, and submits a mint transaction to Alice. Note that this is only possible to submit transactions on the faucets' behalf if the user controls the faucet (i.e. its keys are stored in the client).
 2. **client.transactions.waitFor()**: Polls until the transaction is committed on-chain.
 
-## Step 2: Find consumable notes
+## Step 2: Consume minted notes
 
-After minting, Alice has a note waiting for her but the tokens aren't in her account yet.
-To identify notes that are ready to consume, the MidenClient provides the `client.notes.listAvailable()` method:
+After minting, Alice has a note waiting for her but the tokens aren't in her account yet. We need to consume the note to add its assets to her account balance.
 
-<CodeSdkTabs example={{
-react: { code: `// 4. Wait for consumable notes to appear
-const notes = await waitForConsumableNotes({ accountId: aliceId });
-console.log('Consumable notes:', notes.length);` },
-typescript: { code: `// 5. Find notes available for consumption
-const mintedNotes = await client.notes.listAvailable({ account: alice });
-console.log(\`Found \${mintedNotes.length} note(s) to consume\`);
-
-console.log(
-.'Minted notes:',
-.mintedNotes.map((n) => n.id().toString()),
-);` },
-}} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
-
-## Step 3: Consume notes in a single transaction
-
-Now let's consume the notes to add the tokens to Alice's account balance:
+The TypeScript `MidenClient` exposes `client.transactions.consumeAll({ account })` — a single call that finds every consumable note targeted at `account` and consumes them in one transaction. The React SDK instead splits the flow into two hooks: `useWaitForNotes().waitForConsumableNotes(...)` surfaces the notes and `useConsume().consume(...)` consumes them.
 
 <CodeSdkTabs example={{
-react: { code: `// 5. Consume minted notes
+react: { code: `// 4. Wait for consumable notes to appear, then consume them
+const notes = await waitForConsumableNotes({ accountId: alice });
+console.log('Consumable notes:', notes.length);
+
 console.log('Consuming minted notes...');
-await consume({ accountId: alice, notes });
-console.log('Notes consumed.');` },
-typescript: { code: `// 6. Consume the notes to add tokens to Alice's balance
+await consume({ accountId: alice.id().toString(), notes });
+console.log('Notes consumed.');`},
+typescript: { code:`// 5. Consume every consumable note for Alice in a single transaction
 console.log('Consuming minted notes...');
-await client.transactions.consume({
+await client.transactions.consumeAll({
 .account: alice,
-.notes: mintedNotes,
 });
 
 console.log('Notes consumed.');` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
-## Step 4: Sending tokens to other accounts
+## Step 3: Sending tokens to other accounts
 
 After consuming the notes, Alice has tokens in her wallet. Now, she wants to send tokens to her friends. She has two options: create a separate transaction for each transfer or batch multiple notes in a single transaction.
 
@@ -118,7 +103,7 @@ Now that Alice has tokens in her account, she can send some to Bob:
 
 <CodeSdkTabs example={{
 react: { code: `// 6. Send 100 tokens to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 console.log("Sending tokens to Bob's account...");
 await send({
 .from: aliceId,
@@ -129,7 +114,7 @@ await send({
 });
 console.log('Tokens sent successfully!');` },
 typescript: { code: `// 7. Send tokens from Alice to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 console.log("Sending tokens to Bob's account...");
 
 await client.transactions.send({
@@ -158,8 +143,8 @@ Here's the complete `lib/react/createMintConsume.tsx` (React) or `lib/createMint
 <CodeSdkTabs example={{
 react: { code: `'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function CreateMintConsumeInner() {
 .const { isReady } = useMiden();
@@ -202,17 +187,16 @@ function CreateMintConsumeInner() {
 ..// 4. Wait for the mint transaction to be committed
 ..await waitForCommit(mintResult.transactionId);
 
-..// 5. Wait for consumable notes to appear
-..const notes = await waitForConsumableNotes({ accountId: aliceId });
+..// 5. Wait for consumable notes to appear, then consume them
+..const notes = await waitForConsumableNotes({ accountId: alice });
 ..console.log('Consumable notes:', notes.length);
 
-..// 6. Consume minted notes
 ..console.log('Consuming minted notes...');
-..await consume({ accountId: alice, notes });
+..await consume({ accountId: alice.id().toString(), notes });
 ..console.log('Notes consumed.');
 
-..// 7. Send 100 tokens to Bob
-..const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+..// 6. Send 100 tokens to Bob
+..const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 ..console.log("Sending tokens to Bob's account...");
 ..await send({
 ...from: aliceId,
@@ -241,14 +225,16 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
+import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
 ..console.warn('webClient() can only run in the browser');
 ..return;
 .}
 
-.// dynamic import → only in the browser, so WASM is loaded client‑side
-.const { MidenClient, AccountType, NoteVisibility, StorageMode } = await import('@miden-sdk/miden-sdk');
+.// Wait for WASM to be ready before touching any wasm-bindgen type.
+.await MidenClient.ready();
 
 .const client = await MidenClient.create({
 ..rpcUrl: 'https://rpc.testnet.miden.io',
@@ -261,7 +247,7 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.MutableWallet,
+..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -280,7 +266,7 @@ export async function createMintConsume(): Promise<void> {
 .// 4. Mint tokens to Alice
 
 .console.log('Minting tokens to Alice...');
-.const mintTxId = await client.transactions.mint({
+.const { txId: mintTxId } = await client.transactions.mint({
 ..account: faucet,
 ..to: alice,
 ..amount: BigInt(1000),
@@ -290,24 +276,16 @@ export async function createMintConsume(): Promise<void> {
 .console.log('Waiting for transaction confirmation...');
 .await client.transactions.waitFor(mintTxId);
 
-.// 5. Fetch minted notes
-.const mintedNotes = await client.notes.listAvailable({ account: alice });
-.console.log(
-..'Minted notes:',
-..mintedNotes.map((n) => n.id().toString()),
-.);
-
-.// 6. Consume minted notes
+.// 5-6. Consume all available notes for Alice in a single transaction
 .console.log('Consuming minted notes...');
-.await client.transactions.consume({
+.await client.transactions.consumeAll({
 ..account: alice,
-..notes: mintedNotes,
 .});
 
 .console.log('Notes consumed.');
 
 .// 7. Send tokens to Bob
-.const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6_qruqqypuyph';
+.const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
 .console.log("Sending tokens to Bob's account...");
 .await client.transactions.send({
 ..account: alice,
@@ -320,20 +298,20 @@ export async function createMintConsume(): Promise<void> {
 }` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
-Let's run the function again. Reload the page and click "Start WebClient".
+Let's run the function again. Reload the page and click "Start".
 
-The output will look like this:
+The output will look like this (account IDs and block number vary with live
+testnet state):
 
 ```
-Latest block number: 4807
-Creating account for Alice...
-Alice ID: 0x1a20f4d1321e681000005020e69b1a
-Creating faucet...
-Faucet ID: 0xaa86a6f05ae40b2000000f26054d5d
-Minting 1000 tokens to Alice...
-Waiting 10 seconds for transaction confirmation...
-Minted notes: ['0x4edbb3d5dbdf694...']
-Consuming notes...
+Latest block number: <testnet block>
+Creating account for Alice…
+Alice ID: <testnet_account_id>
+Creating faucet…
+Faucet ID: <testnet_account_id>
+Minting tokens to Alice...
+Waiting for transaction confirmation...
+Consuming minted notes...
 Notes consumed.
 Sending tokens to Bob's account...
 Tokens sent successfully!
