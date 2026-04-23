@@ -119,7 +119,7 @@ Now let's trace the withdrawal process:
 │     ┌──────────────────────────────┐                                │
 │     │ Note script executes:        │                                │
 │     │  sender = get_sender()       │                                │
-│     │  inputs = get_inputs()       │                                │
+│     │  storage = get_storage()      │                                │
 │     │  asset = Asset from inputs   │                                │
 │     │  bank_account::withdraw(...) │                                │
 │     └──────────────────────────────┘                                │
@@ -137,8 +137,8 @@ Now let's trace the withdrawal process:
 │              ▼                                                       │
 │  4. P2ID NOTE CREATED (inside create_p2id_note)                     │
 │     ┌──────────────────────────────────────────────────────┐        │
-│     │ script_root = p2id_note_root()        → MAST digest  │        │
-│     │ recipient = Recipient::compute(                       │        │
+│     │ script_root = storage[10..13]         → MAST digest  │        │
+│     │ recipient = note::build_recipient(                    │        │
 │     │     serial_num, script_root,                          │        │
 │     │     [user.suffix, user.prefix]                        │        │
 │     │ )                                                     │        │
@@ -173,10 +173,11 @@ use integration::helpers::{
 use miden_client::{
     account::{StorageMap, StorageSlot, StorageSlotName},
     asset::{Asset, FungibleAsset},
-    note::{build_p2id_recipient, Note, NoteAssets, NoteMetadata, NoteTag, NoteType},
-    transaction::{OutputNote, TransactionScript},
+    note::{P2idNote, P2idNoteStorage, Note, NoteAssets, NoteMetadata, NoteTag, NoteType},
+    transaction::{RawOutputNote, TransactionScript},
     Felt, Word,
 };
+use miden_client::auth::AuthSchemeId;
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
@@ -205,11 +206,11 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
 
     // Create a faucet to mint test assets
     let faucet =
-        builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", deposit_amount, Some(10))?;
+        builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", deposit_amount, Some(10))?;
 
     // Create note sender account (the depositor)
     let sender = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth,
+        Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 },
         [FungibleAsset::new(faucet.id(), deposit_amount)?.into()],
     )?;
     println!("   ✓ Faucet and sender wallet created");
@@ -235,25 +236,24 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
 
     // Create named storage slots
     let initialized_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::initialized")
+        StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden::component::miden_bank_account::balances")
+        StorageSlotName::new("miden_bank_account::bank::balances")
             .expect("Valid slot name");
 
     // Create bank account with storage slots
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::default(),
+    )?;
     let bank_cfg = AccountCreationConfig {
-        storage_slots: vec![
-            StorageSlot::with_value(initialized_slot, Word::default()),
-            StorageSlot::with_map(
-                balances_slot.clone(),
-                StorageMap::with_entries([]).expect("Empty storage map"),
-            ),
-        ],
+        init_storage_data,
         ..Default::default()
     };
     let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg).await?;
+        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
     println!("   ✓ Bank account created: {:?}", bank_account.id());
 
     // Create deposit note with assets
@@ -281,12 +281,16 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
 
     let note_type_felt = Felt::new(1); // Public
 
-    // Note inputs: 10 Felts
+    // Get the P2ID script root (Poseidon2-hashed MAST root)
+    let p2id_script_root = P2idNote::script_root();
+
+    // Note storage: 14 Felts
     // [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
     // [4-7]: serial_num
     // [8]: tag
     // [9]: note_type
-    let withdraw_request_note_inputs = vec![
+    // [10-13]: P2ID script_root
+    let withdraw_request_note_storage = vec![
         Felt::new(withdraw_amount),
         Felt::new(0),
         faucet.id().suffix(),
@@ -297,21 +301,25 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
         p2id_output_note_serial_num[3],
         p2id_tag_felt,
         note_type_felt,
+        p2id_script_root[0],
+        p2id_script_root[1],
+        p2id_script_root[2],
+        p2id_script_root[3],
     ];
 
     let withdraw_request_note = create_testing_note_from_package(
         withdraw_request_note_package.clone(),
         sender.id(),
         NoteCreationConfig {
-            inputs: withdraw_request_note_inputs,
+            storage: withdraw_request_note_storage,
             ..Default::default()
         },
     )?;
 
     // Add to builder
     builder.add_account(bank_account.clone())?;
-    builder.add_output_note(OutputNote::Full(deposit_note.clone()));
-    builder.add_output_note(OutputNote::Full(withdraw_request_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
+    builder.add_output_note(RawOutputNote::Full(withdraw_request_note.clone()));
 
     let mut mock_chain = builder.build()?;
     println!("   ✓ MockChain built");
@@ -361,7 +369,7 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
     let balance_after_deposit = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
     println!(
         "   ✓ Bank processed deposit, balance: {} tokens",
-        balance_after_deposit[3].as_int()
+        balance_after_deposit[3].as_canonical_u64()
     );
 
     // ═══════════════════════════════════════════════════════════════════
@@ -371,14 +379,11 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
     println!("   Withdraw amount: {} tokens", withdraw_amount);
 
     // Build expected P2ID output note
-    let recipient = build_p2id_recipient(sender.id(), p2id_output_note_serial_num)?;
+    let recipient = P2idNoteStorage::new(sender.id()).into_recipient(p2id_output_note_serial_num);
     let p2id_output_note_asset = FungibleAsset::new(faucet.id(), withdraw_amount)?;
     let p2id_output_note_assets = NoteAssets::new(vec![p2id_output_note_asset.into()])?;
-    let p2id_output_note_metadata = NoteMetadata::new(
-        bank_account.id(),
-        NoteType::Public,
-        p2id_tag,
-    );
+    let p2id_output_note_metadata = NoteMetadata::new(bank_account.id(), NoteType::Public)
+        .with_tag(p2id_tag);
     let p2id_output_note = Note::new(
         p2id_output_note_assets,
         p2id_output_note_metadata,
@@ -387,7 +392,7 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
 
     let withdraw_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[withdraw_request_note.id()], &[])?
-        .extend_expected_output_notes(vec![OutputNote::Full(p2id_output_note)])
+        .extend_expected_output_notes(vec![RawOutputNote::Full(p2id_output_note)])
         .build()?;
 
     let executed_withdraw = withdraw_tx_context.execute().await?;
@@ -400,7 +405,7 @@ async fn test_complete_bank_flow() -> anyhow::Result<()> {
 
     // Verify final balance
     let final_balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
-    let final_balance_amount = final_balance[3].as_int();
+    let final_balance_amount = final_balance[3].as_canonical_u64();
     let expected_final = deposit_amount - withdraw_amount;
 
     println!("   ✓ Final balance verified: {} tokens", final_balance_amount);
@@ -501,16 +506,16 @@ Here's the complete picture of what you've built:
 | `withdraw-request-note` | Note Script        | Requests withdrawals        |
 | `init-tx-script`        | Transaction Script | Initializes the bank        |
 
-| Storage Slot  | Type         | Content             |
-| ------------- | ------------ | ------------------- |
-| `initialized` | `Value`      | Initialization flag |
-| `balances`    | `StorageMap` | Depositor balances  |
+| Storage Slot  | Type                     | Content             |
+| ------------- | ------------------------ | ------------------- |
+| `initialized` | `StorageValue<Word>`     | Initialization flag |
+| `balances`    | `StorageMap<Word, Felt>` | Depositor balances  |
 
 | API                              | Purpose               |
 | -------------------------------- | --------------------- |
 | `active_note::get_sender()`      | Identify note creator |
 | `active_note::get_assets()`      | Get attached assets   |
-| `active_note::get_inputs()`      | Get note parameters   |
+| `active_note::get_storage()`     | Get note parameters   |
 | `native_account::add_asset()`    | Receive into vault    |
 | `native_account::remove_asset()` | Send from vault       |
 | `output_note::create()`          | Create output note    |
@@ -528,12 +533,10 @@ let new_balance = current_balance - withdraw_amount;
 
 // ✅ SAFE: Validate first
 assert!(
-    current_balance.as_u64() >= withdraw_amount.as_u64(),
+    current_balance.as_canonical_u64() >= withdraw_amount.as_canonical_u64(),
     "Insufficient balance"
 );
-let new_balance = Felt::from_u64_unchecked(
-    current_balance.as_u64() - withdraw_amount.as_u64()
-);
+let new_balance = current_balance - withdraw_amount;
 ```
 
 :::
@@ -545,8 +548,8 @@ Never use `<`, `>` on Felt values directly. Always convert to u64 first:
 // ❌ BROKEN: Produces incorrect results
 if current_balance < withdraw_amount { ... }
 
-// ✅ CORRECT: Use as_u64()
-if current_balance.as_u64() < withdraw_amount.as_u64() { ... }
+// ✅ CORRECT: Use as_canonical_u64()
+if current_balance.as_canonical_u64() < withdraw_amount.as_canonical_u64() { ... }
 ```
 
 :::
@@ -555,7 +558,7 @@ if current_balance.as_u64() < withdraw_amount.as_u64() { ... }
 
 You've completed the Miden Bank tutorial! You now understand:
 
-- ✅ **Account components** with storage (`Value` and `StorageMap`)
+- ✅ **Account components** with storage (`StorageValue<Word>` and `StorageMap<Word, Felt>`)
 - ✅ **Constants and constraints** for business rules
 - ✅ **Asset management** with vault operations
 - ✅ **Note scripts** for processing incoming notes

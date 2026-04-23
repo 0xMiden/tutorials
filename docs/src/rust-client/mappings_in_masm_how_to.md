@@ -162,15 +162,14 @@ use miden_client::{
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    store::AccountRecordData,
     transaction::TransactionRequestBuilder,
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_client::{
     account::{
-        AccountBuilder, AccountComponent, AccountStorageMode, AccountType, StorageMap, StorageSlot,
-        StorageSlotName,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        AccountType, StorageMap, StorageSlot, StorageSlotName,
     },
     Felt, Word,
 };
@@ -179,7 +178,7 @@ fn create_library(
     assembler: Assembler,
     library_path: &str,
     source_code: &str,
-) -> Result<miden_client::assembly::Library, Box<dyn std::error::Error>> {
+) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
@@ -242,10 +241,12 @@ async fn main() -> Result<(), ClientError> {
     let component_code = CodeBuilder::new()
         .compile_component_code("miden_by_example::mapping_example_contract", &account_code)
         .unwrap();
-    let mapping_contract_component =
-        AccountComponent::new(component_code, vec![empty_storage_slot, storage_slot_map])
-            .unwrap()
-            .with_supports_all_types();
+    let mapping_contract_component = AccountComponent::new(
+        component_code,
+        vec![empty_storage_slot, storage_slot_map],
+        AccountComponentMetadata::new("miden_by_example::mapping_example_contract", AccountType::all()),
+    )
+    .unwrap();
 
     // Init seed for the counter contract
     let mut init_seed = [0_u8; 32];
@@ -308,15 +309,11 @@ async fn main() -> Result<(), ClientError> {
 
     client.sync_state().await.unwrap();
 
-    let account_record = client
+    let account = client
         .get_account(mapping_example_contract.id())
         .await
         .unwrap()
         .expect("mapping contract not found");
-    let account = match account_record.account_data() {
-        AccountRecordData::Full(account) => account,
-        AccountRecordData::Partial(_) => panic!("mapping contract is missing full account data"),
-    };
     let key = [Felt::new(0), Felt::new(0), Felt::new(0), Felt::new(0)].into();
     println!(
         "Mapping state\n Slot: {:?}\n Key: {:?}\n Value: {:?}",

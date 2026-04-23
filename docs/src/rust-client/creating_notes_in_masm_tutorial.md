@@ -51,9 +51,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.13.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.13.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.13.0" }
+miden-client = { version = "0.14", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -90,10 +90,12 @@ use miden::core::sys
 use miden::standards::wallets::basic->wallet
 
 # Memory Addresses
-const ASSET=0
-const ASSET_HALF=4
-const ACCOUNT_ID_PREFIX=8
-const TAG=10
+# get_assets writes: ASSET_KEY at ASSET_KEY_PTR, ASSET_VALUE at ASSET_KEY_PTR+4 (ASSET_SIZE=8)
+const ASSET_KEY_PTR=0
+const ASSET_VALUE_PTR=4
+const ASSET_HALF_VALUE_PTR=8    # half-amount ASSET_VALUE stored here
+const ACCOUNT_ID_PREFIX=12      # storage: [prefix, suffix, tag, 0]
+const TAG=14                    # = ACCOUNT_ID_PREFIX + 2
 
 # => []
 begin
@@ -101,25 +103,24 @@ begin
     dropw
     # => []
 
-    # Get asset contained in note
-    push.ASSET exec.active_note::get_assets drop drop
+    # Get asset contained in note into memory (ASSET_KEY at 0, ASSET_VALUE at 4)
+    push.ASSET_KEY_PTR exec.active_note::get_assets drop drop
     # => []
 
-    mem_loadw_be.ASSET
-    # => [ASSET]
+    # Load ASSET_VALUE and compute half amount
+    padw push.ASSET_VALUE_PTR mem_loadw_le
+    # => [av0, av1, av2, av3]  (av0 = amount for fungible asset, av1/av2/av3 = 0)
 
-    # Compute half amount of asset
-    swap.3 push.2 div swap.3
-    # => [ASSET_HALF]
+    # Halve the amount (av0 is amount for fungible assets in v0.14)
+    push.2 div
+    # => [av0/2, av1, av2, av3]
 
-    mem_storew_be.ASSET_HALF dropw
+    # Store as ASSET_HALF_VALUE
+    mem_storew_le.ASSET_HALF_VALUE_PTR dropw
     # => []
 
-    mem_loadw_be.ASSET
-    # => [ASSET]
-
-    # Receive the entire asset amount to the wallet
-    call.wallet::receive_asset
+    # Receive all assets from note into the account wallet
+    exec.wallet::add_assets_to_account
     # => []
 
     # Push script hash
@@ -130,22 +131,23 @@ begin
     exec.active_note::get_serial_number
     # => [SERIAL_NUM, SCRIPT_HASH]
 
-    # Increment serial number by 1
-    push.1 add
+    # Increment the last element of the serial number by 1
+    # (serial_num[3] is at depth 3; matches Rust: serial_num[3] + 1)
+    swap.3 push.1 add swap.3
     # => [SERIAL_NUM+1, SCRIPT_HASH]
 
-    # Load note inputs into memory for recipient and tag
+    # Load note storage into memory for recipient construction
     push.ACCOUNT_ID_PREFIX
-    exec.active_note::get_inputs
-    # => [num_inputs, dest_ptr, SERIAL_NUM+1, SCRIPT_HASH]
+    exec.active_note::get_storage
+    # => [num_storage_items, dest_ptr, SERIAL_NUM+1, SCRIPT_HASH]
 
     swap
-    # => [dest_ptr, num_inputs, SERIAL_NUM+1, SCRIPT_HASH]
+    # => [dest_ptr, num_storage_items, SERIAL_NUM+1, SCRIPT_HASH]
 
     exec.note::build_recipient
     # => [RECIPIENT]
 
-    # Push note type to stack (public note)
+    # Push note type to stack (public note = 1)
     push.1
     # => [note_type, RECIPIENT]
 
@@ -153,16 +155,24 @@ begin
     mem_load.TAG
     # => [tag, note_type, RECIPIENT]
 
-    call.output_note::create
-    # => [note_idx, pad(15) ...]
+    exec.output_note::create
+    # => [note_idx]
 
-    padw mem_loadw_be.ASSET_HALF
-    # => [ASSET / 2, note_idx]
+    # Build [ASSET_KEY, ASSET_HALF_VALUE, note_idx] for move_asset_to_note
+    # Inputs: [ASSET_KEY, ASSET_VALUE, note_idx, pad(7)]
+
+    # Push ASSET_HALF_VALUE (note_idx moves to depth 4)
+    padw push.ASSET_HALF_VALUE_PTR mem_loadw_le
+    # => [ASSET_HALF_VALUE, note_idx]
+
+    # Push ASSET_KEY (ASSET_HALF_VALUE moves to depth 4, note_idx to depth 8)
+    padw push.ASSET_KEY_PTR mem_loadw_le
+    # => [ASSET_KEY, ASSET_HALF_VALUE, note_idx]
 
     call.wallet::move_asset_to_note
-    # => [ASSET, note_idx, pad(11)]
+    # => [pad(16)]
 
-    dropw drop
+    dropw dropw dropw dropw
     # => []
 
     exec.sys::truncate_stack
@@ -173,17 +183,17 @@ end
 ### How the Assembly Code Works:
 
 1. **Retrieving the asset:**  
-   The note calls `active_note::get_assets` to write the asset contained in the note to memory address 0, defined as `ASSET`. It computes half of the asset and stores the value at memory address 4, defined as `ASSET_HALF`. Finally, the note calls the `wallet::receive_asset` procedure to move the asset contained in the note to the consuming account.
+   The note calls `active_note::get_assets` to write the asset into memory, with `ASSET_KEY` at address 0 and `ASSET_VALUE` at address 4. It halves the amount in `ASSET_VALUE` and stores it at `ASSET_HALF_VALUE_PTR`. Finally, it calls `wallet::add_assets_to_account` to receive all note assets into the consuming account.
 2. **Getting the script hash and serial number:**  
-   The note script calls `active_note::get_script_root` to fetch the script hash and `active_note::get_serial_number` to fetch the current serial number, then increments it by 1 to avoid duplicate recipients.
+   The note script calls `active_note::get_script_root` to fetch the script hash and `active_note::get_serial_number` to fetch the current serial number, then increments element 3 (the last element) by 1 to avoid duplicate recipients.
 3. **Building the `RECIPIENT`:**  
-   The script loads the note inputs into memory with `active_note::get_inputs`, then calls `note::build_recipient`. This computes the inputs commitment and stores the inputs preimage in the advice map, which is required for public notes.
+   The script loads the note storage into memory with `active_note::get_storage`, then calls `note::build_recipient`. This computes the storage commitment and stores the preimage in the advice map, which is required for public notes.
 4. **Creating the note:**  
-   To create the note, the script pushes the note type and tag onto the stack, then calls the `output_note::create` procedure, which returns a pointer to the note.
+   To create the note, the script pushes the note type and tag onto the stack, then calls the `output_note::create` procedure, which returns the note index.
 5. **Moving assets to the note:**  
-   After the note is created, the script loads the half asset value computed in step 1 onto the stack and calls the `wallet::move_asset_to_note` procedure.
+   After the note is created, the script loads `ASSET_KEY` and `ASSET_HALF_VALUE` from memory onto the stack and calls `wallet::move_asset_to_note` with the note index.
 6. **Stack cleanup:**  
-   Finally, the script cleans up the stack by calling `sys::truncate_stack` after creating the note and adding the assets.
+   Finally, the script cleans up the stack by calling `sys::truncate_stack`.
 
 ## Step 3: Rust Program
 
@@ -192,14 +202,14 @@ With the Miden assembly note script written, we can move on to writing the Rust 
 Copy and paste the following code into your `src/main.rs` file.
 
 ```rust no_run
-use miden_client::auth::AuthFalcon512Rpo;
+use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::{fs, path::Path, sync::Arc};
 use tokio::time::{sleep, Duration};
 
 use miden_client::{
     account::{
-        component::{BasicFungibleFaucet, BasicWallet},
+        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
         Account,
     },
     address::NetworkId,
@@ -207,12 +217,12 @@ use miden_client::{
     auth::AuthSecretKey,
     builder::ClientBuilder,
     crypto::FeltRng,
-    keystore::FilesystemKeyStore,
+    keystore::{FilesystemKeyStore, Keystore},
     note::{
-        Note, NoteAssets, NoteInputs, NoteMetadata, NoteRecipient, NoteTag, NoteType,
+        Note, NoteAssets, NoteMetadata, NoteRecipient, NoteStorage, NoteTag, NoteType,
     },
     rpc::{Endpoint, GrpcClient},
-    transaction::{OutputNote, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -229,18 +239,18 @@ async fn create_basic_account(
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
 
     client.add_account(&account, false).await?;
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, account.id()).await.unwrap();
 
     Ok(account)
 }
@@ -252,7 +262,7 @@ async fn create_basic_faucet(
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
     let max_supply = Felt::new(1_000_000);
@@ -260,13 +270,14 @@ async fn create_basic_faucet(
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+        .with_component(AuthControlled::allow_all())
         .build()
         .unwrap();
 
     client.add_account(&account, false).await?;
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, account.id()).await.unwrap();
 
     Ok(account)
 }
@@ -389,9 +400,9 @@ async fn main() -> Result<(), ClientError> {
 
     // Create note metadata and tag
     let tag = NoteTag::new(0);
-    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public, tag);
+    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
     let note_script = client.code_builder().compile_note_script(&code).unwrap();
-    let note_inputs = NoteInputs::new(vec![
+    let note_storage = NoteStorage::new(vec![
         alice_account.id().prefix().as_felt(),
         alice_account.id().suffix(),
         tag.into(),
@@ -399,12 +410,12 @@ async fn main() -> Result<(), ClientError> {
     ])
     .unwrap();
 
-    let recipient = NoteRecipient::new(serial_num, note_script.clone(), note_inputs.clone());
+    let recipient = NoteRecipient::new(serial_num, note_script.clone(), note_storage.clone());
     let vault = NoteAssets::new(vec![mint_amount.into()])?;
     let custom_note = Note::new(vault, metadata, recipient);
 
     let note_req = TransactionRequestBuilder::new()
-        .own_output_notes(vec![OutputNote::Full(custom_note.clone())])
+        .own_output_notes(vec![custom_note.clone()])
         .build()
         .unwrap();
 
@@ -428,15 +439,15 @@ async fn main() -> Result<(), ClientError> {
         serial_num[0],
         serial_num[1],
         serial_num[2],
-        Felt::new(serial_num[3].as_int() + 1),
+        Felt::new(serial_num[3].as_canonical_u64() + 1),
     ]
     .into();
 
-    // Reuse the note_script and note_inputs
-    let recipient = NoteRecipient::new(serial_num_1, note_script, note_inputs);
+    // Reuse the note_script and note_storage
+    let recipient = NoteRecipient::new(serial_num_1, note_script, note_storage);
 
     // Note: Change metadata to include Bob's account as the creator
-    let metadata = NoteMetadata::new(bob_account.id(), NoteType::Public, tag);
+    let metadata = NoteMetadata::new(bob_account.id(), NoteType::Public).with_tag(tag);
 
     let asset_amount_1 = FungibleAsset::new(faucet_id, 50).unwrap();
     let vault = NoteAssets::new(vec![asset_amount_1.into()])?;
@@ -474,24 +485,25 @@ cargo run --release
 The output will look something like this:
 
 ```text
-Latest block: 226933
+Latest block: 4186
 
 [STEP 1] Creating new accounts
-Alice's account ID: "mtst1qpljtarjtawzcyqqqdcqu53adytw09yw"
-Bob's account ID: "mtst1qzaynsxth84vsyqqq0emse6ygcax3j59"
+Alice's account ID: "mtst1aqnztxg76d5exyr7ja05pzhvegx3jc84"
+Bob's account ID: "mtst1az0mfyzm3xqe2yrezucvmc24dv5gset0"
 
 Deploying a new fungible faucet.
-Faucet account ID: "mtst1qpqpq6z8vrqvugqqqwjdnajgvurs9zgl"
+Faucet account ID: "mtst1ary7kplxvatxkgpes4llcc53yu8px433"
 
 [STEP 2] Mint tokens with P2ID
-0 consumable notes found for account mtst1qpljtarjtawzcyqqqdcqu53adytw09yw. Waiting...
-0 consumable notes found for account mtst1qpljtarjtawzcyqqqdcqu53adytw09yw. Waiting...
+Minted tokens. TX: 0x8577213057226b7d0545d73f6e1bc416354a324089450cb859f5784c133d4cc0
+0 consumable notes found for account mtst1aqnztxg76d5exyr7ja05pzhvegx3jc84. Waiting...
+Consumed minted note. TX: 0xd93e791d3283192df121de4cf938a4f9cfaed48f4e593e1b82d147e2d642b7bd
 
 [STEP 3] Create iterative output note
-View transaction on MidenScan: https://testnet.midenscan.com/tx/0x335061a434ccccbf9619052bdeacbc71b6e755b24f0ead0c3741a3b0954c78af
+View transaction on MidenScan: https://testnet.midenscan.com/tx/0xcd71a1d87c60ab7632a7836723fff4014b02992ef7ea5d3fe2030a971e795a8a
 
 [STEP 4] Bob consumes the note and creates a copy
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xa39acf2bb965b4669b91bf564e8aa2987a9fc86ee350cd159ad5db1054cb67ab
+Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x4d91519c180874c931480fa58620f864fd7c7aada35ada2d40082291298084bb
 Account delta: AccountVaultDelta { fungible: FungibleAssetDelta({V0(Accoun
 ```
 

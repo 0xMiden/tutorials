@@ -4,8 +4,8 @@
 // lib/unauthenticatedNoteTransfer.ts is used for Playwright tests instead.
 'use client';
 
-import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes, type Account } from '@miden-sdk/react';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk';
+import { MidenProvider, useMiden, useCreateWallet, useCreateFaucet, useMint, useConsume, useSend, useWaitForCommit, useWaitForNotes, type Account } from '@miden-sdk/react/lazy';
+import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 function UnauthenticatedNoteTransferInner() {
   const { isReady } = useMiden();
@@ -52,7 +52,7 @@ function UnauthenticatedNoteTransferInner() {
 
     // 4. Consume the freshly minted notes
     const notes = await waitForConsumableNotes({ accountId: alice });
-    await consume({ accountId: alice, notes });
+    await consume({ accountId: alice.id().toString(), notes });
 
     // 5. Create the unauthenticated note transfer chain:
     //    Alice → Wallet 0 → Wallet 1 → Wallet 2 → Wallet 3 → Wallet 4
@@ -69,7 +69,7 @@ function UnauthenticatedNoteTransferInner() {
         returnNote: true,
       });
 
-      const result = await consume({ accountId: wallet, notes: [note!] });
+      const result = await consume({ accountId: wallet.id().toString(), notes: [note!] });
       console.log(
         `Transfer ${i + 1}: https://testnet.midenscan.com/tx/${result.transactionId}`,
       );

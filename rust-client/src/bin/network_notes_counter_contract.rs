@@ -2,26 +2,26 @@ use std::{fs, path::Path, sync::Arc};
 
 use miden_client::{
     account::{
-        component::BasicWallet, AccountBuilder, AccountComponent, AccountStorageMode, AccountType,
-        StorageSlot, StorageSlotName,
+        component::{AccountComponentMetadata, BasicWallet}, AccountBuilder, AccountComponent,
+        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
     assembly::{
-        Assembler, CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
+        CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
         Path as AssemblyPath,
     },
-    auth::{self, AuthFalcon512Rpo, AuthSecretKey},
+    auth::{self, AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     crypto::FeltRng,
-    keystore::FilesystemKeyStore,
+    keystore::{FilesystemKeyStore, Keystore},
     note::{
-        NetworkAccountTarget, Note, NoteAssets, NoteError, NoteExecutionHint, NoteInputs,
-        NoteMetadata, NoteRecipient, NoteTag, NoteType,
+        NetworkAccountTarget, Note, NoteAssets, NoteError, NoteExecutionHint, NoteMetadata,
+        NoteRecipient, NoteStorage, NoteTag, NoteType,
     },
     rpc::{Endpoint, GrpcClient},
-    store::{AccountRecordData, TransactionFilter},
+    store::TransactionFilter,
     transaction::{
-        OutputNote, TransactionId, TransactionKernel, TransactionRequestBuilder, TransactionStatus,
+        TransactionId, TransactionKernel, TransactionRequestBuilder, TransactionStatus,
     },
     Client, ClientError, Felt, Word,
 };
@@ -65,15 +65,15 @@ async fn wait_for_tx(
 fn create_library(
     account_code: String,
     library_path: &str,
-) -> Result<Library, Box<dyn std::error::Error>> {
-    let assembler: Assembler = TransactionKernel::assembler();
+) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
     let source_manager = Arc::new(DefaultSourceManager::default());
+    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
     let module = Module::parser(ModuleKind::Library).parse_str(
         AssemblyPath::new(library_path),
         account_code,
-        source_manager.clone(),
+        source_manager,
     )?;
-    let library = assembler.clone().assemble_library([module])?;
+    let library = assembler.assemble_library([module])?;
     Ok(library)
 }
 
@@ -110,13 +110,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
@@ -125,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client.add_account(&alice_account, false).await?;
 
     // Add the key pair to the keystore
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
     println!(
         "Alice's account ID: {:?}",
@@ -151,8 +151,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             counter_slot_name.clone(),
             [Felt::new(0); 4].into(),
         )],
-    )?
-    .with_supports_all_types();
+        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+    )?;
 
     // Generate a random seed for the account
     let mut init_seed = [0_u8; 32];
@@ -232,8 +232,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile_note_script(&network_note_code)?;
 
     // Create note recipient with empty inputs
-    let note_inputs = NoteInputs::new([].to_vec())?;
-    let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
+    let note_storage = NoteStorage::new([].to_vec())?;
+    let recipient = NoteRecipient::new(serial_num, note_script, note_storage);
 
     // Set up note metadata - tag it with the counter contract ID so it gets consumed
     let tag = NoteTag::with_account_target(counter_contract.id());
@@ -242,14 +242,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| NoteError::other(e.to_string()))?
         .into();
     let metadata =
-        NoteMetadata::new(alice_account.id(), NoteType::Public, tag).with_attachment(attachment);
+        NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag).with_attachment(attachment);
 
     // Create the complete note
     let increment_note = Note::new(NoteAssets::default(), metadata, recipient);
 
     // Build and submit the transaction containing the note
     let note_req = TransactionRequestBuilder::new()
-        .own_output_notes(vec![OutputNote::Full(increment_note)])
+        .own_output_notes(vec![increment_note])
         .build()?;
 
     let note_tx_id = client
@@ -278,19 +278,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Checking updated state
         let new_account_state = client.get_account(counter_contract.id()).await.unwrap();
 
-        if let Some(account_record) = new_account_state.as_ref() {
-            let account = match account_record.account_data() {
-                AccountRecordData::Full(account) => account,
-                AccountRecordData::Partial(_) => {
-                    panic!("counter contract is missing full account data")
-                }
-            };
+        if let Some(account) = new_account_state.as_ref() {
             let count: Word = account
                 .storage()
                 .get_item(&counter_slot_name)
                 .unwrap()
                 .into();
-            let val = count.get(3).unwrap().as_int();
+            let val = count[0].as_canonical_u64();
             if val >= 2 {
                 println!("🔢 Final counter value: {}", val);
                 return Ok(());

@@ -4,19 +4,19 @@ use tokio::time::{sleep, Duration};
 
 use miden_client::{
     account::{
-        component::{BasicFungibleFaucet, BasicWallet},
+        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
         Account, AccountBuilder, AccountStorageMode, AccountType,
     },
     address::NetworkId,
     asset::{FungibleAsset, TokenSymbol},
-    auth::{AuthFalcon512Rpo, AuthSecretKey},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     crypto::FeltRng,
-    keystore::FilesystemKeyStore,
-    note::{Note, NoteAssets, NoteInputs, NoteMetadata, NoteRecipient, NoteTag, NoteType},
+    keystore::{FilesystemKeyStore, Keystore},
+    note::{Note, NoteAssets, NoteMetadata, NoteRecipient, NoteStorage, NoteTag, NoteType},
     rpc::{Endpoint, GrpcClient},
     store::TransactionFilter,
-    transaction::{OutputNote, TransactionId, TransactionRequestBuilder, TransactionStatus},
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -30,18 +30,18 @@ async fn create_basic_account(
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();
 
     client.add_account(&account, false).await?;
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, account.id()).await.unwrap();
 
     Ok(account)
 }
@@ -53,7 +53,7 @@ async fn create_basic_faucet(
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let key_pair = AuthSecretKey::new_falcon512_rpo();
+    let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
     let max_supply = Felt::new(1_000_000);
@@ -61,13 +61,14 @@ async fn create_basic_faucet(
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthFalcon512Rpo::new(key_pair.public_key().to_commitment()))
+        .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+        .with_component(AuthControlled::allow_all())
         .build()
         .unwrap();
 
     client.add_account(&account, false).await?;
-    keystore.add_key(&key_pair).unwrap();
+    keystore.add_key(&key_pair, account.id()).await.unwrap();
 
     Ok(account)
 }
@@ -205,16 +206,16 @@ async fn main() -> Result<(), ClientError> {
     let serial_num = client.rng().draw_word();
 
     let note_script = client.code_builder().compile_note_script(code).unwrap();
-    let note_inputs = NoteInputs::new(digest.to_vec()).unwrap();
-    let recipient = NoteRecipient::new(serial_num, note_script, note_inputs);
+    let note_storage = NoteStorage::new(digest.to_vec()).unwrap();
+    let recipient = NoteRecipient::new(serial_num, note_script, note_storage);
     let tag = NoteTag::new(0);
-    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public, tag);
+    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
     let vault = NoteAssets::new(vec![mint_amount.into()])?;
     let custom_note = Note::new(vault, metadata, recipient);
     println!("note hash: {:?}", custom_note.id().to_hex());
 
     let note_request = TransactionRequestBuilder::new()
-        .own_output_notes(vec![OutputNote::Full(custom_note.clone())])
+        .own_output_notes(vec![custom_note.clone()])
         .build()
         .unwrap();
 

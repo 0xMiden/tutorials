@@ -1,7 +1,6 @@
 target/
 *.dat
 node/storage/*
-docs/Cargo.lock
 
 keystore
 *.sqlite3
@@ -11,3 +10,5 @@ web-client/playwright-report/
 web-client/test-results/
 **/.DS_Store
 .DS_Store
+.claude/
+.playwright-mcp/

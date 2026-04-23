@@ -3,26 +3,40 @@ import type { Page } from "@playwright/test";
 
 const tutorialTimeoutMs = 10 * 60 * 1000;
 
-const tutorials = [
+type RequiredLog = string | RegExp;
+
+const tutorials: ReadonlyArray<{
+  name: string;
+  testId: string;
+  requiredLogs: ReadonlyArray<RequiredLog>;
+}> = [
   {
     name: "createMintConsume",
     testId: "tutorial-createMintConsume",
+    requiredLogs: ["Tokens sent successfully!"],
   },
   {
     name: "multiSendWithDelegatedProver",
     testId: "tutorial-multiSendWithDelegatedProver",
+    requiredLogs: ["All notes created ✅"],
   },
   {
     name: "incrementCounterContract",
     testId: "tutorial-incrementCounterContract",
+    requiredLogs: [/Count:\s+1\b/],
   },
   {
     name: "unauthenticatedNoteTransfer",
     testId: "tutorial-unauthenticatedNoteTransfer",
+    requiredLogs: ["Asset transfer chain completed ✅"],
   },
   {
     name: "foreignProcedureInvocation",
     testId: "tutorial-foreignProcedureInvocation",
+    requiredLogs: [
+      /Count copied via Foreign Procedure Invocation:\s+1\b/,
+      "Foreign Procedure Invocation Transaction completed!",
+    ],
   },
 ] as const;
 
@@ -30,12 +44,17 @@ const runTutorial = async (
   page: Page,
   tutorialName: string,
   testId: string,
+  requiredLogs: ReadonlyArray<RequiredLog>,
 ) => {
   const consoleErrors: string[] = [];
+  const consoleLogs: string[] = [];
 
   page.on("console", (msg) => {
+    const text = msg.text();
     if (msg.type() === "error") {
-      consoleErrors.push(`[console.error] ${msg.text()}`);
+      consoleErrors.push(`[console.error] ${text}`);
+    } else {
+      consoleLogs.push(text);
     }
   });
   page.on("pageerror", (err) => {
@@ -78,11 +97,31 @@ const runTutorial = async (
     );
   }
   expect(status?.state).toBe("passed");
+
+  for (const required of requiredLogs) {
+    const matched = consoleLogs.some((line) =>
+      typeof required === "string"
+        ? line.includes(required)
+        : required.test(line),
+    );
+    if (!matched) {
+      throw new Error(
+        `Tutorial ${tutorialName} did not emit required log ${required.toString()}.\nCaptured logs:\n${consoleLogs.join(
+          "\n",
+        )}`,
+      );
+    }
+  }
 };
 
 for (const tutorial of tutorials) {
   test(tutorial.name, async ({ page }) => {
     test.setTimeout(tutorialTimeoutMs);
-    await runTutorial(page, tutorial.name, tutorial.testId);
+    await runTutorial(
+      page,
+      tutorial.name,
+      tutorial.testId,
+      tutorial.requiredLogs,
+    );
   });
 }

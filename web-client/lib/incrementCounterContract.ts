@@ -1,5 +1,6 @@
 // lib/incrementCounterContract.ts
 import counterContractCode from './masm/counter_contract.masm';
+import { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } from '@miden-sdk/miden-sdk/lazy';
 
 export async function incrementCounterContract(): Promise<void> {
   if (typeof window === 'undefined') {
@@ -7,10 +8,9 @@ export async function incrementCounterContract(): Promise<void> {
     return;
   }
 
-  const { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } =
-    await import('@miden-sdk/miden-sdk');
+  await MidenClient.ready();
 
-  const nodeEndpoint = 'http://localhost:57291';
+  const nodeEndpoint = 'https://rpc.testnet.miden.io';
   const client = await MidenClient.create({ rpcUrl: nodeEndpoint });
   console.log('Current block number: ', (await client.sync()).blockNum());
 
@@ -26,7 +26,7 @@ export async function incrementCounterContract(): Promise<void> {
   const auth = AuthSecretKey.rpoFalconWithRNG(walletSeed);
 
   const account = await client.accounts.create({
-    type: AccountType.ImmutableContract,
+    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: walletSeed,
     auth,
@@ -54,6 +54,9 @@ export async function incrementCounterContract(): Promise<void> {
 
   const counter = await client.accounts.get(account);
   const count = counter?.storage().getItem(counterSlotName);
-  const counterValue = Number(count!.toU64s()[3]);
+  // The counter contract stores its count as a Felt widened to Word
+  // [count, 0, 0, 0]; `toU64s()` preserves native order so the value
+  // lives at index 0.
+  const counterValue = Number(count!.toU64s()[0]);
   console.log('Count: ', counterValue);
 }
