@@ -121,18 +121,10 @@ end
 Copy and paste the following code into your `src/main.rs` file:
 
 ```rust no_run
-use miden_client::transaction::TransactionKernel;
-use std::{fs, path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
-    account::AccountId,
-    assembly::{
-        Assembler,
-        DefaultSourceManager,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    account::{AccountId, StorageSlotName},
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
@@ -140,21 +132,6 @@ use miden_client::{
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-fn create_library(
-    assembler: Assembler,
-    library_path: &str,
-    source_code: &str,
-) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -164,10 +141,10 @@ async fn main() -> Result<(), ClientError> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -241,26 +218,19 @@ Add the following code snippet to the end of your `src/main.rs` function:
 // -------------------------------------------------------------------------
 println!("\n[STEP 2] Call the increment_count procedure in the counter contract");
 
-// Load the MASM script referencing the increment procedure
-let script_path = Path::new("../masm/scripts/counter_script.masm");
-let script_code = fs::read_to_string(script_path).unwrap();
+// Load the MASM sources at compile time so the binary is independent of
+// the working directory it is run from.
+let script_code = include_str!("../masm/scripts/counter_script.masm");
+let counter_code = include_str!("../masm/accounts/counter.masm");
 
-let counter_path = Path::new("../masm/accounts/counter.masm");
-let counter_code = fs::read_to_string(counter_path).unwrap();
-
-let assembler = TransactionKernel::assembler();
-let account_component_lib = create_library(
-    assembler.clone(),
-    "external_contract::counter_contract",
-    &counter_code,
-)
-.unwrap();
-
+// Compile the script against the counter contract code via a single
+// `CodeBuilder` chain so the assembler shares the client's persisted
+// source manager (avoids the source-span mismatch from miden-vm#2778).
 let tx_script = client
     .code_builder()
-    .with_dynamically_linked_library(&account_component_lib)
+    .with_linked_module("external_contract::counter_contract", counter_code)
     .unwrap()
-    .compile_tx_script(&script_code)
+    .compile_tx_script(script_code)
     .unwrap();
 
 // Build a transaction request with the custom script
@@ -302,18 +272,10 @@ println!(
 The final `src/main.rs` file should look like this:
 
 ```rust no_run
-use miden_client::transaction::TransactionKernel;
-use std::{fs, path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
-    account::AccountId,
-    assembly::{
-        Assembler,
-        DefaultSourceManager,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
-    },
+    account::{AccountId, StorageSlotName},
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
@@ -321,21 +283,6 @@ use miden_client::{
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-fn create_library(
-    assembler: Assembler,
-    library_path: &str,
-    source_code: &str,
-) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -345,10 +292,10 @@ async fn main() -> Result<(), ClientError> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -390,26 +337,19 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 2] Call the increment_count procedure in the counter contract");
 
-    // Load the MASM script referencing the increment procedure
-    let script_path = Path::new("../masm/scripts/counter_script.masm");
-    let script_code = fs::read_to_string(script_path).unwrap();
+    // Load the MASM sources at compile time so the binary is independent of
+    // the working directory it is run from.
+    let script_code = include_str!("../masm/scripts/counter_script.masm");
+    let counter_code = include_str!("../masm/accounts/counter.masm");
 
-    let counter_path = Path::new("../masm/accounts/counter.masm");
-    let counter_code = fs::read_to_string(counter_path).unwrap();
-
-    let assembler = TransactionKernel::assembler();
-    let account_component_lib = create_library(
-        assembler.clone(),
-        "external_contract::counter_contract",
-        &counter_code,
-    )
-    .unwrap();
-
+    // Compile the script against the counter contract code via a single
+    // `CodeBuilder` chain so the assembler shares the client's persisted
+    // source manager (avoids the source-span mismatch from miden-vm#2778).
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_linked_module("external_contract::counter_contract", counter_code)
         .unwrap()
-        .compile_tx_script(&script_code)
+        .compile_tx_script(script_code)
         .unwrap();
 
     // Build a transaction request with the custom script

@@ -4,9 +4,6 @@ use miden_client::{
         AccountStorageMode, AccountType, StorageMapKey, StorageSlot, StorageSlotName,
         StorageSlotType,
     },
-    assembly::{
-        CodeBuilder, DefaultSourceManager, Module, ModuleKind, Path as AssemblyPath,
-    },
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
@@ -14,12 +11,12 @@ use miden_client::{
         domain::account::AccountStorageRequirements,
         Endpoint, GrpcClient,
     },
-    transaction::{ForeignAccount, TransactionKernel, TransactionRequestBuilder},
+    transaction::{ForeignAccount, TransactionRequestBuilder},
     Client, ClientError, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 /// Import the oracle + its publishers and return the ForeignAccount list
 /// Due to Pragma's decentralized oracle architecture, we need to get the
@@ -108,21 +105,6 @@ pub async fn get_oracle_foreign_accounts(
     Ok(foreign_accounts)
 }
 
-fn create_library(
-    library_path: &str,
-    source_code: &str,
-) -> Result<Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager,
-    )?;
-    let library = assembler.assemble_library([module])?;
-    Ok(library)
-}
-
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
@@ -132,10 +114,10 @@ async fn main() -> Result<(), ClientError> {
     let timeout_ms = 10_000;
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -150,6 +132,11 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Get all foreign accounts for oracle data
     // -------------------------------------------------------------------------
+    // The Pragma oracle bech32 ID is read from the first CLI argument.
+    // Live IDs rotate per testnet iteration; the canonical source for the
+    // current testnet oracle is the `astraly-labs/pragma-miden` README:
+    //   https://github.com/astraly-labs/pragma-miden#deployments
+    // Run as: `cargo run --release --bin oracle_data_query -- <ORACLE_BECH32_ID>`
     let oracle_bech32 = std::env::args()
         .nth(1)
         .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
@@ -167,13 +154,15 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Create Oracle Reader contract
     // -------------------------------------------------------------------------
-    let contract_code =
-        fs::read_to_string(Path::new("../masm/accounts/oracle_reader.masm")).unwrap();
+    // `include_str!` resolves at compile time relative to this source file,
+    // so the binary is independent of the working directory it is run from.
+    let contract_code = include_str!("../../../masm/accounts/oracle_reader.masm");
 
     let contract_slot_name =
         StorageSlotName::new("miden::tutorials::oracle_reader").expect("valid slot name");
-    let contract_component_code = CodeBuilder::new()
-        .compile_component_code("external_contract::oracle_reader", &contract_code)
+    let contract_component_code = client
+        .code_builder()
+        .compile_component_code("external_contract::oracle_reader", contract_code)
         .unwrap();
     let contract_component = AccountComponent::new(
         contract_component_code,
@@ -204,18 +193,17 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Build the script that calls our `get_price` procedure
     // -------------------------------------------------------------------------
-    let script_path = Path::new("../masm/scripts/oracle_reader_script.masm");
-    let script_code = fs::read_to_string(script_path).unwrap();
+    let script_code = include_str!("../../../masm/scripts/oracle_reader_script.masm");
 
-    let library_path = "external_contract::oracle_reader";
-    let account_component_lib =
-        create_library(library_path, &contract_code).unwrap();
-
+    // Link the oracle reader contract code into the same `CodeBuilder` chain
+    // that compiles the script, so the assembler shares the client's
+    // persisted source manager (avoids the source-span mismatch from
+    // miden-vm#2778).
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_linked_module("external_contract::oracle_reader", contract_code)
         .unwrap()
-        .compile_tx_script(&script_code)
+        .compile_tx_script(script_code)
         .unwrap();
 
     let tx_increment_request = TransactionRequestBuilder::new()

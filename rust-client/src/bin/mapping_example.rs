@@ -1,38 +1,19 @@
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent,
         AccountStorageMode, AccountType, StorageMap, StorageSlot, StorageSlotName,
     },
-    assembly::{
-        CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
-        Path as AssemblyPath,
-    },
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, GrpcClient},
-    transaction::{TransactionKernel, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-fn create_library(
-    library_path: &str,
-    source_code: &str,
-) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager,
-    )?;
-    let library = assembler.assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -42,10 +23,10 @@ async fn main() -> Result<(), ClientError> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -63,9 +44,9 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 1] Deploy a smart contract with a mapping");
 
-    // Load the MASM file for the counter contract
-    let file_path = Path::new("../masm/accounts/mapping_example_contract.masm");
-    let account_code = fs::read_to_string(file_path).unwrap();
+    // Load the MASM file for the counter contract. `include_str!` resolves at
+    // compile time relative to this source file.
+    let account_code = include_str!("../../../masm/accounts/mapping_example_contract.masm");
 
     // Using an empty storage value in slot 0 since this is usually reserved
     // for the account pub_key and metadata
@@ -80,8 +61,9 @@ async fn main() -> Result<(), ClientError> {
     let storage_slot_map = StorageSlot::with_map(map_slot_name.clone(), storage_map.clone());
 
     // Compile the account code into `AccountComponent` with one storage slot
-    let component_code = CodeBuilder::new()
-        .compile_component_code("miden_by_example::mapping_example_contract", &account_code)
+    let component_code = client
+        .code_builder()
+        .compile_component_code("miden_by_example::mapping_example_contract", account_code)
         .unwrap();
     let mapping_contract_component = AccountComponent::new(
         component_code,
@@ -113,22 +95,16 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 2] Call Mapping Contract With Script");
 
-    let script_code =
-        fs::read_to_string(Path::new("../masm/scripts/mapping_example_script.masm")).unwrap();
+    let script_code = include_str!("../../../masm/scripts/mapping_example_script.masm");
 
-    // Create the library from the account source code using the helper function.
-    let account_component_lib = create_library(
-        "miden_by_example::mapping_example_contract",
-        &account_code,
-    )
-    .unwrap();
-
-    // Compile the transaction script with the library.
+    // Compile the transaction script with the account code linked as a
+    // module on the same `CodeBuilder` chain (avoids the source-span
+    // mismatch from miden-vm#2778).
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_linked_module("miden_by_example::mapping_example_contract", account_code)
         .unwrap()
-        .compile_tx_script(&script_code)
+        .compile_tx_script(script_code)
         .unwrap();
 
     // Build a transaction request with the custom script

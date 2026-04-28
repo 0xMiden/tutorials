@@ -3328,9 +3328,6 @@ dependencies = [
  "miden-client-sqlite-store",
  "miden-protocol",
  "rand 0.9.4",
- "rand_chacha",
- "serde",
- "serde_json",
  "tokio",
 ]
 

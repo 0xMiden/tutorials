@@ -41,10 +41,7 @@ miden-client = { version = "0.14", features = ["testing", "tonic"] }
 miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
 miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value"] }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
-rand_chacha = "0.9.0"
 ```
 
 ### Step 1: Set up your `src/main.rs` file
@@ -53,34 +50,24 @@ Copy and paste the following code into your `src/main.rs` file:
 
 ```rust no_run
 use miden_client::{
-    assembly::{
-        Assembler,
-        CodeBuilder,
-        DefaultSourceManager,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
+    account::{
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
+        AccountStorageMode, AccountType, StorageMapKey, StorageSlot, StorageSlotName,
+        StorageSlotType,
     },
+    auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{
-        domain::account::{AccountStorageRequirements, StorageMapKey},
+        domain::account::AccountStorageRequirements,
         Endpoint, GrpcClient,
     },
     transaction::{ForeignAccount, TransactionRequestBuilder},
-    Client, ClientError,
+    Client, ClientError, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_client::{auth::NoAuth, transaction::TransactionKernel};
-use miden_client::{
-    account::{
-        component::AccountComponentMetadata, AccountComponent, AccountId, AccountStorageMode,
-        AccountType, StorageSlot, StorageSlotName, StorageSlotType,
-    },
-    Felt, Word, ZERO,
-};
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 /// Import the oracle + its publishers and return the ForeignAccount list
 /// Due to Pragma's decentralized oracle architecture, we need to get the
@@ -169,21 +156,6 @@ pub async fn get_oracle_foreign_accounts(
     Ok(foreign_accounts)
 }
 
-fn create_library(
-    assembler: Assembler,
-    library_path: &str,
-    source_code: &str,
-) -> Result<std::sync::Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager.clone(),
-    )?;
-    let library = assembler.clone().assemble_library([module])?;
-    Ok(library)
-}
-
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
@@ -193,10 +165,10 @@ async fn main() -> Result<(), ClientError> {
     let timeout_ms = 10_000;
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -211,7 +183,11 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Get all foreign accounts for oracle data
     // -------------------------------------------------------------------------
-    // The oracle account ID must be supplied as a CLI argument.
+    // The Pragma oracle bech32 ID is read from the first CLI argument.
+    // Live IDs rotate per testnet iteration; the canonical source for the
+    // current testnet oracle is the `astraly-labs/pragma-miden` README:
+    //   https://github.com/astraly-labs/pragma-miden#deployments
+    // Run as: `cargo run --release --bin oracle_data_query -- <ORACLE_BECH32_ID>`
     let oracle_bech32 = std::env::args()
         .nth(1)
         .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
@@ -229,13 +205,15 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Create Oracle Reader contract
     // -------------------------------------------------------------------------
-    let contract_code =
-        fs::read_to_string(Path::new("../masm/accounts/oracle_reader.masm")).unwrap();
+    // `include_str!` resolves at compile time relative to this source file,
+    // so the binary is independent of the working directory it is run from.
+    let contract_code = include_str!("../masm/accounts/oracle_reader.masm");
 
     let contract_slot_name =
         StorageSlotName::new("miden::tutorials::oracle_reader").expect("valid slot name");
-    let contract_component_code = CodeBuilder::new()
-        .compile_component_code("external_contract::oracle_reader", &contract_code)
+    let contract_component_code = client
+        .code_builder()
+        .compile_component_code("external_contract::oracle_reader", contract_code)
         .unwrap();
     let contract_component = AccountComponent::new(
         contract_component_code,
@@ -263,19 +241,17 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Build the script that calls our `get_price` procedure
     // -------------------------------------------------------------------------
-    let script_path = Path::new("../masm/scripts/oracle_reader_script.masm");
-    let script_code = fs::read_to_string(script_path).unwrap();
+    let script_code = include_str!("../masm/scripts/oracle_reader_script.masm");
 
-    let assembler = TransactionKernel::assembler();
-    let library_path = "external_contract::oracle_reader";
-    let account_component_lib =
-        create_library(assembler.clone(), library_path, &contract_code).unwrap();
-
+    // Link the oracle reader contract code into the same `CodeBuilder` chain
+    // that compiles the script, so the assembler shares the client's
+    // persisted source manager (avoids the source-span mismatch from
+    // miden-vm#2778).
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_linked_module("external_contract::oracle_reader", contract_code)
         .unwrap()
-        .compile_tx_script(&script_code)
+        .compile_tx_script(script_code)
         .unwrap();
 
     let tx_increment_request = TransactionRequestBuilder::new()
@@ -302,10 +278,10 @@ async fn main() -> Result<(), ClientError> {
 
 _Don't run this code just yet, we still need to create our smart contract that queries the oracle_
 
-In the code above, we specified the Pragma oracle account id `0x4f67e78643022e00000220d8997e33` and the BTC/USD pair `120195681`. The `get_oracle_foreign_accounts` function returns all of the `ForeignAccounts` that you will need to execute the transaction to get the price data from the oracle. Since Pragma's oracle depends on multiple publishers, this function queries all of the publisher account ids required to make a successful FPI call.
+The oracle bech32 ID is read from the first CLI argument (see "Running the tutorial" at the bottom of this page) and the BTC/USD pair is `120195681`. The `get_oracle_foreign_accounts` function returns all of the `ForeignAccounts` that you will need to execute the transaction to get the price data from the oracle. Since Pragma's oracle depends on multiple publishers, this function queries all of the publisher account ids required to make a successful FPI call.
 
 :::note
-The oracle account ID, procedure hash, and trading pair ID used in this tutorial reference Pragma's testnet deployment. These values are maintained by Pragma and may change if they redeploy their oracle. For the latest values, check the [Pragma Miden repository](https://github.com/astraly-labs/pragma-miden).
+The oracle account ID, procedure hash, and trading pair ID used in this tutorial reference Pragma's testnet deployment. Live IDs rotate per testnet iteration; the canonical source for the current testnet oracle is the [astraly-labs/pragma-miden README](https://github.com/astraly-labs/pragma-miden#deployments).
 :::
 
 ## Step 2: Build the price reader smart contract and script
@@ -388,10 +364,10 @@ end
 
 ## Step 3: Run the program
 
-Run the following command to execute src/main.rs:
+This tutorial requires a live Pragma oracle deployment. Get the current testnet oracle bech32 ID from the [astraly-labs/pragma-miden README](https://github.com/astraly-labs/pragma-miden#deployments) and pass it as a CLI argument:
 
 ```
-cargo run --release
+cargo run --release -- <ORACLE_BECH32_ID>
 ```
 
 The output of our program will look something like this:

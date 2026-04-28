@@ -204,7 +204,7 @@ Copy and paste the following code into your `src/main.rs` file.
 ```rust no_run
 use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 use tokio::time::{sleep, Duration};
 
 use miden_client::{
@@ -312,10 +312,10 @@ async fn main() -> Result<(), ClientError> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -395,13 +395,15 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 3] Create iterative output note");
 
-    let code = fs::read_to_string(Path::new("../masm/notes/iterative_output_note.masm")).unwrap();
+    // `include_str!` resolves at compile time relative to this source file,
+    // so the binary is independent of the working directory it is run from.
+    let code = include_str!("../masm/notes/iterative_output_note.masm");
     let serial_num = client.rng().draw_word();
 
     // Create note metadata and tag
     let tag = NoteTag::new(0);
     let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
-    let note_script = client.code_builder().compile_note_script(&code).unwrap();
+    let note_script = client.code_builder().compile_note_script(code).unwrap();
     let note_storage = NoteStorage::new(vec![
         alice_account.id().prefix().as_felt(),
         alice_account.id().suffix(),
