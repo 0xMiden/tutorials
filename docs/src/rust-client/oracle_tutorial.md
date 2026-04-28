@@ -298,7 +298,7 @@ _Don't run this code just yet, we still need to create our smart contract that q
 The oracle account ID is read from the first CLI argument (see "Running the tutorial" at the bottom of this page) and the BTC/USD pair is encoded as `[PAIR_PREFIX = 1, PAIR_SUFFIX = 0, 0, 0]` per [Pragma's pair convention](https://github.com/astraly-labs/pragma-miden/blob/main/examples/consume-price/src/main.rs). The `get_oracle_foreign_accounts` function mirrors the walk in Pragma's `consume-price` example: read `pragma::oracle::next_publisher_index`, walk the `pragma::oracle::publishers` map for `i in 2..publisher_count` (Pragma reserves 0 and 1 as sentinels), then for each publisher request its `pragma::publisher::entries` map gated on the `pair_word`. The `trading_pair` requirement is therefore explicit in the function signature; passing a different `pair_word` reads a different price.
 
 :::note
-The live oracle path is currently blocked pending a v0.14-compatible Pragma deployment. Pragma's source repo is on `miden-protocol` v0.13; the migration is tracked in [astraly-labs/pragma-miden#40](https://github.com/astraly-labs/pragma-miden/pull/40) (open PR). After Pragma migrates, the oracle account ID and the `get_median` procedure hash hardcoded in `oracle_data_query.rs` (constant `GET_MEDIAN_PROC_HASH`) must be re-verified against the new deployment.
+The live oracle path is currently blocked pending a v0.14-compatible Pragma deployment. Pragma's source repo is on `miden-protocol` v0.13; the migration is tracked in [astraly-labs/pragma-miden#40](https://github.com/astraly-labs/pragma-miden/pull/40) (open PR). After Pragma migrates, the oracle account ID _and_ the `get_median` procedure hash hardcoded in `oracle_data_query.rs` (constant `GET_MEDIAN_PROC_HASH`) must be re-verified against the new deployment before the tutorial can be relied on. Both values are deployment-specific; do not assume they survive a redeploy unchanged.
 :::
 
 ## Step 2: Build the price reader smart contract and script
@@ -315,7 +315,7 @@ mkdir -p masm/accounts masm/scripts
 
 This will create:
 
-```
+```text
 masm/
 ├── accounts/
 └── scripts/
@@ -387,15 +387,15 @@ end
 
 ## Step 3: Run the program
 
-This tutorial requires a v0.14-compatible Pragma oracle deployment. The current Pragma deployment is on `miden-protocol` v0.13 (see [astraly-labs/pragma-miden#40](https://github.com/astraly-labs/pragma-miden/pull/40), open), so the live FPI walk will fail until that migration lands. The tutorial code itself is correct and will work the moment Pragma redeploys. Get the current testnet oracle account ID (bech32 or hex) from the [astraly-labs/pragma-miden README](https://github.com/astraly-labs/pragma-miden#deployments) and pass it as a CLI argument:
+This tutorial requires a v0.14-compatible Pragma oracle deployment. The current Pragma deployment is on `miden-protocol` v0.13 (see [astraly-labs/pragma-miden#40](https://github.com/astraly-labs/pragma-miden/pull/40), open), so the live FPI walk will fail until that migration lands. **After Pragma redeploys, you must re-verify the oracle account ID _and_ the `GET_MEDIAN_PROC_HASH` constant in `src/main.rs` against the new deployment** — both are deployment-specific and may change with each redeploy. Re-running the tutorial without re-verifying these constants is not safe. Get the current testnet oracle account ID (bech32 or hex) from the [astraly-labs/pragma-miden README](https://github.com/astraly-labs/pragma-miden#deployments) and pass it as a CLI argument:
 
-```
+```bash
 cargo run --release -- <ORACLE_ACCOUNT_ID>
 ```
 
 The output of our program will look something like this:
 
-```
+```text
 cleared sqlite store: ./store.sqlite3
 Latest block: 648397
 Oracle accountId prefix: V0(AccountIdPrefixV0 { prefix: 5721796415433354752 }) suffix: 599064613630720
