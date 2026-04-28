@@ -55,10 +55,7 @@ miden-client = { version = "0.14", features = ["testing", "tonic"] }
 miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
 miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value"] }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
-rand_chacha = "0.9.0"
 ```
 
 ## Step 2: Write the Note Script
@@ -80,7 +77,7 @@ masm/
 └── notes/
 ```
 
-Inside the `masm/notes/` directory, create the file `iterative_output_note.masm`:
+Inside the `masm/notes/` directory, create the file `iterative_output_note.masm`. Note scripts in v0.14.5+ are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
 
 ```masm
 use miden::protocol::active_note
@@ -97,8 +94,10 @@ const ASSET_HALF_VALUE_PTR=8    # half-amount ASSET_VALUE stored here
 const ACCOUNT_ID_PREFIX=12      # storage: [prefix, suffix, tag, 0]
 const TAG=14                    # = ACCOUNT_ID_PREFIX + 2
 
-# => []
-begin
+#! Inputs:  []
+#! Outputs: []
+@note_script
+pub proc main
     # Drop word if user accidentally pushes note_args
     dropw
     # => []

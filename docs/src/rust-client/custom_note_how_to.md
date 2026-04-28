@@ -49,7 +49,7 @@ Now, combine the minted asset and the secret hash to build the custom note. The 
 2. **Miden Assembly Code:**
    - The Miden assembly note script ensures that the note can only be consumed if the provided secret, when hashed, matches the hash stored in the note input.
 
-Below is the Miden Assembly code for the note:
+Below is the Miden Assembly code for the note. Note scripts in v0.14.5+ are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
 
 ```masm
 use miden::protocol::active_note
@@ -70,7 +70,8 @@ const ERROR_DIGEST_MISMATCH="Expected digest does not match computed digest"
 #!
 #! Note storage is assumed to be as follows:
 #!  => EXPECTED_DIGEST
-begin
+@note_script
+pub proc main
     # => HASH_PREIMAGE_SECRET
     # Hashing the secret number
     hash

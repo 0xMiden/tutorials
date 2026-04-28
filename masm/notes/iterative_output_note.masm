@@ -12,8 +12,10 @@ const ASSET_HALF_VALUE_PTR=8    # half-amount ASSET_VALUE stored here
 const ACCOUNT_ID_PREFIX=12      # storage: [prefix, suffix, tag, 0]
 const TAG=14                    # = ACCOUNT_ID_PREFIX + 2
 
-# => []
-begin
+#! Inputs:  []
+#! Outputs: []
+@note_script
+pub proc main
     # Drop word if user accidentally pushes note_args
     dropw
     # => []

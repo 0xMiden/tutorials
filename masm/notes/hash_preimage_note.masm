@@ -16,7 +16,8 @@ const ERROR_DIGEST_MISMATCH="Expected digest does not match computed digest"
 #!
 #! Note storage is assumed to be as follows:
 #!  => EXPECTED_DIGEST
-begin
+@note_script
+pub proc main
     # => HASH_PREIMAGE_SECRET
     # Hashing the secret number
     hash

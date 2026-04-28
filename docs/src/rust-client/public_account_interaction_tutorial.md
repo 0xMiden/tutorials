@@ -41,10 +41,7 @@ miden-client = { version = "0.14", features = ["testing", "tonic"] }
 miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
 miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value"] }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
-rand_chacha = "0.9.0"
 ```
 
 ## Step 2: Build the counter contract

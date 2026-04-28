@@ -1,21 +1,30 @@
-# The oracle account ID, procedure hash, and pair ID below reference
-# Pragma's testnet deployment (https://github.com/astraly-labs/pragma-miden).
-# If Pragma redeploys their oracle, these values must be updated.
+# This file is a template, not standalone valid MASM.
+#
+# The placeholders {pair_prefix}, {pair_suffix}, {get_median_proc_hash},
+# {oracle_id_prefix}, and {oracle_id_suffix} are substituted at compile time
+# by the Rust binary (`oracle_reader_source(...)` in `oracle_data_query.rs`)
+# before this code is handed to the assembler. The pair encoding is
+# deployment-agnostic for any (PAIR_PREFIX, PAIR_SUFFIX) trading pair, but
+# the `get_median` procedure root and the oracle account id below are
+# Pragma-deployment-specific and must be re-verified after every Pragma
+# redeploy. Source of truth:
+#   https://github.com/astraly-labs/pragma-miden#deployments
 
 use miden::protocol::tx
 
-# Fetches the current price from the `get_median`
-# procedure from the Pragma oracle
-# => []
+#! Reads the current price for a single trading pair from the Pragma oracle
+#! via foreign procedure invocation.
+#!
+#! Inputs:  []
+#! Outputs: [price]
 pub proc get_price
-    push.0.0.0.120195681
+    push.0.0.{pair_suffix}.{pair_prefix}
     # => [PAIR]
 
-    # This is the procedure root of the `get_median` procedure
-    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
+    push.{get_median_proc_hash}
     # => [GET_MEDIAN_HASH, PAIR]
 
-    push.939716883672832.2172042075194638080
+    push.{oracle_id_prefix}.{oracle_id_suffix}
     # => [oracle_id_prefix, oracle_id_suffix, GET_MEDIAN_HASH, PAIR]
 
     exec.tx::execute_foreign_procedure

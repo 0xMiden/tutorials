@@ -53,10 +53,7 @@ miden-client = { version = "0.14", features = ["testing", "tonic"] }
 miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
 miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value"] }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
-rand_chacha = "0.9.0"
 ```
 
 ## Step 2: Set up MASM files
@@ -124,12 +121,15 @@ This script executes a function call (increment) that creates a necessary state 
 
 ### Network Note for User Interaction
 
-Create `masm/notes/network_increment_note.masm`:
+Create `masm/notes/network_increment_note.masm`. Note scripts in v0.14.5+ are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
 
 ```masm
 use external_contract::counter_contract
 
-begin
+#! Inputs:  []
+#! Outputs: []
+@note_script
+pub proc main
     call.counter_contract::increment_count
 end
 ```

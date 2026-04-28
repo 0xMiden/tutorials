@@ -1,5 +1,8 @@
 use external_contract::counter_contract
 
-begin
+#! Inputs:  []
+#! Outputs: []
+@note_script
+pub proc main
     call.counter_contract::increment_count
 end

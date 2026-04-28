@@ -53,7 +53,6 @@ use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
         AccountStorageMode, AccountType, StorageMapKey, StorageSlot, StorageSlotName,
-        StorageSlotType,
     },
     auth::NoAuth,
     builder::ClientBuilder,
@@ -63,89 +62,69 @@ use miden_client::{
         Endpoint, GrpcClient,
     },
     transaction::{ForeignAccount, TransactionRequestBuilder},
-    Client, ClientError, Word,
+    Client, ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
 
-/// Import the oracle + its publishers and return the ForeignAccount list
-/// Due to Pragma's decentralized oracle architecture, we need to get the
-/// list of all data publisher accounts to read price from via a nested FPI call
+// BTC/USD pair encoding per `astraly-labs/pragma-miden`.
+const PAIR_PREFIX: u64 = 1;
+const PAIR_SUFFIX: u64 = 0;
+
+// Pragma oracle storage slot names.
+const SLOT_NEXT_INDEX: &str = "pragma::oracle::next_publisher_index";
+const SLOT_PUBLISHERS: &str = "pragma::oracle::publishers";
+const SLOT_ENTRIES: &str = "pragma::publisher::entries";
+
+// Procedure root of `get_median` on the deployed Pragma oracle.
+// DEPLOYMENT-SPECIFIC: re-verify after each Pragma redeploy. Source of truth:
+//   https://github.com/astraly-labs/pragma-miden#deployments
+const GET_MEDIAN_PROC_HASH: &str =
+    "0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9";
+
+/// Walks the Pragma oracle's storage to import the oracle and all of its
+/// publisher accounts as `ForeignAccount`s, with each publisher's
+/// `pragma::publisher::entries` map gated on the supplied `pair_word`.
+///
+/// `pair_word` is `[prefix, suffix, 0, 0]`. For BTC/USD per Pragma's
+/// convention, build it from `PAIR_PREFIX = 1, PAIR_SUFFIX = 0`.
+///
+/// Mirrors `astraly-labs/pragma-miden/examples/consume-price/src/main.rs`.
 pub async fn get_oracle_foreign_accounts(
     client: &mut Client<FilesystemKeyStore>,
     oracle_account_id: AccountId,
-    trading_pair: u64,
+    pair_word: Word,
 ) -> Result<Vec<ForeignAccount>, ClientError> {
     client.import_account_by_id(oracle_account_id).await?;
+    println!("Imported oracle account: {}", oracle_account_id);
 
-    let oracle_account = client
+    let oracle = client
         .get_account(oracle_account_id)
-        .await
-        .expect("RPC failed")
+        .await?
         .expect("oracle account not found");
+    let storage = oracle.storage();
 
-    let storage = oracle_account.storage();
-    let publisher_count_slot = storage
-        .slots()
-        .iter()
-        .find(|slot| {
-            let name = slot.name().as_str();
-            name.contains("publisher") && name.contains("count")
-        })
-        .map(|slot| slot.name().clone())
-        .or_else(|| storage.slots().first().map(|slot| slot.name().clone()))
-        .expect("oracle storage is expected to have at least one slot");
+    let count_slot = StorageSlotName::new(SLOT_NEXT_INDEX).expect("valid slot name");
+    let publishers_slot = StorageSlotName::new(SLOT_PUBLISHERS).expect("valid slot name");
+    let entries_slot = StorageSlotName::new(SLOT_ENTRIES).expect("valid slot name");
 
-    let publisher_count = storage
-        .get_item(&publisher_count_slot)
-        .map(|word| word[0].as_canonical_u64())
-        .unwrap_or(0);
+    let publisher_count = storage.get_item(&count_slot)?[0].as_canonical_u64();
+    let pair_key = StorageMapKey::new(pair_word);
 
-    let publisher_id_slots: Vec<StorageSlotName> = storage
-        .slots()
-        .iter()
-        .filter(|slot| slot.slot_type() == StorageSlotType::Value)
-        .filter(|slot| slot.name() != &publisher_count_slot)
-        .map(|slot| slot.name().clone())
-        .collect();
+    // Pragma reserves indices 0 and 1 as sentinels; real publishers start at 2.
+    let mut foreign_accounts = Vec::with_capacity(publisher_count.saturating_sub(2) as usize + 1);
+    for i in 2..publisher_count {
+        let key: Word = [Felt::new(i), Felt::ZERO, Felt::ZERO, Felt::ZERO].into();
+        let w: Word = storage.get_map_item(&publishers_slot, key)?;
+        // The publisher record stores `[suffix, prefix, ...]` at indices [2..3].
+        let pid = AccountId::new_unchecked([w[3], w[2]]);
 
-    let publisher_ids: Vec<AccountId> = publisher_id_slots
-        .iter()
-        .take(publisher_count.saturating_sub(1) as usize)
-        .filter_map(|slot_name| storage.get_item(slot_name).ok())
-        .map(|digest| {
-            let words: Word = digest.into();
-            AccountId::new_unchecked([words[3], words[2]])
-        })
-        .collect();
-
-    let mut foreign_accounts = Vec::with_capacity(publisher_ids.len() + 1);
-    let empty_keys: [StorageMapKey; 0] = [];
-
-    for pid in publisher_ids {
         client.import_account_by_id(pid).await?;
-
-        let publisher_account = client
-            .get_account(pid)
-            .await
-            .expect("RPC failed")
-            .expect("publisher account not found");
-        let map_slot_names: Vec<StorageSlotName> = publisher_account
-            .storage()
-            .slots()
-            .iter()
-            .filter(|slot| slot.slot_type() == StorageSlotType::Map)
-            .map(|slot| slot.name().clone())
-            .collect();
-
-        let storage_requirements = AccountStorageRequirements::new(
-            map_slot_names
-                .iter()
-                .map(|slot_name| (slot_name.clone(), empty_keys.iter())),
-        );
-
-        foreign_accounts.push(ForeignAccount::public(pid, storage_requirements)?);
+        foreign_accounts.push(ForeignAccount::public(
+            pid,
+            AccountStorageRequirements::new([(entries_slot.clone(), [pair_key].iter())]),
+        )?);
     }
 
     foreign_accounts.push(ForeignAccount::public(
@@ -154,6 +133,19 @@ pub async fn get_oracle_foreign_accounts(
     )?);
 
     Ok(foreign_accounts)
+}
+
+/// Fills the `oracle_reader.masm` template with deployment-specific values.
+fn oracle_reader_source(oracle_id: AccountId) -> String {
+    include_str!("../masm/accounts/oracle_reader.masm")
+        .replace("{pair_prefix}", &PAIR_PREFIX.to_string())
+        .replace("{pair_suffix}", &PAIR_SUFFIX.to_string())
+        .replace("{get_median_proc_hash}", GET_MEDIAN_PROC_HASH)
+        .replace("{oracle_id_prefix}", &u64::from(oracle_id.prefix()).to_string())
+        .replace(
+            "{oracle_id_suffix}",
+            &oracle_id.suffix().as_canonical_u64().to_string(),
+        )
 }
 
 #[tokio::main]
@@ -181,39 +173,64 @@ async fn main() -> Result<(), ClientError> {
     println!("Latest block: {}", client.sync_state().await?.block_num);
 
     // -------------------------------------------------------------------------
-    // Get all foreign accounts for oracle data
+    // Parse and validate oracle account ID from CLI
     // -------------------------------------------------------------------------
-    // The Pragma oracle bech32 ID is read from the first CLI argument.
-    // Live IDs rotate per testnet iteration; the canonical source for the
-    // current testnet oracle is the `astraly-labs/pragma-miden` README:
+    // `AccountId::parse` accepts both bech32 (`mtst1...`) and hex (`0x...`)
+    // forms. Live Pragma oracle IDs rotate per testnet iteration; the
+    // canonical source is the `astraly-labs/pragma-miden` README:
     //   https://github.com/astraly-labs/pragma-miden#deployments
-    // Run as: `cargo run --release --bin oracle_data_query -- <ORACLE_BECH32_ID>`
-    let oracle_bech32 = std::env::args()
-        .nth(1)
-        .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
-    let (_, oracle_account_id) = AccountId::from_bech32(&oracle_bech32).unwrap();
-    let btc_usd_pair_id = 120195681;
-    let foreign_accounts: Vec<ForeignAccount> =
-        get_oracle_foreign_accounts(&mut client, oracle_account_id, btc_usd_pair_id).await?;
-
-    println!(
-        "Oracle accountId prefix: {:?} suffix: {:?}",
-        oracle_account_id.prefix(),
-        oracle_account_id.suffix()
+    // Run as:
+    //   cargo run --release --bin oracle_data_query -- <ORACLE_ACCOUNT_ID>
+    let oracle_arg = std::env::args().nth(1).expect(
+        "Usage: oracle_data_query <ORACLE_ACCOUNT_ID> -- pass the current testnet oracle ID from https://github.com/astraly-labs/pragma-miden#deployments",
     );
+    let (oracle_account_id, _network) =
+        AccountId::parse(&oracle_arg).expect("Invalid account ID format (expected bech32 or hex)");
+    println!(
+        "Parsed oracle ID: prefix={}, suffix={}",
+        u64::from(oracle_account_id.prefix()),
+        oracle_account_id.suffix().as_canonical_u64(),
+    );
+
+    // -------------------------------------------------------------------------
+    // Get all foreign accounts for oracle data (BTC/USD)
+    // -------------------------------------------------------------------------
+    let pair_word: Word = [
+        Felt::new(PAIR_PREFIX),
+        Felt::new(PAIR_SUFFIX),
+        Felt::ZERO,
+        Felt::ZERO,
+    ]
+    .into();
+    let foreign_accounts: Vec<ForeignAccount> =
+        get_oracle_foreign_accounts(&mut client, oracle_account_id, pair_word).await?;
 
     // -------------------------------------------------------------------------
     // Create Oracle Reader contract
     // -------------------------------------------------------------------------
-    // `include_str!` resolves at compile time relative to this source file,
-    // so the binary is independent of the working directory it is run from.
-    let contract_code = include_str!("../masm/accounts/oracle_reader.masm");
+    // `oracle_reader.masm` is a *template*: the placeholders `{pair_prefix}`,
+    // `{pair_suffix}`, `{get_median_proc_hash}`, `{oracle_id_prefix}`, and
+    // `{oracle_id_suffix}` are substituted by the Rust binary before the
+    // MASM is compiled. The raw file is **not** standalone valid MASM.
+    let contract_code: String = oracle_reader_source(oracle_account_id);
+
+    // Defensive gate: fail loudly if any placeholder leaked through, rather
+    // than letting the assembler emit an opaque parse error.
+    if let Some(bad) = contract_code
+        .lines()
+        .find(|l| l.contains('{') || l.contains('}'))
+    {
+        panic!(
+            "oracle_reader template substitution incomplete; offending line: `{}`",
+            bad.trim()
+        );
+    }
 
     let contract_slot_name =
         StorageSlotName::new("miden::tutorials::oracle_reader").expect("valid slot name");
     let contract_component_code = client
         .code_builder()
-        .compile_component_code("external_contract::oracle_reader", contract_code)
+        .compile_component_code("external_contract::oracle_reader", contract_code.as_str())
         .unwrap();
     let contract_component = AccountComponent::new(
         contract_component_code,
@@ -225,7 +242,7 @@ async fn main() -> Result<(), ClientError> {
     let mut seed = [0_u8; 32];
     client.rng().fill_bytes(&mut seed);
 
-    let oracle_reader_contract = miden_client::account::AccountBuilder::new(seed)
+    let oracle_reader_contract = AccountBuilder::new(seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(AccountStorageMode::Public)
         .with_component(contract_component.clone())
@@ -249,7 +266,7 @@ async fn main() -> Result<(), ClientError> {
     // miden-vm#2778).
     let tx_script = client
         .code_builder()
-        .with_linked_module("external_contract::oracle_reader", contract_code)
+        .with_linked_module("external_contract::oracle_reader", contract_code.as_str())
         .unwrap()
         .compile_tx_script(script_code)
         .unwrap();
@@ -278,10 +295,10 @@ async fn main() -> Result<(), ClientError> {
 
 _Don't run this code just yet, we still need to create our smart contract that queries the oracle_
 
-The oracle bech32 ID is read from the first CLI argument (see "Running the tutorial" at the bottom of this page) and the BTC/USD pair is `120195681`. The `get_oracle_foreign_accounts` function returns all of the `ForeignAccounts` that you will need to execute the transaction to get the price data from the oracle. Since Pragma's oracle depends on multiple publishers, this function queries all of the publisher account ids required to make a successful FPI call.
+The oracle account ID is read from the first CLI argument (see "Running the tutorial" at the bottom of this page) and the BTC/USD pair is encoded as `[PAIR_PREFIX = 1, PAIR_SUFFIX = 0, 0, 0]` per [Pragma's pair convention](https://github.com/astraly-labs/pragma-miden/blob/main/examples/consume-price/src/main.rs). The `get_oracle_foreign_accounts` function mirrors the walk in Pragma's `consume-price` example: read `pragma::oracle::next_publisher_index`, walk the `pragma::oracle::publishers` map for `i in 2..publisher_count` (Pragma reserves 0 and 1 as sentinels), then for each publisher request its `pragma::publisher::entries` map gated on the `pair_word`. The `trading_pair` requirement is therefore explicit in the function signature; passing a different `pair_word` reads a different price.
 
 :::note
-The oracle account ID, procedure hash, and trading pair ID used in this tutorial reference Pragma's testnet deployment. Live IDs rotate per testnet iteration; the canonical source for the current testnet oracle is the [astraly-labs/pragma-miden README](https://github.com/astraly-labs/pragma-miden#deployments).
+The live oracle path is currently blocked pending a v0.14-compatible Pragma deployment. Pragma's source repo is on `miden-protocol` v0.13; the migration is tracked in [astraly-labs/pragma-miden#40](https://github.com/astraly-labs/pragma-miden/pull/40) (open PR). After Pragma migrates, the oracle account ID and the `get_median` procedure hash hardcoded in `oracle_data_query.rs` (constant `GET_MEDIAN_PROC_HASH`) must be re-verified against the new deployment.
 :::
 
 ## Step 2: Build the price reader smart contract and script
@@ -306,34 +323,40 @@ masm/
 
 ### Oracle price reader smart contract
 
-Below is our oracle price reader contract. It has a a single exported procedure: `get_price`
+Below is our oracle price reader contract. It has a single exported procedure: `get_price`.
 
-The import `miden::tx` contains the `tx::execute_foreign_procedure` which we will use to read the price from the oracle contract.
+The import `miden::protocol::tx` contains `tx::execute_foreign_procedure`, which we use to read the price from the oracle contract.
+
+This file is a **template**: the placeholders `{pair_prefix}`, `{pair_suffix}`, `{get_median_proc_hash}`, `{oracle_id_prefix}`, and `{oracle_id_suffix}` are substituted by the Rust binary (`oracle_reader_source(...)`) before the MASM is compiled. The raw file as shown here is **not** standalone valid MASM. The pair encoding is deployment-agnostic for any `(PAIR_PREFIX, PAIR_SUFFIX)` trading pair, but `{get_median_proc_hash}` and the oracle account ID are deployment-specific to Pragma's testnet oracle and must be re-verified after every Pragma redeploy.
 
 #### Here's a breakdown of what the `get_price` procedure does:
 
-1. Pushes `0.0.0.120195681` onto the stack, representing the BTC/USD pair in the Pragma oracle.
-2. Pushes `0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9` onto the stack which is the procedure root of the `get_median` procedure in the oracle.
-3. Pushes `939716883672832.2172042075194638080` onto the stack which is the oracle id prefix and suffix.
-4. Calls `tx::execute_foreign_procedure` which calls the `get_median` procedure via foreign procedure invocation.
+1. Pushes the BTC/USD pair onto the stack as `[0, 0, {pair_suffix}, {pair_prefix}]`. With the pair encoding `(PAIR_PREFIX = 1, PAIR_SUFFIX = 0)`, this becomes `push.0.0.0.1`.
+2. Pushes the deployment-specific procedure root of `get_median` onto the stack.
+3. Pushes the oracle account ID prefix and suffix onto the stack.
+4. Calls `tx::execute_foreign_procedure` to invoke `get_median` via FPI.
 
 Inside of the `masm/accounts/` directory, create the `oracle_reader.masm` file:
 
 ```masm
+# This file is a template, not standalone valid MASM.
+# See `oracle_reader_source(...)` in src/main.rs for substitution.
+
 use miden::protocol::tx
 
-# Fetches the current price from the `get_median`
-# procedure from the Pragma oracle
-# => []
+#! Reads the current price for a single trading pair from the Pragma oracle
+#! via foreign procedure invocation.
+#!
+#! Inputs:  []
+#! Outputs: [price]
 pub proc get_price
-    push.0.0.0.120195681
+    push.0.0.{pair_suffix}.{pair_prefix}
     # => [PAIR]
 
-    # This is the procedure root of the `get_median` procedure
-    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
+    push.{get_median_proc_hash}
     # => [GET_MEDIAN_HASH, PAIR]
 
-    push.939716883672832.2172042075194638080
+    push.{oracle_id_prefix}.{oracle_id_suffix}
     # => [oracle_id_prefix, oracle_id_suffix, GET_MEDIAN_HASH, PAIR]
 
     exec.tx::execute_foreign_procedure
@@ -364,10 +387,10 @@ end
 
 ## Step 3: Run the program
 
-This tutorial requires a live Pragma oracle deployment. Get the current testnet oracle bech32 ID from the [astraly-labs/pragma-miden README](https://github.com/astraly-labs/pragma-miden#deployments) and pass it as a CLI argument:
+This tutorial requires a v0.14-compatible Pragma oracle deployment. The current Pragma deployment is on `miden-protocol` v0.13 (see [astraly-labs/pragma-miden#40](https://github.com/astraly-labs/pragma-miden/pull/40), open), so the live FPI walk will fail until that migration lands. The tutorial code itself is correct and will work the moment Pragma redeploys. Get the current testnet oracle account ID (bech32 or hex) from the [astraly-labs/pragma-miden README](https://github.com/astraly-labs/pragma-miden#deployments) and pass it as a CLI argument:
 
 ```
-cargo run --release -- <ORACLE_BECH32_ID>
+cargo run --release -- <ORACLE_ACCOUNT_ID>
 ```
 
 The output of our program will look something like this:
@@ -409,10 +432,10 @@ To run this tutorial end-to-end, navigate to the `rust-client` directory in the 
 
 ```bash
 cd rust-client
-cargo run --release --bin oracle_data_query -- <ORACLE_BECH32_ID>
+cargo run --release --bin oracle_data_query -- <ORACLE_ACCOUNT_ID>
 ```
 
-where `<ORACLE_BECH32_ID>` is Pragma's deployed oracle account ID on testnet.
+where `<ORACLE_ACCOUNT_ID>` is Pragma's deployed oracle account ID on testnet.
 
 ### Continue learning
 

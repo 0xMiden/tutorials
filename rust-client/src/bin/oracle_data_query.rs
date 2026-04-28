@@ -2,7 +2,6 @@ use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
         AccountStorageMode, AccountType, StorageMapKey, StorageSlot, StorageSlotName,
-        StorageSlotType,
     },
     auth::NoAuth,
     builder::ClientBuilder,
@@ -12,89 +11,75 @@ use miden_client::{
         Endpoint, GrpcClient,
     },
     transaction::{ForeignAccount, TransactionRequestBuilder},
-    Client, ClientError, Word,
+    Client, ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
 
-/// Import the oracle + its publishers and return the ForeignAccount list
-/// Due to Pragma's decentralized oracle architecture, we need to get the
-/// list of all data publisher accounts to read price from via a nested FPI call
+// BTC/USD pair encoding per `astraly-labs/pragma-miden`.
+const PAIR_PREFIX: u64 = 1;
+const PAIR_SUFFIX: u64 = 0;
+
+// Pragma oracle storage slot names. Match the constants in
+// `astraly-labs/pragma-miden/crates/accounts/src/oracle/oracle.masm`
+// and `publisher/publisher.masm`.
+const SLOT_NEXT_INDEX: &str = "pragma::oracle::next_publisher_index";
+const SLOT_PUBLISHERS: &str = "pragma::oracle::publishers";
+const SLOT_ENTRIES: &str = "pragma::publisher::entries";
+
+// Procedure root of the `get_median` procedure on the deployed Pragma oracle
+// contract. DEPLOYMENT-SPECIFIC: this hash must be re-verified after every
+// Pragma redeploy. Source of truth:
+// https://github.com/astraly-labs/pragma-miden#deployments
+const GET_MEDIAN_PROC_HASH: &str =
+    "0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9";
+
+/// Walks the Pragma oracle's storage to import the oracle and all of its
+/// publisher accounts as `ForeignAccount`s. Each publisher's
+/// `pragma::publisher::entries` map is gated on the supplied `pair_word`,
+/// so the returned foreign-account list only proves what's needed to read
+/// that single trading pair via FPI.
+///
+/// `pair_word` is a 4-element Word `[prefix, suffix, 0, 0]`. For BTC/USD
+/// per Pragma's convention, build it from `PAIR_PREFIX = 1, PAIR_SUFFIX = 0`.
+///
+/// Mirrors the walk pattern in
+/// `astraly-labs/pragma-miden/examples/consume-price/src/main.rs`.
 pub async fn get_oracle_foreign_accounts(
     client: &mut Client<FilesystemKeyStore>,
     oracle_account_id: AccountId,
-    trading_pair: u64,
+    pair_word: Word,
 ) -> Result<Vec<ForeignAccount>, ClientError> {
     client.import_account_by_id(oracle_account_id).await?;
+    println!("Imported oracle account: {}", oracle_account_id);
 
-    let oracle_record = client
+    let oracle = client
         .get_account(oracle_account_id)
-        .await
-        .expect("RPC failed")
+        .await?
         .expect("oracle account not found");
+    let storage = oracle.storage();
 
-    let storage = oracle_record.storage();
-    let publisher_count_slot = storage
-        .slots()
-        .iter()
-        .find(|slot| {
-            let name = slot.name().as_str();
-            name.contains("publisher") && name.contains("count")
-        })
-        .map(|slot| slot.name().clone())
-        .or_else(|| storage.slots().first().map(|slot| slot.name().clone()))
-        .expect("oracle storage is expected to have at least one slot");
+    let count_slot = StorageSlotName::new(SLOT_NEXT_INDEX).expect("valid slot name");
+    let publishers_slot = StorageSlotName::new(SLOT_PUBLISHERS).expect("valid slot name");
+    let entries_slot = StorageSlotName::new(SLOT_ENTRIES).expect("valid slot name");
 
-    let publisher_count = storage
-        .get_item(&publisher_count_slot)
-        .map(|word| word[0].as_canonical_u64())
-        .unwrap_or(0);
+    let publisher_count = storage.get_item(&count_slot)?[0].as_canonical_u64();
+    let pair_key = StorageMapKey::new(pair_word);
 
-    let publisher_id_slots: Vec<StorageSlotName> = storage
-        .slots()
-        .iter()
-        .filter(|slot| slot.slot_type() == StorageSlotType::Value)
-        .filter(|slot| slot.name() != &publisher_count_slot)
-        .map(|slot| slot.name().clone())
-        .collect();
+    // Pragma reserves indices 0 and 1 as sentinels; real publishers start at 2.
+    let mut foreign_accounts = Vec::with_capacity(publisher_count.saturating_sub(2) as usize + 1);
+    for i in 2..publisher_count {
+        let key: Word = [Felt::new(i), Felt::ZERO, Felt::ZERO, Felt::ZERO].into();
+        let w: Word = storage.get_map_item(&publishers_slot, key)?;
+        // The publisher record stores `[suffix, prefix, ...]` at indices [2..3].
+        let pid = AccountId::new_unchecked([w[3], w[2]]);
 
-    let publisher_ids: Vec<AccountId> = publisher_id_slots
-        .iter()
-        .take(publisher_count.saturating_sub(1) as usize)
-        .filter_map(|slot_name| storage.get_item(slot_name).ok())
-        .map(|digest| {
-            let words: Word = digest.into();
-            AccountId::new_unchecked([words[3], words[2]])
-        })
-        .collect();
-
-    let mut foreign_accounts = Vec::with_capacity(publisher_ids.len() + 1);
-    let empty_keys: [StorageMapKey; 0] = [];
-
-    for pid in publisher_ids {
         client.import_account_by_id(pid).await?;
-
-        let publisher_record = client
-            .get_account(pid)
-            .await
-            .expect("RPC failed")
-            .expect("publisher account not found");
-        let map_slot_names: Vec<StorageSlotName> = publisher_record
-            .storage()
-            .slots()
-            .iter()
-            .filter(|slot| slot.slot_type() == StorageSlotType::Map)
-            .map(|slot| slot.name().clone())
-            .collect();
-
-        let storage_requirements = AccountStorageRequirements::new(
-            map_slot_names
-                .iter()
-                .map(|slot_name| (slot_name.clone(), empty_keys.iter())),
-        );
-
-        foreign_accounts.push(ForeignAccount::public(pid, storage_requirements)?);
+        foreign_accounts.push(ForeignAccount::public(
+            pid,
+            AccountStorageRequirements::new([(entries_slot.clone(), [pair_key].iter())]),
+        )?);
     }
 
     foreign_accounts.push(ForeignAccount::public(
@@ -103,6 +88,19 @@ pub async fn get_oracle_foreign_accounts(
     )?);
 
     Ok(foreign_accounts)
+}
+
+/// Fills the `oracle_reader.masm` template with deployment-specific values.
+fn oracle_reader_source(oracle_id: AccountId) -> String {
+    include_str!("../../../masm/accounts/oracle_reader.masm")
+        .replace("{pair_prefix}", &PAIR_PREFIX.to_string())
+        .replace("{pair_suffix}", &PAIR_SUFFIX.to_string())
+        .replace("{get_median_proc_hash}", GET_MEDIAN_PROC_HASH)
+        .replace("{oracle_id_prefix}", &u64::from(oracle_id.prefix()).to_string())
+        .replace(
+            "{oracle_id_suffix}",
+            &oracle_id.suffix().as_canonical_u64().to_string(),
+        )
 }
 
 #[tokio::main]
@@ -130,39 +128,65 @@ async fn main() -> Result<(), ClientError> {
     println!("Latest block: {}", client.sync_state().await?.block_num);
 
     // -------------------------------------------------------------------------
-    // Get all foreign accounts for oracle data
+    // Parse and validate oracle account ID from CLI
     // -------------------------------------------------------------------------
-    // The Pragma oracle bech32 ID is read from the first CLI argument.
-    // Live IDs rotate per testnet iteration; the canonical source for the
-    // current testnet oracle is the `astraly-labs/pragma-miden` README:
+    // The Pragma oracle account ID is read from the first CLI argument and
+    // accepted in either bech32 (`mtst1...`) or hex (`0x...`) form via
+    // `AccountId::parse`. Live IDs rotate per testnet iteration; the
+    // canonical source is the `astraly-labs/pragma-miden` README:
     //   https://github.com/astraly-labs/pragma-miden#deployments
-    // Run as: `cargo run --release --bin oracle_data_query -- <ORACLE_BECH32_ID>`
-    let oracle_bech32 = std::env::args()
-        .nth(1)
-        .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
-    let (_, oracle_account_id) = AccountId::from_bech32(&oracle_bech32).unwrap();
-    let btc_usd_pair_id = 120195681;
-    let foreign_accounts: Vec<ForeignAccount> =
-        get_oracle_foreign_accounts(&mut client, oracle_account_id, btc_usd_pair_id).await?;
-
-    println!(
-        "Oracle accountId prefix: {:?} suffix: {:?}",
-        oracle_account_id.prefix(),
-        oracle_account_id.suffix()
+    // Run as:
+    //   cargo run --release --bin oracle_data_query -- <ORACLE_ACCOUNT_ID>
+    let oracle_arg = std::env::args().nth(1).expect(
+        "Usage: oracle_data_query <ORACLE_ACCOUNT_ID> -- pass the current testnet oracle ID from https://github.com/astraly-labs/pragma-miden#deployments",
     );
+    let (oracle_account_id, _network) =
+        AccountId::parse(&oracle_arg).expect("Invalid account ID format (expected bech32 or hex)");
+    println!(
+        "Parsed oracle ID: prefix={}, suffix={}",
+        u64::from(oracle_account_id.prefix()),
+        oracle_account_id.suffix().as_canonical_u64(),
+    );
+
+    // -------------------------------------------------------------------------
+    // Get all foreign accounts for oracle data (BTC/USD pair)
+    // -------------------------------------------------------------------------
+    let pair_word: Word = [
+        Felt::new(PAIR_PREFIX),
+        Felt::new(PAIR_SUFFIX),
+        Felt::ZERO,
+        Felt::ZERO,
+    ]
+    .into();
+    let foreign_accounts: Vec<ForeignAccount> =
+        get_oracle_foreign_accounts(&mut client, oracle_account_id, pair_word).await?;
 
     // -------------------------------------------------------------------------
     // Create Oracle Reader contract
     // -------------------------------------------------------------------------
-    // `include_str!` resolves at compile time relative to this source file,
-    // so the binary is independent of the working directory it is run from.
-    let contract_code = include_str!("../../../masm/accounts/oracle_reader.masm");
+    // The oracle_reader masm file is a template; fill placeholders using the
+    // parsed oracle account ID, the pair encoding, and the deployment-specific
+    // procedure hash.
+    let contract_code: String = oracle_reader_source(oracle_account_id);
+
+    // Defensive gate: if any placeholder was missed, fail loudly here rather
+    // than letting the MASM assembler emit an opaque parse error. The braces
+    // `{` / `}` only appear in oracle_reader.masm as template tokens.
+    if let Some(bad) = contract_code
+        .lines()
+        .find(|l| l.contains('{') || l.contains('}'))
+    {
+        panic!(
+            "oracle_reader template substitution incomplete; offending line: `{}`",
+            bad.trim()
+        );
+    }
 
     let contract_slot_name =
         StorageSlotName::new("miden::tutorials::oracle_reader").expect("valid slot name");
     let contract_component_code = client
         .code_builder()
-        .compile_component_code("external_contract::oracle_reader", contract_code)
+        .compile_component_code("external_contract::oracle_reader", contract_code.as_str())
         .unwrap();
     let contract_component = AccountComponent::new(
         contract_component_code,
@@ -201,19 +225,19 @@ async fn main() -> Result<(), ClientError> {
     // miden-vm#2778).
     let tx_script = client
         .code_builder()
-        .with_linked_module("external_contract::oracle_reader", contract_code)
+        .with_linked_module("external_contract::oracle_reader", contract_code.as_str())
         .unwrap()
         .compile_tx_script(script_code)
         .unwrap();
 
-    let tx_increment_request = TransactionRequestBuilder::new()
+    let tx_request = TransactionRequestBuilder::new()
         .foreign_accounts(foreign_accounts)
         .custom_script(tx_script)
         .build()
         .unwrap();
 
     let tx_id = client
-        .submit_new_transaction(oracle_reader_contract.id(), tx_increment_request)
+        .submit_new_transaction(oracle_reader_contract.id(), tx_request)
         .await
         .unwrap();
 
