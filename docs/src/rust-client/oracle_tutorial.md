@@ -193,21 +193,14 @@ async fn main() -> Result<(), ClientError> {
     );
 
     // -------------------------------------------------------------------------
-    // Get all foreign accounts for oracle data (BTC/USD)
+    // Build & locally compile the oracle reader contract + script
     // -------------------------------------------------------------------------
-    let pair_word: Word = [
-        Felt::new(PAIR_PREFIX),
-        Felt::new(PAIR_SUFFIX),
-        Felt::ZERO,
-        Felt::ZERO,
-    ]
-    .into();
-    let foreign_accounts: Vec<ForeignAccount> =
-        get_oracle_foreign_accounts(&mut client, oracle_account_id, pair_word).await?;
-
-    // -------------------------------------------------------------------------
-    // Create Oracle Reader contract
-    // -------------------------------------------------------------------------
+    // We do this BEFORE walking publishers so that a dead Pragma oracle does
+    // not block local verification of the template substitution and the MASM
+    // assembly. If anything below panics or fails to compile, the bug is in
+    // our code; if it succeeds and only the publisher walk fails, the bug is
+    // upstream (Pragma deployment availability).
+    //
     // `oracle_reader.masm` is a *template*: the placeholders `{pair_prefix}`,
     // `{pair_suffix}`, `{get_median_proc_hash}`, `{oracle_id_prefix}`, and
     // `{oracle_id_suffix}` are substituted by the Rust binary before the
@@ -225,6 +218,7 @@ async fn main() -> Result<(), ClientError> {
             bad.trim()
         );
     }
+    println!("oracle_reader template substituted (no leftover placeholders)");
 
     let contract_slot_name =
         StorageSlotName::new("miden::tutorials::oracle_reader").expect("valid slot name");
@@ -232,6 +226,8 @@ async fn main() -> Result<(), ClientError> {
         .code_builder()
         .compile_component_code("external_contract::oracle_reader", contract_code.as_str())
         .unwrap();
+    println!("Compiled oracle_reader component locally");
+
     let contract_component = AccountComponent::new(
         contract_component_code,
         vec![StorageSlot::with_value(contract_slot_name.clone(), Word::default())],
@@ -256,7 +252,7 @@ async fn main() -> Result<(), ClientError> {
         .unwrap();
 
     // -------------------------------------------------------------------------
-    // Build the script that calls our `get_price` procedure
+    // Compile the script that calls our `get_price` procedure
     // -------------------------------------------------------------------------
     let script_code = include_str!("../masm/scripts/oracle_reader_script.masm");
 
@@ -270,15 +266,34 @@ async fn main() -> Result<(), ClientError> {
         .unwrap()
         .compile_tx_script(script_code)
         .unwrap();
+    println!("Compiled tx_script with linked oracle_reader module");
 
-    let tx_increment_request = TransactionRequestBuilder::new()
+    // -------------------------------------------------------------------------
+    // Walk Pragma's storage to import the oracle + publishers (BTC/USD pair)
+    // -------------------------------------------------------------------------
+    // This is the FIRST step that depends on a live Pragma deployment. If
+    // Pragma is on a different miden-protocol version than this tutorial, or
+    // if Pragma's accounts have been redeployed without updating the IDs, this
+    // call will fail with `AccountNotFoundOnChain`. The local compile above
+    // proves the template + MASM path is healthy independent of that.
+    let pair_word: Word = [
+        Felt::new(PAIR_PREFIX),
+        Felt::new(PAIR_SUFFIX),
+        Felt::ZERO,
+        Felt::ZERO,
+    ]
+    .into();
+    let foreign_accounts: Vec<ForeignAccount> =
+        get_oracle_foreign_accounts(&mut client, oracle_account_id, pair_word).await?;
+
+    let tx_request = TransactionRequestBuilder::new()
         .foreign_accounts(foreign_accounts)
         .custom_script(tx_script)
         .build()
         .unwrap();
 
     let tx_id = client
-        .submit_new_transaction(oracle_reader_contract.id(), tx_increment_request)
+        .submit_new_transaction(oracle_reader_contract.id(), tx_request)
         .await
         .unwrap();
 
@@ -295,7 +310,7 @@ async fn main() -> Result<(), ClientError> {
 
 _Don't run this code just yet, we still need to create our smart contract that queries the oracle_
 
-The oracle account ID is read from the first CLI argument (see "Running the tutorial" at the bottom of this page) and the BTC/USD pair is encoded as `[PAIR_PREFIX = 1, PAIR_SUFFIX = 0, 0, 0]` per [Pragma's pair convention](https://github.com/astraly-labs/pragma-miden/blob/main/examples/consume-price/src/main.rs). The `get_oracle_foreign_accounts` function mirrors the walk in Pragma's `consume-price` example: read `pragma::oracle::next_publisher_index`, walk the `pragma::oracle::publishers` map for `i in 2..publisher_count` (Pragma reserves 0 and 1 as sentinels), then for each publisher request its `pragma::publisher::entries` map gated on the `pair_word`. The `trading_pair` requirement is therefore explicit in the function signature; passing a different `pair_word` reads a different price.
+The oracle account ID is read from the first CLI argument (see "Running the tutorial" at the bottom of this page) and the BTC/USD pair is encoded as `[PAIR_PREFIX = 1, PAIR_SUFFIX = 0, 0, 0]` per [Pragma's pair convention](https://github.com/astraly-labs/pragma-miden/blob/main/examples/consume-price/src/main.rs). The `get_oracle_foreign_accounts` function mirrors the walk in Pragma's `consume-price` example: read `pragma::oracle::next_publisher_index`, walk the `pragma::oracle::publishers` map for `i in 2..publisher_count` (Pragma reserves 0 and 1 as sentinels), then for each publisher request its `pragma::publisher::entries` map gated on the `pair_word`. The `pair_word` requirement is therefore explicit in the function signature; passing a different `pair_word` reads a different price.
 
 :::note
 The live oracle path is currently blocked pending a v0.14-compatible Pragma deployment. Pragma's source repo is on `miden-protocol` v0.13; the migration is tracked in [astraly-labs/pragma-miden#40](https://github.com/astraly-labs/pragma-miden/pull/40) (open PR). After Pragma migrates, the oracle account ID _and_ the `get_median` procedure hash hardcoded in `oracle_data_query.rs` (constant `GET_MEDIAN_PROC_HASH`) must be re-verified against the new deployment before the tutorial can be relied on. Both values are deployment-specific; do not assume they survive a redeploy unchanged.
