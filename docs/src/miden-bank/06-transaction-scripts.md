@@ -271,7 +271,8 @@ use integration::helpers::{
 };
 
 use miden_client::{
-    account::{StorageMap, StorageSlot, StorageSlotName},
+    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
+    auth::AuthSchemeId,
     transaction::TransactionScript,
     Word,
 };
@@ -326,13 +327,13 @@ async fn init_test() -> anyhow::Result<()> {
 
     // Build mock chain
     let mut builder = MockChain::builder();
-    builder.add_existing_basic_faucet(Auth::BasicAuth, "TEST", 10_000_000, Some(10))?;
+    builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", 10_000_000, Some(10))?;
     builder.add_account(bank_account.clone())?;
     let mut mock_chain = builder.build()?;
 
     // Execute init transaction script
     let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
+    let init_tx_script = TransactionScript::new(init_program);
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?

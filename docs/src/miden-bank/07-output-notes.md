@@ -406,7 +406,7 @@ use integration::helpers::{
     AccountCreationConfig, NoteCreationConfig,
 };
 use miden_client::{
-    account::{StorageMap, StorageSlotName},
+    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
     asset::{Asset, FungibleAsset},
     auth::AuthSchemeId,
     note::{P2idNote, P2idNoteStorage, Note, NoteAssets, NoteMetadata, NoteTag, NoteType},
@@ -417,7 +417,7 @@ use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
 #[tokio::test]
-async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
+async fn withdraw_test() -> anyhow::Result<()> {
     // =========================================================================
     // SETUP
     // =========================================================================
@@ -550,7 +550,7 @@ async fn test_withdraw_creates_p2id_note() -> anyhow::Result<()> {
 
     // Initialize bank
     let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
+    let init_tx_script = TransactionScript::new(init_program);
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
         .tx_script(init_tx_script)

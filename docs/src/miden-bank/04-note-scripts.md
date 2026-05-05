@@ -259,12 +259,16 @@ The initialization guard (`require_initialized()`) is intentionally commented ou
 
 Create the test file:
 
-```rust title="integration/tests/part4_deposit_test.rs"
+:::note Illustrative snippet
+The snippet below illustrates the deposit happy-path. The shipped repository's `examples/miden-bank/integration/tests/deposit_test.rs` is the source of truth and additionally exercises failure paths (`deposit_exceeds_max_should_fail`, `deposit_without_init_should_fail`).
+:::
+
+```rust title="integration/tests/deposit_test.rs (illustrative — see shipped file for the full version)"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package,
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
-use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
+use miden_client::account::{component::{InitStorageData, StorageValueName}, StorageSlotName};
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::auth::AuthSchemeId;
 use miden_client::note::NoteAssets;
@@ -274,7 +278,7 @@ use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
 #[tokio::test]
-async fn test_deposit_flow() -> anyhow::Result<()> {
+async fn deposit_test() -> anyhow::Result<()> {
     // =========================================================================
     // SETUP: Build contracts and create mock chain
     // =========================================================================
@@ -383,7 +387,7 @@ async fn test_deposit_flow() -> anyhow::Result<()> {
 Run the test from the project root:
 
 ```bash title=">_ Terminal"
-cargo test --package integration --test part4_deposit_test -- --nocapture
+cargo test --package integration --test deposit_test -- --nocapture
 ```
 
 <details>
@@ -392,16 +396,14 @@ cargo test --package integration --test part4_deposit_test -- --nocapture
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
     Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part4_deposit_test.rs
+     Running tests/deposit_test.rs
 
-running 1 test
-Deposit transaction executed!
-Depositor balance: 1000
+running 3 tests
+test deposit_test ... ok
+test deposit_exceeds_max_should_fail ... ok
+test deposit_without_init_should_fail ... ok
 
-Part 4 deposit test passed!
-test test_deposit_flow ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 3 passed; 0 failed; 0 ignored
 ```
 
 </details>

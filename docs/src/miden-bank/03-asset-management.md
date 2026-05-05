@@ -298,7 +298,7 @@ use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package,
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
-use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
+use miden_client::account::{component::{InitStorageData, StorageValueName}, StorageSlotName};
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::auth::AuthSchemeId;
 use miden_client::note::NoteAssets;
@@ -308,7 +308,7 @@ use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
 #[tokio::test]
-async fn test_deposit_updates_balance() -> anyhow::Result<()> {
+async fn deposit_test() -> anyhow::Result<()> {
     // =========================================================================
     // SETUP
     // =========================================================================
