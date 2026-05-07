@@ -162,9 +162,7 @@ async fn main() -> Result<(), ClientError> {
         );
 
     // Link the count reader contract code into the same `CodeBuilder` chain
-    // that compiles the script, so the assembler shares the client's
-    // persisted source manager (avoids the source-span mismatch from
-    // miden-vm#2778).
+    // that compiles the script.
     let tx_script = client
         .code_builder()
         .with_linked_module("external_contract::count_reader_contract", count_reader_code)

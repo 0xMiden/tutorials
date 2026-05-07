@@ -165,8 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let script_code = include_str!("../../../masm/scripts/counter_script.masm");
 
     // Link the counter contract code into the same `CodeBuilder` chain that
-    // compiles the script, so the assembler shares the client's persisted
-    // source manager (avoids the source-span mismatch from miden-vm#2778).
+    // compiles the script.
     let tx_script = client
         .code_builder()
         .with_linked_module("external_contract::counter_contract", counter_code)?
@@ -202,7 +201,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let serial_num = client.rng().draw_word();
 
     // Compile the note script with the counter contract code linked as a
-    // module on the same `CodeBuilder` chain (avoids miden-vm#2778).
+    // module on the same `CodeBuilder` chain.
     let note_script = client
         .code_builder()
         .with_linked_module("external_contract::counter_contract", counter_code)?

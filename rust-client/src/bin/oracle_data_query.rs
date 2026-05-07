@@ -212,9 +212,7 @@ async fn main() -> Result<(), ClientError> {
     let script_code = include_str!("../../../masm/scripts/oracle_reader_script.masm");
 
     // Link the oracle reader contract code into the same `CodeBuilder` chain
-    // that compiles the script, so the assembler shares the client's
-    // persisted source manager (avoids the source-span mismatch from
-    // miden-vm#2778).
+    // that compiles the script.
     let tx_script = client
         .code_builder()
         .with_linked_module("external_contract::oracle_reader", contract_code.as_str())

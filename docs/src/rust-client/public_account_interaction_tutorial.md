@@ -220,9 +220,8 @@ println!("\n[STEP 2] Call the increment_count procedure in the counter contract"
 let script_code = include_str!("../masm/scripts/counter_script.masm");
 let counter_code = include_str!("../masm/accounts/counter.masm");
 
-// Compile the script against the counter contract code via a single
-// `CodeBuilder` chain so the assembler shares the client's persisted
-// source manager (avoids the source-span mismatch from miden-vm#2778).
+// Compile the script with the counter contract code linked as a module
+// on the same `CodeBuilder` chain.
 let tx_script = client
     .code_builder()
     .with_linked_module("external_contract::counter_contract", counter_code)
@@ -339,9 +338,8 @@ async fn main() -> Result<(), ClientError> {
     let script_code = include_str!("../masm/scripts/counter_script.masm");
     let counter_code = include_str!("../masm/accounts/counter.masm");
 
-    // Compile the script against the counter contract code via a single
-    // `CodeBuilder` chain so the assembler shares the client's persisted
-    // source manager (avoids the source-span mismatch from miden-vm#2778).
+    // Compile the script with the counter contract code linked as a module
+    // on the same `CodeBuilder` chain.
     let tx_script = client
         .code_builder()
         .with_linked_module("external_contract::counter_contract", counter_code)

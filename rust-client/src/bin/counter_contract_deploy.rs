@@ -51,9 +51,6 @@ async fn main() -> Result<(), ClientError> {
     let counter_code = include_str!("../../../masm/accounts/counter.masm");
 
     // Compile the account code into `AccountComponent` with one storage slot.
-    // Using `client.code_builder()` makes the assembler share the client's
-    // persisted source manager, which keeps debug spans coherent for any
-    // libraries that link against this code later (see miden-vm#2778).
     let counter_slot_name =
         StorageSlotName::new("miden::tutorials::counter").expect("valid slot name");
     let component_code = client
@@ -100,10 +97,8 @@ async fn main() -> Result<(), ClientError> {
     // Load the MASM script referencing the increment procedure
     let script_code = include_str!("../../../masm/scripts/counter_script.masm");
 
-    // Compile the script with the counter contract code linked as a dynamic
-    // module on the same `CodeBuilder`. This shares the client's source
-    // manager between parsing and assembly, which is what miden-vm#2778
-    // requires to avoid panics when debug spans are reported.
+    // Compile the script with the counter contract code linked as a module
+    // on the same `CodeBuilder` chain.
     let tx_script = client
         .code_builder()
         .with_linked_module("external_contract::counter_contract", counter_code)

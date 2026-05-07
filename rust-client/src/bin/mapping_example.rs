@@ -98,8 +98,7 @@ async fn main() -> Result<(), ClientError> {
     let script_code = include_str!("../../../masm/scripts/mapping_example_script.masm");
 
     // Compile the transaction script with the account code linked as a
-    // module on the same `CodeBuilder` chain (avoids the source-span
-    // mismatch from miden-vm#2778).
+    // module on the same `CodeBuilder` chain.
     let tx_script = client
         .code_builder()
         .with_linked_module("miden_by_example::mapping_example_contract", account_code)
