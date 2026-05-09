@@ -1,5 +1,7 @@
 use external_contract::counter_contract
 
+# => [pad(16)]
 begin
     call.counter_contract::increment_count
+    # => [pad(16)]
 end
