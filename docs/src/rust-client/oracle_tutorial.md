@@ -330,7 +330,7 @@ masm/
 
 ### Oracle price reader smart contract
 
-Below is our oracle price reader contract. It has a a single exported procedure: `get_price`
+Below is our oracle price reader contract. It has a single exported procedure: `get_price`
 
 The import `miden::tx` contains the `tx::execute_foreign_procedure` which we will use to read the price from the oracle contract.
 
