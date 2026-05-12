@@ -153,9 +153,9 @@ Add this snippet to the end of your file in the `main()` function:
 
 ```rust ignore
 //------------------------------------------------------------
-// STEP 1: Create a basic wallet for Alice
+// STEP 3: Create a basic wallet for Alice
 //------------------------------------------------------------
-println!("\n[STEP 1] Creating a new account for Alice");
+println!("\n[STEP 3] Creating a new account for Alice");
 
 // Account seed
 let mut init_seed = [0_u8; 32];
@@ -193,9 +193,9 @@ Add this snippet to the end of your file in the `main()` function:
 
 ```rust ignore
 //------------------------------------------------------------
-// STEP 2: Deploy a fungible faucet
+// STEP 4: Deploy a fungible faucet
 //------------------------------------------------------------
-println!("\n[STEP 2] Deploying a new fungible faucet.");
+println!("\n[STEP 4] Deploying a new fungible faucet.");
 
 // Faucet seed
 let mut init_seed = [0u8; 32];
@@ -292,9 +292,9 @@ async fn main() -> Result<(), ClientError> {
     println!("Latest block: {}", sync_summary.block_num);
 
     //------------------------------------------------------------
-    // STEP 1: Create a basic wallet for Alice
+    // STEP 3: Create a basic wallet for Alice
     //------------------------------------------------------------
-    println!("\n[STEP 1] Creating a new account for Alice");
+    println!("\n[STEP 3] Creating a new account for Alice");
 
     // Account seed
     let mut init_seed = [0_u8; 32];
@@ -321,9 +321,9 @@ async fn main() -> Result<(), ClientError> {
     println!("Alice's account ID: {:?}", alice_account_id_bech32);
 
     //------------------------------------------------------------
-    // STEP 2: Deploy a fungible faucet
+    // STEP 4: Deploy a fungible faucet
     //------------------------------------------------------------
-    println!("\n[STEP 2] Deploying a new fungible faucet.");
+    println!("\n[STEP 4] Deploying a new fungible faucet.");
 
     // Faucet seed
     let mut init_seed = [0u8; 32];
@@ -375,10 +375,10 @@ The output will look like this:
 ```text
 Latest block: 17771
 
-[STEP 1] Creating a new account for Alice
+[STEP 3] Creating a new account for Alice
 Alice's account ID: "0x3cb3e596d14ad410000017901eaa7b"
 
-[STEP 2] Deploying a new fungible faucet.
+[STEP 4] Deploying a new fungible faucet.
 Faucet account ID: "0x6ad1894ac233e4200000088311bb6b"
 ```
 

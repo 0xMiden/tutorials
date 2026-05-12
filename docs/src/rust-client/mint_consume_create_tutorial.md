@@ -129,6 +129,12 @@ loop {
 }
 ```
 
+If you want to verify Alice's updated balance after the consume transaction, first call
+`client.sync_state().await?` and then fetch a fresh account snapshot with
+`client.get_account(alice_account.id()).await?`. The original `alice_account` variable was
+created earlier in the tutorial, so it does not update in place when later transactions change the
+wallet state.
+
 ## Step 4: Sending tokens to other accounts
 
 After consuming the notes, Alice has tokens in her wallet. Now, she wants to send tokens to her friends. She has two options: create a separate transaction for each transfer or batch multiple transfers into a single transaction.
