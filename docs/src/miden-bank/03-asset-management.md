@@ -85,13 +85,19 @@ Update `contracts/bank-account/src/lib.rs` to complete the deposit function with
 ```rust title="contracts/bank-account/src/lib.rs"
 /// Deposit assets into the bank.
 pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-    // ========================================================================
-    // CONSTRAINT: Bank must be initialized
-    // ========================================================================
-    self.require_initialized();
+    // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+    // self.require_initialized();
 
     // Extract the fungible amount from the asset value word
     let deposit_amount = deposit_asset.value[0];
+
+    // ========================================================================
+    // CONSTRAINT: Fungible asset check
+    // ========================================================================
+    assert!(
+        deposit_asset.value[1].as_canonical_u64() == 0,
+        "Only fungible assets are supported"
+    );
 
     // ========================================================================
     // CONSTRAINT: Maximum deposit amount check
@@ -102,10 +108,9 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     );
 
     // ========================================================================
-    // UPDATE BALANCE
+    // UPDATE BALANCE (integer-space validation)
     // ========================================================================
     // Create key from depositor's AccountId and asset faucet ID
-    // This allows tracking balances per depositor per asset type
     let key = Word::from([
         depositor.prefix,
         depositor.suffix,
@@ -113,10 +118,22 @@ pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         deposit_asset.key[2], // faucet_suffix
     ]);
 
-    // Update balance: current + deposit_amount
+    // Update balance in integer space to avoid modular Felt wraparound.
+    // Felt arithmetic is modular (wraps at the Goldilocks prime), so we
+    // validate entirely in u64 before storing the result as a Felt.
     let current_balance: Felt = self.balances.get(key);
-    let new_balance = current_balance + deposit_amount;
-    self.balances.set(key, new_balance);
+    let current_u64 = current_balance.as_canonical_u64();
+    let deposit_u64 = deposit_amount.as_canonical_u64();
+
+    let new_balance_u64 = current_u64
+        .checked_add(deposit_u64)
+        .expect("Balance overflow: addition exceeds u64 range");
+    assert!(
+        new_balance_u64 <= MAX_BALANCE,
+        "Balance would exceed maximum allowed"
+    );
+
+    self.balances.set(key, Felt::new(new_balance_u64));
 
     // ========================================================================
     // ADD ASSET TO VAULT
@@ -176,21 +193,29 @@ Add this method to your Bank impl block:
 ```rust title="contracts/bank-account/src/lib.rs"
 /// Withdraw assets from the bank.
 /// Creates a P2ID note to send assets back to the depositor.
+/// The depositor is identified via `active_note::get_sender()` internally.
 pub fn withdraw(
     &mut self,
-    depositor: AccountId,
     withdraw_asset: Asset,
     serial_num: Word,
     tag: Felt,
     note_type: Felt,
 ) {
-    // ========================================================================
-    // CONSTRAINT: Bank must be initialized
-    // ========================================================================
-    self.require_initialized();
+    // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+    // self.require_initialized();
+
+    // Identify the depositor from the note's sender — this is
+    // cryptographically bound and cannot be spoofed by a malicious caller.
+    let depositor = active_note::get_sender();
 
     // Extract the fungible amount from the asset value word
     let withdraw_amount = withdraw_asset.value[0];
+
+    // Verify this is a fungible asset
+    assert!(
+        withdraw_asset.value[1].as_canonical_u64() == 0,
+        "Only fungible assets are supported"
+    );
 
     // Create key from depositor's AccountId and asset faucet ID
     let key = Word::from([
@@ -252,14 +277,28 @@ miden build
 
 ## Try It: Verify Deposits Work
 
-Let's write a test to verify our deposit logic works correctly:
+First, verify your bank-account contract compiles:
 
-```rust title="integration/tests/part3_deposit_test.rs"
+```bash title=">_ Terminal"
+cd contracts/bank-account
+miden build
+```
+
+:::note Test Dependencies
+The full deposit test below requires the `deposit-note` contract from Part 4. You can return to run this test after completing Part 4.
+:::
+
+<details>
+<summary>Preview: Full deposit test (runnable after Part 4)</summary>
+
+This test verifies the complete deposit flow:
+
+```rust title="integration/tests/deposit_test.rs"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package,
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
-use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
+use miden_client::account::{component::{InitStorageData, StorageValueName}, StorageSlotName};
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::auth::AuthSchemeId;
 use miden_client::note::NoteAssets;
@@ -269,7 +308,7 @@ use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
 #[tokio::test]
-async fn test_deposit_updates_balance() -> anyhow::Result<()> {
+async fn deposit_test() -> anyhow::Result<()> {
     // =========================================================================
     // SETUP
     // =========================================================================
@@ -289,11 +328,6 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
 
     let deposit_note_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/deposit-note"),
-        true,
-    )?);
-
-    let init_tx_script_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/init-tx-script"),
         true,
     )?);
 
@@ -343,32 +377,8 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
     let mut mock_chain = builder.build()?;
 
     // =========================================================================
-    // STEP 1: Initialize the bank
-    // =========================================================================
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
-
-    let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
-        .tx_script(init_tx_script)
-        .build()?;
-
-    let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
-    mock_chain.add_pending_executed_transaction(&executed_init)?;
-    mock_chain.prove_next_block()?;
-
-    // Verify initialization
-    let initialized = bank_account.storage().get_item(&initialized_slot)?;
-    assert_eq!(
-        initialized[0].as_canonical_u64(),
-        1,
-        "Bank should be initialized"
-    );
-    println!("Bank initialized successfully!");
-
-    // =========================================================================
-    // STEP 2: Execute deposit
+    // Execute deposit (init guard is not yet active at this tutorial stage —
+    // it is enabled in Part 6)
     // =========================================================================
 
     // Execute deposit transaction
@@ -411,26 +421,10 @@ async fn test_deposit_updates_balance() -> anyhow::Result<()> {
 }
 ```
 
-:::note Test Dependencies
-This test requires:
-
-- `deposit-note` contract (Part 4)
-- `init-tx-script` contract (Part 6)
-
-If you haven't created these yet, you can run this test after completing Parts 4 and 6, or create placeholder contracts. For now, let's verify the bank-account compiles correctly.
-:::
-
-Build verification:
+Run the test from the project root:
 
 ```bash title=">_ Terminal"
-cd contracts/bank-account
-miden build
-```
-
-If you have the note scripts ready, run the full test from the project root:
-
-```bash title=">_ Terminal"
-cargo test --package integration test_deposit_updates_balance -- --nocapture
+cargo test --package integration --test deposit_test -- --nocapture
 ```
 
 <details>
@@ -439,18 +433,17 @@ cargo test --package integration test_deposit_updates_balance -- --nocapture
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
     Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part3_deposit_test.rs
+     Running tests/deposit_test.rs
 
-running 1 test
-Bank initialized successfully!
-Deposit transaction executed!
-Depositor balance: 1000
+running 3 tests
+test deposit_test ... ok
+test deposit_exceeds_max_should_fail ... ok
+test deposit_without_init_should_fail ... ok
 
-Part 3 deposit test passed!
-test test_deposit_updates_balance ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored
+test result: ok. 3 passed; 0 failed; 0 ignored
 ```
+
+</details>
 
 </details>
 
@@ -489,6 +482,10 @@ use miden::*;
 /// Maximum allowed deposit amount per transaction.
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 
+/// Maximum allowed balance per depositor per asset.
+/// Matches FungibleAsset::MAX_AMOUNT (2^63 - 2^31).
+const MAX_BALANCE: u64 = 9_223_372_034_707_292_160;
+
 /// Bank account component that tracks depositor balances.
 #[component]
 struct Bank {
@@ -513,9 +510,14 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    /// Get the balance for a depositor and specific asset type.
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.key[3], // faucet_prefix
+            asset.key[2], // faucet_suffix
+        ]);
         self.balances.get(key)
     }
 
@@ -530,9 +532,15 @@ impl Bank {
 
     /// Deposit assets into the bank.
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
 
         let deposit_amount = deposit_asset.value[0];
+
+        assert!(
+            deposit_asset.value[1].as_canonical_u64() == 0,
+            "Only fungible assets are supported"
+        );
 
         assert!(
             deposit_amount.as_canonical_u64() <= MAX_DEPOSIT_AMOUNT,
@@ -546,25 +554,40 @@ impl Bank {
             deposit_asset.key[2], // faucet_suffix
         ]);
 
+        // Validate in integer space — Felt addition is modular
         let current_balance: Felt = self.balances.get(key);
-        let new_balance = current_balance + deposit_amount;
-        self.balances.set(key, new_balance);
+        let current_u64 = current_balance.as_canonical_u64();
+        let deposit_u64 = deposit_amount.as_canonical_u64();
+        let new_balance_u64 = current_u64
+            .checked_add(deposit_u64)
+            .expect("Balance overflow");
+        assert!(new_balance_u64 <= MAX_BALANCE, "Balance would exceed maximum");
+
+        self.balances.set(key, Felt::new(new_balance_u64));
 
         native_account::add_asset(deposit_asset);
     }
 
     /// Withdraw assets from the bank.
+    /// The depositor is identified via `active_note::get_sender()` internally.
     pub fn withdraw(
         &mut self,
-        depositor: AccountId,
         withdraw_asset: Asset,
         serial_num: Word,
         tag: Felt,
         note_type: Felt,
     ) {
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
+
+        let depositor = active_note::get_sender();
 
         let withdraw_amount = withdraw_asset.value[0];
+
+        assert!(
+            withdraw_asset.value[1].as_canonical_u64() == 0,
+            "Only fungible assets are supported"
+        );
 
         let key = Word::from([
             depositor.prefix,

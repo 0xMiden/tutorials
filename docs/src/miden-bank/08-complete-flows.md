@@ -163,288 +163,16 @@ Now let's trace the withdrawal process:
 
 ## Try It: Complete End-to-End Test
 
-Let's create a comprehensive test that exercises the entire bank system:
+The complete flow is exercised by the three integration tests built up over the previous chapters, which together cover the same `init → deposit → withdraw` story shown in the diagram above:
 
-```rust title="integration/tests/part8_complete_flow_test.rs"
-use integration::helpers::{
-    build_project_in_dir, create_testing_account_from_package, create_testing_note_from_package,
-    AccountCreationConfig, NoteCreationConfig,
-};
-use miden_client::{
-    account::{StorageMap, StorageSlot, StorageSlotName},
-    asset::{Asset, FungibleAsset},
-    note::{P2idNote, P2idNoteStorage, Note, NoteAssets, NoteMetadata, NoteTag, NoteType},
-    transaction::{RawOutputNote, TransactionScript},
-    Felt, Word,
-};
-use miden_client::auth::AuthSchemeId;
-use miden_testing::{Auth, MockChain};
-use std::{path::Path, sync::Arc};
+- `examples/miden-bank/integration/tests/deposit_test.rs` — introduced in Part 4. Covers the deposit happy path (`deposit_test`) plus two failure paths: `deposit_exceeds_max_should_fail` and `deposit_without_init_should_fail`.
+- `examples/miden-bank/integration/tests/init_test.rs` — introduced in Part 6. Exercises the init transaction script (`init_test`) and verifies the `initialized` flag flips from `0` to `1`.
+- `examples/miden-bank/integration/tests/withdraw_test.rs` — introduced in Part 7. Runs init + deposit + withdraw end-to-end (`withdraw_test`) and asserts the P2ID output note is created with the correct payload.
 
-/// Complete end-to-end test of the Miden Bank
-///
-/// This test exercises:
-/// 1. Bank initialization via transaction script
-/// 2. Deposit via deposit-note
-/// 3. Withdrawal via withdraw-request-note
-/// 4. Balance verification at each step
-#[tokio::test]
-async fn test_complete_bank_flow() -> anyhow::Result<()> {
-    println!("╔══════════════════════════════════════════════════════════════╗");
-    println!("║            MIDEN BANK - COMPLETE FLOW TEST                   ║");
-    println!("╚══════════════════════════════════════════════════════════════╝");
-
-    // ═══════════════════════════════════════════════════════════════════
-    // SETUP
-    // ═══════════════════════════════════════════════════════════════════
-    println!("\n📦 Setting up test environment...");
-
-    let mut builder = MockChain::builder();
-
-    let deposit_amount: u64 = 1000;
-    let withdraw_amount: u64 = 400;
-
-    // Create a faucet to mint test assets
-    let faucet =
-        builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", deposit_amount, Some(10))?;
-
-    // Create note sender account (the depositor)
-    let sender = builder.add_existing_wallet_with_assets(
-        Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 },
-        [FungibleAsset::new(faucet.id(), deposit_amount)?.into()],
-    )?;
-    println!("   ✓ Faucet and sender wallet created");
-
-    // Build all packages
-    let bank_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/bank-account"),
-        true,
-    )?);
-    let deposit_note_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/deposit-note"),
-        true,
-    )?);
-    let init_tx_script_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/init-tx-script"),
-        true,
-    )?);
-    let withdraw_request_note_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/withdraw-request-note"),
-        true,
-    )?);
-    println!("   ✓ All packages built");
-
-    // Create named storage slots
-    let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
-            .expect("Valid slot name");
-    let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
-            .expect("Valid slot name");
-
-    // Create bank account with storage slots
-    let mut init_storage_data = InitStorageData::default();
-    init_storage_data.insert_value(
-        StorageValueName::from_slot_name(&initialized_slot),
-        Word::default(),
-    )?;
-    let bank_cfg = AccountCreationConfig {
-        init_storage_data,
-        ..Default::default()
-    };
-    let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
-    println!("   ✓ Bank account created: {:?}", bank_account.id());
-
-    // Create deposit note with assets
-    let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
-    let deposit_note = create_testing_note_from_package(
-        deposit_note_package.clone(),
-        sender.id(),
-        NoteCreationConfig {
-            assets: note_assets,
-            ..Default::default()
-        },
-    )?;
-
-    // Craft withdraw request note with 10-Felt input layout
-    let p2id_tag = NoteTag::with_account_target(sender.id());
-    let p2id_tag_felt = Felt::new(p2id_tag.as_u32() as u64);
-
-    let p2id_output_note_serial_num = Word::from([
-        Felt::new(0x1234567890abcdef),
-        Felt::new(0xfedcba0987654321),
-        Felt::new(0xdeadbeefcafebabe),
-        Felt::new(0x0123456789abcdef),
-    ]);
-
-    let note_type_felt = Felt::new(1); // Public
-
-    // Get the P2ID script root (Poseidon2-hashed MAST root)
-    let p2id_script_root = P2idNote::script_root();
-
-    // Note storage: 14 Felts
-    // [0-3]: withdraw asset (amount, 0, faucet_suffix, faucet_prefix)
-    // [4-7]: serial_num
-    // [8]: tag
-    // [9]: note_type
-    // [10-13]: P2ID script_root
-    let withdraw_request_note_storage = vec![
-        Felt::new(withdraw_amount),
-        Felt::new(0),
-        faucet.id().suffix(),
-        faucet.id().prefix().as_felt(),
-        p2id_output_note_serial_num[0],
-        p2id_output_note_serial_num[1],
-        p2id_output_note_serial_num[2],
-        p2id_output_note_serial_num[3],
-        p2id_tag_felt,
-        note_type_felt,
-        p2id_script_root[0],
-        p2id_script_root[1],
-        p2id_script_root[2],
-        p2id_script_root[3],
-    ];
-
-    let withdraw_request_note = create_testing_note_from_package(
-        withdraw_request_note_package.clone(),
-        sender.id(),
-        NoteCreationConfig {
-            storage: withdraw_request_note_storage,
-            ..Default::default()
-        },
-    )?;
-
-    // Add to builder
-    builder.add_account(bank_account.clone())?;
-    builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
-    builder.add_output_note(RawOutputNote::Full(withdraw_request_note.clone()));
-
-    let mut mock_chain = builder.build()?;
-    println!("   ✓ MockChain built");
-
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 1: Initialize the bank
-    // ═══════════════════════════════════════════════════════════════════
-    println!("\n1️⃣  INITIALIZING BANK...");
-
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
-
-    let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
-        .tx_script(init_tx_script)
-        .build()?;
-
-    let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
-    mock_chain.add_pending_executed_transaction(&executed_init)?;
-    mock_chain.prove_next_block()?;
-
-    println!("   ✓ Bank initialized (storage[0] = [1, 0, 0, 0])");
-
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 2: Deposit tokens
-    // ═══════════════════════════════════════════════════════════════════
-    println!("\n2️⃣  DEPOSITING TOKENS...");
-    println!("   Deposit amount: {} tokens", deposit_amount);
-
-    let deposit_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
-        .build()?;
-
-    let executed_deposit = deposit_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_deposit.account_delta())?;
-    mock_chain.add_pending_executed_transaction(&executed_deposit)?;
-    mock_chain.prove_next_block()?;
-
-    // Verify balance after deposit
-    let depositor_key = Word::from([
-        sender.id().prefix().as_felt(),
-        sender.id().suffix(),
-        faucet.id().prefix().as_felt(),
-        faucet.id().suffix(),
-    ]);
-    let balance_after_deposit = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
-    println!(
-        "   ✓ Bank processed deposit, balance: {} tokens",
-        balance_after_deposit[3].as_canonical_u64()
-    );
-
-    // ═══════════════════════════════════════════════════════════════════
-    // STEP 3: Withdraw tokens
-    // ═══════════════════════════════════════════════════════════════════
-    println!("\n3️⃣  WITHDRAWING TOKENS...");
-    println!("   Withdraw amount: {} tokens", withdraw_amount);
-
-    // Build expected P2ID output note
-    let recipient = P2idNoteStorage::new(sender.id()).into_recipient(p2id_output_note_serial_num);
-    let p2id_output_note_asset = FungibleAsset::new(faucet.id(), withdraw_amount)?;
-    let p2id_output_note_assets = NoteAssets::new(vec![p2id_output_note_asset.into()])?;
-    let p2id_output_note_metadata = NoteMetadata::new(bank_account.id(), NoteType::Public)
-        .with_tag(p2id_tag);
-    let p2id_output_note = Note::new(
-        p2id_output_note_assets,
-        p2id_output_note_metadata,
-        recipient,
-    );
-
-    let withdraw_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[withdraw_request_note.id()], &[])?
-        .extend_expected_output_notes(vec![RawOutputNote::Full(p2id_output_note)])
-        .build()?;
-
-    let executed_withdraw = withdraw_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_withdraw.account_delta())?;
-    mock_chain.add_pending_executed_transaction(&executed_withdraw)?;
-    mock_chain.prove_next_block()?;
-
-    println!("   ✓ Bank processed withdraw request");
-    println!("   ✓ P2ID output note created for sender");
-
-    // Verify final balance
-    let final_balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
-    let final_balance_amount = final_balance[3].as_canonical_u64();
-    let expected_final = deposit_amount - withdraw_amount;
-
-    println!("   ✓ Final balance verified: {} tokens", final_balance_amount);
-
-    // ═══════════════════════════════════════════════════════════════════
-    // SUMMARY
-    // ═══════════════════════════════════════════════════════════════════
-    println!("\n╔══════════════════════════════════════════════════════════════╗");
-    println!("║                      TEST SUMMARY                            ║");
-    println!("╠══════════════════════════════════════════════════════════════╣");
-    println!(
-        "║  Initial deposit:     {:>6} tokens                          ║",
-        deposit_amount
-    );
-    println!(
-        "║  Withdrawal:         -{:>6} tokens                          ║",
-        withdraw_amount
-    );
-    println!(
-        "║  Final balance:       {:>6} tokens                          ║",
-        final_balance_amount
-    );
-    println!("║                                                              ║");
-    println!("║  ✅ All operations completed successfully!                   ║");
-    println!("╚══════════════════════════════════════════════════════════════╝");
-
-    assert_eq!(
-        final_balance_amount, expected_final,
-        "Final balance should be deposit - withdraw"
-    );
-
-    Ok(())
-}
-```
-
-Run the complete test from the project root:
+Running all three together from the workspace root is the closest thing to a single end-to-end run:
 
 ```bash title=">_ Terminal"
-cargo test --package integration test_complete_bank_flow -- --nocapture
+cargo test --package integration --release -- --nocapture --test-threads=1
 ```
 
 <details>
@@ -452,43 +180,27 @@ cargo test --package integration test_complete_bank_flow -- --nocapture
 
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
-    Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part8_complete_flow_test.rs
+    Finished `release` profile [optimized] target(s)
+     Running tests/deposit_test.rs
+
+running 3 tests
+test deposit_test ... ok
+test deposit_exceeds_max_should_fail ... ok
+test deposit_without_init_should_fail ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored
+
+     Running tests/init_test.rs
 
 running 1 test
-╔══════════════════════════════════════════════════════════════╗
-║            MIDEN BANK - COMPLETE FLOW TEST                   ║
-╚══════════════════════════════════════════════════════════════╝
+test init_test ... ok
 
-📦 Setting up test environment...
-   ✓ Faucet and sender wallet created
-   ✓ All packages built
-   ✓ Bank account created: 0x...
-   ✓ MockChain built
+test result: ok. 1 passed; 0 failed; 0 ignored
 
-1️⃣  INITIALIZING BANK...
-   ✓ Bank initialized (storage[0] = [1, 0, 0, 0])
+     Running tests/withdraw_test.rs
 
-2️⃣  DEPOSITING TOKENS...
-   Deposit amount: 1000 tokens
-   ✓ Bank processed deposit, balance: 1000 tokens
-
-3️⃣  WITHDRAWING TOKENS...
-   Withdraw amount: 400 tokens
-   ✓ Bank processed withdraw request
-   ✓ P2ID output note created for sender
-   ✓ Final balance verified: 600 tokens
-
-╔══════════════════════════════════════════════════════════════╗
-║                      TEST SUMMARY                            ║
-╠══════════════════════════════════════════════════════════════╣
-║  Initial deposit:       1000 tokens                          ║
-║  Withdrawal:         -   400 tokens                          ║
-║  Final balance:          600 tokens                          ║
-║                                                              ║
-║  ✅ All operations completed successfully!                   ║
-╚══════════════════════════════════════════════════════════════╝
-test test_complete_bank_flow ... ok
+running 1 test
+test withdraw_test ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```
