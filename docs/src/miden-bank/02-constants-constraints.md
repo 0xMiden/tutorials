@@ -132,9 +132,14 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    /// Get the balance for a depositor and specific asset type.
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.key[3], // faucet_prefix
+            asset.key[2], // faucet_suffix
+        ]);
         self.balances.get(key)
     }
 
@@ -150,10 +155,8 @@ impl Bank {
     /// Deposit assets into the bank.
     /// For now, this just validates constraints - we'll add asset handling in Part 3.
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-        // ========================================================================
-        // CONSTRAINT: Bank must be initialized
-        // ========================================================================
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
 
         // Extract the fungible amount from the asset
         let deposit_amount = deposit_asset.value[0];
@@ -174,7 +177,7 @@ impl Bank {
 
 ### The require_initialized() Guard
 
-We use a helper method to check initialization state:
+This helper is defined here but intentionally **commented out** in the deposit method until Part 6. When enabled, it will check initialization state:
 
 ```rust
 fn require_initialized(&self) {
@@ -233,9 +236,11 @@ cd contracts/bank-account
 miden build
 ```
 
-## Try It: Verify Constraints Work
+## Optional: Verify Constraints Work
 
-Let's write a test to verify our constraints work correctly. This test verifies that depositing without initialization fails:
+:::note
+This is an optional self-check. If you create this test file, you can run it to verify the contract compiles with the constraint logic. The main runnable tests begin in Part 4.
+:::
 
 ```rust title="integration/tests/part2_constraints_test.rs"
 use integration::helpers::{
@@ -286,7 +291,7 @@ async fn test_constraints_are_defined() -> anyhow::Result<()> {
 
     println!("Bank account created with constraints!");
     println!("  - MAX_DEPOSIT_AMOUNT: 1,000,000");
-    println!("  - require_initialized() guard in place");
+    println!("  - require_initialized() defined (enabled in Part 6)");
     println!("  - Initialization status: {}", initialized[0].as_canonical_u64());
     println!("\nPart 2 constraints test passed!");
 
@@ -311,7 +316,7 @@ cargo test --package integration test_constraints_are_defined -- --nocapture
 running 1 test
 Bank account created with constraints!
   - MAX_DEPOSIT_AMOUNT: 1,000,000
-  - require_initialized() guard in place
+  - require_initialized() defined (enabled in Part 6)
   - Initialization status: 0
 
 Part 2 constraints test passed!
@@ -322,13 +327,8 @@ test result: ok. 1 passed; 0 failed; 0 ignored
 
 </details>
 
-:::tip Preview: Testing Failed Assertions
-In Part 4, when we have the deposit note script, we'll write a full test that verifies:
-
-1. Depositing without initialization fails
-2. Depositing amounts over MAX_DEPOSIT_AMOUNT fails
-
-For now, the constraint logic is in place and we've verified the contract compiles.
+:::tip What's Next
+In Part 4, we'll write a real deposit-flow test. At that stage, the deposit works without initialization because the guard is still commented out. In Part 6 (Transaction Scripts), we'll enable the initialization guard and verify it works with a dedicated test.
 :::
 
 ## Common Constraint Patterns
@@ -336,8 +336,8 @@ For now, the constraint logic is in place and we've verified the contract compil
 ### Balance Checks (Preview for Part 3)
 
 ```rust
-fn require_sufficient_balance(&self, depositor: AccountId, amount: Felt) {
-    let balance = self.get_balance(depositor);
+fn require_sufficient_balance(&self, depositor: AccountId, asset: Asset, amount: Felt) {
+    let balance = self.get_balance(depositor, asset);
     assert!(
         balance.as_canonical_u64() >= amount.as_canonical_u64(),
         "Insufficient balance"
@@ -404,9 +404,14 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor.
-    pub fn get_balance(&self, depositor: AccountId) -> Felt {
-        let key = Word::from([depositor.prefix, depositor.suffix, felt!(0), felt!(0)]);
+    /// Get the balance for a depositor and specific asset type.
+    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.key[3], // faucet_prefix
+            asset.key[2], // faucet_suffix
+        ]);
         self.balances.get(key)
     }
 
@@ -421,8 +426,8 @@ impl Bank {
 
     /// Deposit assets into the bank.
     pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-        // CONSTRAINT: Bank must be initialized
-        self.require_initialized();
+        // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+        // self.require_initialized();
 
         let deposit_amount = deposit_asset.value[0];
 

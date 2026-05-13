@@ -101,27 +101,7 @@ Key configuration:
 - `project-kind = "transaction-script"` - Marks this as a transaction script (not "account" or "note")
 - Dependencies reference the account component (same pattern as note scripts)
 
-## Step 3: Add to Workspace
-
-Update your root `Cargo.toml` to include the new project:
-
-```toml title="Cargo.toml"
-[workspace]
-members = [
-    "integration"
-]
-exclude = [
-    "contracts/",
-]
-resolver = "2"
-
-[workspace.package]
-edition = "2021"
-
-[workspace.dependencies]
-```
-
-## Step 4: Implement the Transaction Script
+## Step 3: Implement the Transaction Script
 
 Create the initialization script:
 
@@ -193,7 +173,7 @@ The `Account` wrapper provides:
 - Proper mutable/immutable borrowing
 - Automatic context binding
 
-## Step 5: Build the Transaction Script
+## Step 4: Build the Transaction Script
 
 Build in dependency order:
 
@@ -283,26 +263,25 @@ let tx_context = mock_chain
 
 ## Try It: Verify Initialization Works
 
-Let's test that the initialization transaction script enables deposits.
+Let's test that the initialization transaction script correctly flips the initialized flag. The companion test file `integration/tests/init_test.rs` verifies exactly this:
 
-Create a test file:
-
-```rust title="integration/tests/part6_tx_script_test.rs"
+```rust title="integration/tests/init_test.rs"
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package, AccountCreationConfig,
 };
-use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
-use miden_client::Word;
-use miden_client::transaction::TransactionScript;
-use miden_testing::MockChain;
+
+use miden_client::{
+    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
+    auth::AuthSchemeId,
+    transaction::TransactionScript,
+    Word,
+};
+use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
-/// Test that the init-tx-script properly initializes the bank account
 #[tokio::test]
-async fn test_init_tx_script_enables_deposits() -> anyhow::Result<()> {
-    // Build all required packages
-    let mut builder = MockChain::builder();
-
+async fn init_test() -> anyhow::Result<()> {
+    // Build the bank-account and init-tx-script contracts
     let bank_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/bank-account"),
         true,
@@ -313,7 +292,7 @@ async fn test_init_tx_script_enables_deposits() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create uninitialized bank account with named storage slots
+    // Create bank account storage slots
     let initialized_slot =
         StorageSlotName::new("miden_bank_account::bank::initialized")
             .expect("Valid slot name");
@@ -334,25 +313,28 @@ async fn test_init_tx_script_enables_deposits() -> anyhow::Result<()> {
     let mut bank_account =
         create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
-    // Verify bank is NOT initialized
-    let initial_storage = bank_account.storage().get_item(&initialized_slot)?;
+    // Verify bank starts uninitialized
+    let before = bank_account.storage().get_item(&initialized_slot)?;
     assert_eq!(
-        initial_storage[0].as_canonical_u64(),
+        before[0].as_canonical_u64(),
         0,
         "Bank should start uninitialized"
     );
+    println!(
+        "Before init: initialized = {}",
+        before[0].as_canonical_u64()
+    );
 
-    println!("Step 1: Bank starts uninitialized (storage[0] = 0)");
-
-    // Add bank to mock chain
+    // Build mock chain
+    let mut builder = MockChain::builder();
+    builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", 10_000_000, Some(10))?;
     builder.add_account(bank_account.clone())?;
     let mut mock_chain = builder.build()?;
 
-    // Create the TransactionScript from our init-tx-script
+    // Execute init transaction script
     let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new((*init_program).clone());
+    let init_tx_script = TransactionScript::new(init_program);
 
-    // Build and execute the initialization transaction
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
         .tx_script(init_tx_script)
@@ -363,25 +345,48 @@ async fn test_init_tx_script_enables_deposits() -> anyhow::Result<()> {
     mock_chain.add_pending_executed_transaction(&executed_init)?;
     mock_chain.prove_next_block()?;
 
-    // Verify bank IS now initialized
-    let final_storage = bank_account.storage().get_item(&initialized_slot)?;
+    // Verify initialized flag flipped to 1
+    let after = bank_account.storage().get_item(&initialized_slot)?;
     assert_eq!(
-        final_storage[0].as_canonical_u64(),
+        after[0].as_canonical_u64(),
         1,
-        "Bank should be initialized after tx script"
+        "Bank should be initialized after running init tx script"
+    );
+    println!(
+        "After init: initialized = {}",
+        after[0].as_canonical_u64()
     );
 
-    println!("Step 2: Bank initialized via transaction script (storage[0] = 1)");
-    println!("\nPart 6 transaction script test passed!");
-
+    println!("\nInit test passed!");
     Ok(())
 }
 ```
 
-Run the test from the project root:
+## Enable the Initialization Guard
+
+Now that we have the init transaction script, it's time to enable the `require_initialized()` guard that we've had commented out since Part 2. Open `contracts/bank-account/src/lib.rs` and uncomment the guard in both the `deposit()` and `withdraw()` methods:
+
+**Before (Parts 2-5):**
+
+```rust
+    // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
+    // self.require_initialized();
+```
+
+**After (Part 6 onward):**
+
+```rust
+    self.require_initialized();
+```
+
+With this change, deposits and withdrawals will fail unless the bank has been initialized via the transaction script. This is a critical security measure — it prevents assets from being deposited into an uninitialized bank.
+
+## Try It: Verify Initialization
+
+Run the companion init test to verify the transaction script correctly flips the initialized flag:
 
 ```bash title=">_ Terminal"
-cargo test --package integration test_init_tx_script_enables_deposits -- --nocapture
+cargo test --package integration --test init_test -- --nocapture
 ```
 
 <details>
@@ -390,18 +395,23 @@ cargo test --package integration test_init_tx_script_enables_deposits -- --nocap
 ```text
    Compiling integration v0.1.0 (/path/to/miden-bank/integration)
     Finished `test` profile [unoptimized + debuginfo] target(s)
-     Running tests/part6_tx_script_test.rs
+     Running tests/init_test.rs
 
 running 1 test
-✓ Bank successfully initialized via transaction script
-  Storage[0] changed from [0,0,0,0] to [1,0,0,0]
-  Bank is now ready to accept deposits!
-test test_init_tx_script_enables_deposits ... ok
+Before init: initialized = 0
+After init: initialized = 1
+
+Init test passed!
+test init_test ... ok
 
 test result: ok. 1 passed; 0 failed; 0 ignored
 ```
 
 </details>
+
+:::tip Expected Output
+Your actual output may include additional trace lines from the Miden VM or MockChain. As long as you see the test passing, these can be safely ignored.
+:::
 
 :::tip Troubleshooting
 **"Cannot find module bindings"**: The bank-account wasn't built. Run `miden build` in `contracts/bank-account` first.
