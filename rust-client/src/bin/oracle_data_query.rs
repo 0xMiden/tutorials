@@ -2,7 +2,6 @@ use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
         AccountStorageMode, AccountType, StorageMapKey, StorageSlot, StorageSlotName,
-        StorageSlotType,
     },
     assembly::{
         CodeBuilder, DefaultSourceManager, Module, ModuleKind, Path as AssemblyPath,
@@ -15,7 +14,7 @@ use miden_client::{
         Endpoint, GrpcClient,
     },
     transaction::{ForeignAccount, TransactionKernel, TransactionRequestBuilder},
-    Client, ClientError, Word,
+    Client, ClientError, Felt, Word, ZERO,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use rand::RngCore;
@@ -27,9 +26,10 @@ use std::{fs, path::Path, sync::Arc};
 pub async fn get_oracle_foreign_accounts(
     client: &mut Client<FilesystemKeyStore>,
     oracle_account_id: AccountId,
-    trading_pair: u64,
+    faucet_pair: Word,
 ) -> Result<Vec<ForeignAccount>, ClientError> {
     client.import_account_by_id(oracle_account_id).await?;
+    client.sync_state().await?;
 
     let oracle_record = client
         .get_account(oracle_account_id)
@@ -38,72 +38,58 @@ pub async fn get_oracle_foreign_accounts(
         .expect("oracle account not found");
 
     let storage = oracle_record.storage();
-    let publisher_count_slot = storage
-        .slots()
-        .iter()
-        .find(|slot| {
-            let name = slot.name().as_str();
-            name.contains("publisher") && name.contains("count")
-        })
-        .map(|slot| slot.name().clone())
-        .or_else(|| storage.slots().first().map(|slot| slot.name().clone()))
-        .expect("oracle storage is expected to have at least one slot");
 
-    let publisher_count = storage
-        .get_item(&publisher_count_slot)
-        .map(|word| word[0].as_canonical_u64())
-        .unwrap_or(0);
+    // The oracle tracks the next free publisher index in a value slot.
+    // Publisher slots start at index 2, so the publisher count is `next_index - 2`.
+    let next_index_slot =
+        StorageSlotName::new("pragma::oracle::next_publisher_index").expect("valid slot name");
+    let next_publisher_index = storage
+        .get_item(&next_index_slot)
+        .expect("oracle is missing the next_publisher_index slot")[0]
+        .as_canonical_u64();
 
-    let publisher_id_slots: Vec<StorageSlotName> = storage
-        .slots()
-        .iter()
-        .filter(|slot| slot.slot_type() == StorageSlotType::Value)
-        .filter(|slot| slot.name() != &publisher_count_slot)
-        .map(|slot| slot.name().clone())
-        .collect();
-
-    let publisher_ids: Vec<AccountId> = publisher_id_slots
-        .iter()
-        .take(publisher_count.saturating_sub(1) as usize)
-        .filter_map(|slot_name| storage.get_item(slot_name).ok())
-        .map(|digest| {
-            let words: Word = digest.into();
-            AccountId::new_unchecked([words[3], words[2]])
+    // Publisher account IDs are stored in the `publishers` map, keyed by index.
+    let publishers_slot =
+        StorageSlotName::new("pragma::oracle::publishers").expect("valid slot name");
+    let publisher_ids: Vec<AccountId> = (2..next_publisher_index)
+        .map(|index| {
+            let key: Word = [Felt::new(index), ZERO, ZERO, ZERO].into();
+            let publisher_word = storage
+                .get_map_item(&publishers_slot, key)
+                .expect("publisher entry missing from oracle storage");
+            AccountId::new_unchecked([publisher_word[0], publisher_word[1]])
         })
         .collect();
 
+    // Each publisher exposes its price entries in the `entries` map, keyed by
+    // the faucet ID word of the trading pair.
+    let entries_slot =
+        StorageSlotName::new("pragma::publisher::entries").expect("valid slot name");
     let mut foreign_accounts = Vec::with_capacity(publisher_ids.len() + 1);
-    let empty_keys: [StorageMapKey; 0] = [];
 
-    for pid in publisher_ids {
-        client.import_account_by_id(pid).await?;
+    for publisher_id in publisher_ids {
+        client.import_account_by_id(publisher_id).await?;
 
-        let publisher_record = client
-            .get_account(pid)
-            .await
-            .expect("RPC failed")
-            .expect("publisher account not found");
-        let map_slot_names: Vec<StorageSlotName> = publisher_record
-            .storage()
-            .slots()
-            .iter()
-            .filter(|slot| slot.slot_type() == StorageSlotType::Map)
-            .map(|slot| slot.name().clone())
-            .collect();
+        let storage_requirements = AccountStorageRequirements::new([(
+            entries_slot.clone(),
+            &[StorageMapKey::new(faucet_pair)],
+        )]);
 
-        let storage_requirements = AccountStorageRequirements::new(
-            map_slot_names
-                .iter()
-                .map(|slot_name| (slot_name.clone(), empty_keys.iter())),
-        );
-
-        foreign_accounts.push(ForeignAccount::public(pid, storage_requirements)?);
+        foreign_accounts.push(ForeignAccount::public(publisher_id, storage_requirements)?);
     }
 
+    // The oracle account itself is also a foreign account. `get_median` reads
+    // the publisher registry from the oracle's `publishers` map, so the proofs
+    // for those map keys must be requested as well.
+    let publisher_index_keys: Vec<StorageMapKey> = (2..next_publisher_index)
+        .map(|index| StorageMapKey::new([Felt::new(index), ZERO, ZERO, ZERO].into()))
+        .collect();
     foreign_accounts.push(ForeignAccount::public(
         oracle_account_id,
-        AccountStorageRequirements::default(),
+        AccountStorageRequirements::new([(publishers_slot.clone(), publisher_index_keys.iter())]),
     )?);
+
+    client.sync_state().await?;
 
     Ok(foreign_accounts)
 }
@@ -154,9 +140,15 @@ async fn main() -> Result<(), ClientError> {
         .nth(1)
         .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
     let (_, oracle_account_id) = AccountId::from_bech32(&oracle_bech32).unwrap();
-    let btc_usd_pair_id = 120195681;
+
+    // BTC/USD is identified by the faucet ID pair `1:0` (prefix 1, suffix 0).
+    // The faucet ID word is laid out as [0, 0, suffix, prefix].
+    let pair_prefix: u64 = 1;
+    let pair_suffix: u64 = 0;
+    let btc_usd_pair: Word =
+        [ZERO, ZERO, Felt::new(pair_suffix), Felt::new(pair_prefix)].into();
     let foreign_accounts: Vec<ForeignAccount> =
-        get_oracle_foreign_accounts(&mut client, oracle_account_id, btc_usd_pair_id).await?;
+        get_oracle_foreign_accounts(&mut client, oracle_account_id, btc_usd_pair).await?;
 
     println!(
         "Oracle accountId prefix: {:?} suffix: {:?}",
