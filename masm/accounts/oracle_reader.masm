@@ -8,21 +8,28 @@ use miden::protocol::tx
 # procedure from the Pragma oracle
 # => []
 pub proc get_price
-    push.0.0.0.120195681
-    # => [PAIR]
+    # `execute_foreign_procedure` requires exactly 16 foreign procedure inputs.
+    # `get_median` only reads the first four, so the rest are zero padding.
+    padw padw padw
+    # => [PAD(12)]
+
+    # BTC/USD pair: faucet id prefix `1`, suffix `0`, amount `0`
+    push.0.0.0.1
+    # => [pair_prefix, pair_suffix, amount, 0, PAD(12)]
 
     # This is the procedure root of the `get_median` procedure
-    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
-    # => [GET_MEDIAN_HASH, PAIR]
+    push.0xd1aa2a8b38ccf58f37bb7aa490a8154c1cf89c537144ab23bd1111f13e5a28e8
+    # => [GET_MEDIAN_HASH, FOREIGN_INPUTS(16)]
 
-    push.939716883672832.2172042075194638080
-    # => [oracle_id_prefix, oracle_id_suffix, GET_MEDIAN_HASH, PAIR]
+    # The Pragma oracle account id: prefix then suffix, leaving suffix on top
+    push.17041133956008732928.1562038061251555584
+    # => [oracle_id_suffix, oracle_id_prefix, GET_MEDIAN_HASH, FOREIGN_INPUTS(16)]
 
     exec.tx::execute_foreign_procedure
-    # => [price]
+    # => [is_tracked, median_price, amount, PAD(13)]
 
     debug.stack
-    # => [price]
+    # => [is_tracked, median_price, amount, PAD(13)]
 
-    dropw dropw
+    dropw dropw dropw dropw
 end
