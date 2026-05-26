@@ -39,7 +39,7 @@ function Spinner({ className }: { className?: string }) {
   );
 }
 
-function fallbackMidenNoteId(result: IntentResult | null): string | undefined {
+export function fallbackMidenNoteId(result: IntentResult | null): string | undefined {
   if (!result) return undefined;
   const r = result as any;
   const candidates = [

@@ -3,13 +3,36 @@ import { Header } from './components/layout/Header';
 import { TabNav } from './components/layout/TabNav';
 import { CrosschainTab } from './components/tabs/CrosschainTab';
 import { WithdrawTab } from './components/tabs/WithdrawTab';
-import { useMidenWalletAdapter } from './hooks/useMidenWalletAdapter';
+import {
+  MidenWalletAdapterProvider,
+  useMidenWalletAdapterContext,
+} from './hooks/MidenWalletAdapterProvider';
 import { Button } from '@/components/ui/button';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 function App() {
+  // Hoist the Miden wallet adapter into a single shared context so the three
+  // consumers (App, CrosschainTab, WithdrawTab) share one `requestAssets()`
+  // popup on page load.
+  return (
+    <MidenWalletAdapterProvider enabled>
+      <AppContent />
+    </MidenWalletAdapterProvider>
+  );
+}
+
+function AppContent() {
   const [activeTab, setActiveTab] = useState('crosschain');
-  const midenWallet = useMidenWalletAdapter({ enabled: true });
+  // Lazy-mount tabs but keep them mounted once visited, so in-flight bridge
+  // state (quote, intent submission, withdraw result, consume status) isn't
+  // discarded if the user tab-switches mid-flow. Active tab is shown; visited-
+  // but-inactive tabs stay in the DOM with `display:none`.
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(['crosschain']));
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+  };
+  const midenWallet = useMidenWalletAdapterContext();
 
 
   return (
@@ -19,7 +42,7 @@ function App() {
         <div className="flex flex-col gap-4">
           <TabNav
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             disabledTabs={
               midenWallet.connected
                 ? undefined
@@ -69,8 +92,16 @@ function App() {
           </section>
         </div>
 
-        {activeTab === 'crosschain' && <CrosschainTab />}
-        {activeTab === 'withdraw' && <WithdrawTab />}
+        {visitedTabs.has('crosschain') && (
+          <div className={activeTab === 'crosschain' ? '' : 'hidden'}>
+            <CrosschainTab />
+          </div>
+        )}
+        {visitedTabs.has('withdraw') && (
+          <div className={activeTab === 'withdraw' ? '' : 'hidden'}>
+            <WithdrawTab />
+          </div>
+        )}
       </main>
     </div>
   );

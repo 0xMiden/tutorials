@@ -2,10 +2,13 @@ import { IntentForm } from '../crosschain/IntentForm';
 import { IntentStatus } from '../crosschain/IntentStatus';
 import { useEpochIntent } from '../../hooks/useEpochIntent';
 import { useIntentFlowStatus } from '../../hooks/useIntentFlowStatus';
-import { useMidenWalletAdapter } from '../../hooks/useMidenWalletAdapter';
+import { useMidenWalletAdapterContext } from '../../hooks/MidenWalletAdapterProvider';
 
 export function CrosschainTab() {
-  const midenWallet = useMidenWalletAdapter({ enabled: true });
+  // Read from the shared provider rather than firing a second
+  // `useMidenWalletAdapter` instance (which would open its own `requestAssets`
+  // popup).
+  const midenWallet = useMidenWalletAdapterContext();
 
   const epoch = useEpochIntent();
   const intentNonce = epoch.intentResult?.intentNonce;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { useAssetMetadata, toBech32AccountId } from "@miden-sdk/react";
 import { AccountId, Address } from "@miden-sdk/miden-sdk";
@@ -96,6 +96,13 @@ export function useMidenWalletAdapter(
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [assetsError, setAssetsError] = useState<string | null>(null);
 
+  // In-flight dedup: requestAssets() opens a Miden Wallet "Request Assets"
+  // confirmation popup. If two callers fire concurrently (e.g. React StrictMode
+  // double-invokes the mount effect in dev, or a manual connect() races with
+  // the auto-refresh effect), holding the promise in a ref collapses concurrent
+  // calls to one popup.
+  const inflightRef = useRef<Promise<void> | null>(null);
+
   const refreshAssets = useCallback(async () => {
     if (!enabled || !connected) return;
     if (!requestAssets) {
@@ -103,17 +110,27 @@ export function useMidenWalletAdapter(
       setAssetsError("Connected wallet does not support requestAssets()");
       return;
     }
-    setIsLoadingAssets(true);
-    setAssetsError(null);
-    try {
-      const raw = await requestAssets();
-      setRawAssets(raw ?? []);
-    } catch (err) {
-      setRawAssets([]);
-      setAssetsError(err instanceof Error ? err.message : "Failed to load assets");
-    } finally {
-      setIsLoadingAssets(false);
+    if (inflightRef.current) {
+      return inflightRef.current;
     }
+    const promise = (async () => {
+      setIsLoadingAssets(true);
+      setAssetsError(null);
+      try {
+        const raw = await requestAssets();
+        setRawAssets(raw ?? []);
+      } catch (err) {
+        setRawAssets([]);
+        setAssetsError(err instanceof Error ? err.message : "Failed to load assets");
+      } finally {
+        setIsLoadingAssets(false);
+      }
+    })();
+    inflightRef.current = promise;
+    promise.finally(() => {
+      if (inflightRef.current === promise) inflightRef.current = null;
+    });
+    return promise;
   }, [enabled, connected, requestAssets]);
 
   const faucetIds = useMemo(() => rawAssets.map((a) => a.faucetId), [rawAssets]);
@@ -166,4 +183,3 @@ export function useMidenWalletAdapter(
     refreshAssets,
   };
 }
-

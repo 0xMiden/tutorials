@@ -1,13 +1,16 @@
 import { useMemo } from 'react';
-import { useMidenWalletAdapter } from '../../hooks/useMidenWalletAdapter';
+import { useMidenWalletAdapterContext } from '../../hooks/MidenWalletAdapterProvider';
 import { WithdrawForm } from '../crosschain/WithdrawForm';
-import { IntentStatus } from '../crosschain/IntentStatus';
+import { IntentStatus, fallbackMidenNoteId } from '../crosschain/IntentStatus';
+import { WithdrawConsume } from '../crosschain/WithdrawConsume';
 import { useWithdrawIntent } from '../../hooks/useWithdrawIntent';
 import { useIntentFlowStatus } from '../../hooks/useIntentFlowStatus';
 import type { MidenAccount } from '../../types/miden';
 
 export function WithdrawTab() {
-  const midenWallet = useMidenWalletAdapter({ enabled: true });
+  // Read from the shared provider rather than firing a second
+  // `useMidenWalletAdapter` instance.
+  const midenWallet = useMidenWalletAdapterContext();
   const displayWallets: MidenAccount[] = useMemo(() => {
     if (!midenWallet.accountId?.hex) return [];
     return [
@@ -51,6 +54,17 @@ export function WithdrawTab() {
         flowStatus={intentStatus.status}
         isPolling={intentStatus.isPolling}
       />
+      {/* P2ID note → spendable Miden balance. The allocator delivers the
+          bridged funds as a P2ID note; in Miden's actor model that's not
+          balance until the recipient account consumes it. Mount the panel only
+          after a note id is available. */}
+      {(() => {
+        const noteId =
+          intentStatus.status?.midenNoteId ?? fallbackMidenNoteId(withdraw.withdrawResult);
+        return noteId ? (
+          <WithdrawConsume noteId={noteId} midenAccountId={midenWallet.accountId?.hex} />
+        ) : null;
+      })()}
     </div>
   );
 }

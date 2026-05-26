@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import type { CrossChainIntentParams } from '../../types/miden';
 import type { CrossChainQuote } from '../../services/epoch-bridge';
 import { formatQuoteTokenIn } from '../../services/epoch-bridge';
+import { formatMidenAssetAmount } from '../../lib/format';
 import type { SolveIntentParams } from '@epoch-protocol/epoch-intents-sdk/dist/types';
 import { DEFAULT_SEPOLIA_CHAIN_ID_STR } from '../../constants/chains';
 import { useAccount } from 'wagmi';
@@ -212,7 +213,7 @@ export function IntentForm({
           throw new Error('Missing Miden account id');
         }
         if (!requestSend) {
-          throw new Error('Miden wallet adapter not available');
+          throw new Error('Miden wallet adapter is not connected');
         }
 
         const normalizedAmount = BigInt(amountParam);
@@ -231,7 +232,7 @@ export function IntentForm({
 
         // Prefer adapter waitForTransaction to get the output note id.
         if (!waitForTransaction) {
-          throw new Error('waitForTransaction not available in adapter');
+          throw new Error('Miden wallet adapter is missing waitForTransaction');
         }
         const finalized = await waitForTransaction(txId, 120_000);
         const first = finalized.outputNotes?.[0];
@@ -329,13 +330,13 @@ export function IntentForm({
             <SelectContent>
               {(midenAssets ?? []).map((a) => (
                 <SelectItem key={a.assetId} value={a.assetId}>
-                  {(a.symbol ?? a.assetId.slice(0, 16) + '…')} — {a.amount.toString()}
+                  {(a.symbol ?? a.assetId.slice(0, 16) + '…')} — {formatMidenAssetAmount(a.amount, a.decimals)}
                 </SelectItem>
               ))}
             </SelectContent>
           </SelectRoot>
           <p className="text-xs text-neutral-500">
-            Balance: <span className="font-mono">{selectedAsset?.amount?.toString() ?? '—'}</span>
+            Balance: <span className="font-mono">{selectedAsset ? formatMidenAssetAmount(selectedAsset.amount, selectedAsset.decimals) : '—'}</span>
           </p>
         </div>
 

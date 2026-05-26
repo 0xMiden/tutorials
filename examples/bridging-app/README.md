@@ -21,13 +21,13 @@ Open [http://localhost:5173](http://localhost:5173). The app exposes two tabs â€
 
 Copy `.env.example` to `.env` and supply the required values:
 
-| Variable | Required | Description |
-|---|---|---|
-| `VITE_RAINBOWKIT_PROJECT_ID` | yes | WalletConnect Cloud project id from <https://cloud.walletconnect.com/>. |
-| `VITE_ALLOCATOR_URL` | yes | Epoch allocator endpoint (default `https://testnet-dev.epochprotocol.xyz`). |
-| `VITE_MIDEN_RPC_URL` | no | Miden RPC; defaults to `testnet`. |
-| `VITE_MIDEN_PROVER` | no | Miden prover; defaults to `testnet`. |
-| `VITE_MIDENSCAN_URL` | no | Override block-explorer base; defaults to `https://testnet.midenscan.com`. |
+| Variable                     | Required | Description                                                                 |
+| ---------------------------- | -------- | --------------------------------------------------------------------------- |
+| `VITE_RAINBOWKIT_PROJECT_ID` | yes      | WalletConnect Cloud project id from <https://cloud.walletconnect.com/>.     |
+| `VITE_ALLOCATOR_URL`         | yes      | Epoch allocator endpoint (default `https://testnet-dev.epochprotocol.xyz`). |
+| `VITE_MIDEN_RPC_URL`         | no       | Miden RPC; defaults to `testnet`.                                           |
+| `VITE_MIDEN_PROVER`          | no       | Miden prover; defaults to `testnet`.                                        |
+| `VITE_MIDENSCAN_URL`         | no       | Override block-explorer base; defaults to `https://testnet.midenscan.com`.  |
 
 ## Prerequisites
 
@@ -50,7 +50,8 @@ yarn lint           # ESLint
 The accompanying single-page tutorial lives at
 [`docs/src/web-client/bridging_with_epoch_tutorial.md`](../../docs/src/web-client/bridging_with_epoch_tutorial.md).
 Every fenced code block in the tutorial is byte-identical to a slice of this
-app's source â€” `verify_snippets.py` enforces it as a CI gate.
+app's source, called out by a preceding
+`<!-- source: examples/bridging-app/<file>:<line range> -->` comment.
 
 ## Forked from
 

@@ -9,11 +9,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// EVM-side token decimals. The Epoch test ERC-20s on Sepolia are 18-decimal
-// (verified on-chain); these must match the same addresses in IntentForm's
-// SEPOLIA_TOKENS so a fixed-amount withdraw scales `evmAmount` correctly.
-const SEPOLIA_TOKENS = [
-  { symbol: 'USDC', address: '0x2BB4FfD7E2c6D432b697554Efd77fA13bdbefd69', decimals: 18 },
+// EVM-side token decimals + the Miden-side faucet account ID for each known
+// token. The Epoch test ERC-20s on Sepolia are 18-decimal (verified on-chain);
+// addresses must match the same entries in IntentForm's SEPOLIA_TOKENS so a
+// fixed-amount withdraw scales `evmAmount` correctly. `midenFaucetId` is the
+// Miden faucet account that backs the same logical asset on the Miden side —
+// when present, the form auto-derives the receiving faucet from the EVM token
+// selection and hides the input. For tokens without a known mapping (USDT,
+// Custom) the input stays visible so advanced users can fill it in manually.
+const SEPOLIA_TOKENS: ReadonlyArray<{
+  symbol: string;
+  address: string;
+  decimals: number;
+  midenFaucetId?: string;
+}> = [
+  {
+    symbol: 'USDC',
+    address: '0x2BB4FfD7E2c6D432b697554Efd77fA13bdbefd69',
+    decimals: 18,
+    midenFaucetId: '0x0a7d175ed63ec5200fb2ced86f6aa5',
+  },
   { symbol: 'USDT', address: '0xc04d2869665Be874881133943523723Be5782720', decimals: 18 },
   { symbol: 'Custom', address: '', decimals: 18 },
 ];
@@ -54,7 +69,7 @@ export function WithdrawForm({
   const [customToken, setCustomToken] = useState('');
   const [minTokenOut, setMinTokenOut] = useState('1000000');
   const [midenRecipientId, setMidenRecipientId] = useState(() => accounts[0]?.id ?? '');
-  const [midenFaucetId, setMidenFaucetId] = useState('0x0a7d175ed63ec5200fb2ced86f6aa5');
+  const [midenFaucetId, setMidenFaucetId] = useState(SEPOLIA_TOKENS[0].midenFaucetId ?? '');
   const [status, setStatus] = useState('');
 
   const { address: connectedAddress } = useAccount();
@@ -71,6 +86,17 @@ export function WithdrawForm({
 
   const finalToken = customToken || evmToken;
   const selectedToken = SEPOLIA_TOKENS.find((t) => t.address === finalToken);
+
+  // Auto-derive the Miden faucet ID when the EVM token has a known mapping.
+  // We track the previously-applied value so the user's manual override on a
+  // Custom/USDT token isn't immediately overwritten when this effect re-runs.
+  useEffect(() => {
+    if (selectedToken?.midenFaucetId && midenFaucetId !== selectedToken.midenFaucetId) {
+      setMidenFaucetId(selectedToken.midenFaucetId);
+    }
+  }, [selectedToken?.midenFaucetId, midenFaucetId]);
+
+  const faucetIdIsAutoDerived = !!selectedToken?.midenFaucetId;
   const evmDisplayDecimals =
     toNumberOrUndefined((pendingQuote?.quoteResult as any)?.tokenInDecimals) ??
     selectedToken?.decimals ??
@@ -229,24 +255,30 @@ export function WithdrawForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={faucetIdIsAutoDerived ? '' : 'grid grid-cols-2 gap-3'}>
           <div>
             <Label>Destination (Miden wallet)</Label>
             <Input type="text" value={midenRecipientId} onChange={(e) => setMidenRecipientId(e.target.value)} />
           </div>
-          <div>
-            <Label htmlFor="wd-faucet-id">Miden faucet ID</Label>
-            <Input
-              id="wd-faucet-id"
-              value={midenFaucetId}
-              onChange={(e) => {
-                setMidenFaucetId(e.target.value);
-                onClearQuote();
-              }}
-              placeholder="Paste faucet account ID"
-              className="font-mono text-[13px]"
-            />
-          </div>
+          {/* Hide the Miden faucet input when the selected EVM token has a
+              known Miden mapping (the form auto-derives it). The input stays
+              visible for Custom / unknown tokens so advanced users can fill it
+              in manually. */}
+          {!faucetIdIsAutoDerived && (
+            <div>
+              <Label htmlFor="wd-faucet-id">Miden faucet ID</Label>
+              <Input
+                id="wd-faucet-id"
+                value={midenFaucetId}
+                onChange={(e) => {
+                  setMidenFaucetId(e.target.value);
+                  onClearQuote();
+                }}
+                placeholder="Paste faucet account ID"
+                className="font-mono text-[13px]"
+              />
+            </div>
+          )}
         </div>
 
         {pendingQuote && (

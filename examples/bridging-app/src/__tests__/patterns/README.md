@@ -5,12 +5,15 @@ Copy-adaptable test patterns for Miden frontend components.
 ## Available Patterns
 
 ### `provider-setup.test.tsx`
+
 Starting point for any component that uses Miden hooks. Shows mock setup, `vi.mocked()` overrides, and testing ready/loading/error states.
 
 ### `query-hook.test.tsx`
+
 Pattern for components displaying data from query hooks (`useAccounts`, `useNotes`, etc.). Shows loading → data → error → empty state testing.
 
 ### `mutation-hook.test.tsx`
+
 Pattern for components performing transactions (`useSend`, `useMint`, etc.). Shows idle → stage progression → success → error testing, plus argument verification.
 
 ## How to Use
