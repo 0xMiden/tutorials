@@ -47,13 +47,19 @@ vi.mock('@miden-sdk/miden-wallet-adapter-base', () => ({
 vi.mock('wagmi', () => ({
   useAccount: () => ({ address: undefined, isConnected: false }),
 }));
+// Configurable `useIntentTransactionStatus` mock. `vi.hoisted` lets the hoisted
+// `vi.mock` factory reference this ref; individual tests set `current` to drive
+// the status rows IntentForm reduces.
+const txStatusMock = vi.hoisted(() => ({
+  current: {
+    statuses: [] as Array<{ chainId: number; status: string; transactionHash: string }>,
+    isPolling: false as boolean,
+    error: null as string | null,
+    refetch: () => {},
+  },
+}));
 vi.mock('../../hooks/useIntentTransactionStatus', () => ({
-  useIntentTransactionStatus: () => ({
-    statuses: [],
-    isPolling: false,
-    error: null,
-    refetch: vi.fn(),
-  }),
+  useIntentTransactionStatus: () => txStatusMock.current,
 }));
 
 import { IntentForm } from '../crosschain/IntentForm';
@@ -71,6 +77,16 @@ beforeAll(() => {
   if (typeof Element.prototype.releasePointerCapture !== 'function') {
     Element.prototype.releasePointerCapture = vi.fn();
   }
+});
+
+// Reset the status mock to "no rows" before every test so cases stay isolated.
+beforeEach(() => {
+  txStatusMock.current = {
+    statuses: [],
+    isPolling: false,
+    error: null,
+    refetch: () => {},
+  };
 });
 
 const baseProps = {
@@ -149,5 +165,76 @@ describe('IntentForm balance rendering', () => {
     const balanceValue = within(balanceLine).getByText('100');
     expect(balanceValue.textContent).toBe('100');
     expect(balanceLine.textContent).not.toMatch(/100000000/);
+  });
+});
+
+describe('IntentForm destination-chain-aware settlement (PR #199)', () => {
+  // An internal/non-destination success row (Base Sepolia 84532) plus the
+  // user's destination-chain row (Sepolia 11155111, the form default). The
+  // destination row must drive the EVM-execution panel — the Compact row must
+  // never leak as the settlement.
+  const COMPACT_HASH = '0xcompact000000000000000000000000000000000000000000000000000000a1';
+  const DEST_PENDING_HASH = '0xdestpending000000000000000000000000000000000000000000000000000b2';
+  const DEST_SUCCESS_HASH = '0xdestsuccess000000000000000000000000000000000000000000000000000c3';
+
+  it('does not surface a non-destination success while the destination row is pending', () => {
+    txStatusMock.current = {
+      statuses: [
+        { chainId: 84532, status: 'success', transactionHash: COMPACT_HASH },
+        { chainId: 11155111, status: 'pending', transactionHash: DEST_PENDING_HASH },
+      ],
+      isPolling: true,
+      error: null,
+      refetch: () => {},
+    };
+
+    render(<IntentForm {...baseProps} midenAssets={[]} />);
+
+    // Destination row (Sepolia) is still pending → no settlement panel, no hash.
+    expect(screen.queryByText(/EVM execution tx hash/i)).toBeNull();
+    expect(screen.queryByText(COMPACT_HASH)).toBeNull();
+    expect(screen.queryByText(DEST_PENDING_HASH)).toBeNull();
+    // Still polling with no settled destination row → waiting state shown.
+    expect(screen.getByText(/Waiting for EVM execution/i)).toBeInTheDocument();
+  });
+
+  it('keeps waiting when a destination success coexists with an in-flight pending row', () => {
+    // Brian's exact case: a destination-chain success alongside an in-flight
+    // destination-chain tx. The pending row must block settlement so the success
+    // hash is not shown as final — proves the pending gate at the UI level.
+    txStatusMock.current = {
+      statuses: [
+        { chainId: 11155111, status: 'success', transactionHash: DEST_SUCCESS_HASH },
+        { chainId: 11155111, status: 'pending', transactionHash: DEST_PENDING_HASH },
+      ],
+      isPolling: true,
+      error: null,
+      refetch: () => {},
+    };
+
+    render(<IntentForm {...baseProps} midenAssets={[]} />);
+
+    expect(screen.queryByText(/EVM execution tx hash/i)).toBeNull();
+    expect(screen.queryByText(DEST_SUCCESS_HASH)).toBeNull();
+    expect(screen.getByText(/Waiting for EVM execution/i)).toBeInTheDocument();
+  });
+
+  it('surfaces the destination-chain success once no destination row is pending', () => {
+    txStatusMock.current = {
+      statuses: [
+        { chainId: 84532, status: 'success', transactionHash: COMPACT_HASH },
+        { chainId: 11155111, status: 'success', transactionHash: DEST_SUCCESS_HASH },
+      ],
+      isPolling: false,
+      error: null,
+      refetch: () => {},
+    };
+
+    render(<IntentForm {...baseProps} midenAssets={[]} />);
+
+    expect(screen.getByText(/EVM execution tx hash/i)).toBeInTheDocument();
+    expect(screen.getByText(DEST_SUCCESS_HASH)).toBeInTheDocument();
+    // The internal/non-destination success row is never shown as settlement.
+    expect(screen.queryByText(COMPACT_HASH)).toBeNull();
   });
 });

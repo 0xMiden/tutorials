@@ -6,6 +6,7 @@ import { WithdrawConsume } from '../crosschain/WithdrawConsume';
 import { useWithdrawIntent } from '../../hooks/useWithdrawIntent';
 import { useIntentFlowStatus } from '../../hooks/useIntentFlowStatus';
 import type { MidenAccount } from '../../types/miden';
+import { MIDEN_DESTINATION_CHAIN_ID } from '../../constants/chains';
 
 export function WithdrawTab() {
   // Read from the shared provider rather than firing a second
@@ -28,7 +29,9 @@ export function WithdrawTab() {
   // on EVM→Miden intents — it's the refund target if the intent fails).
   const intentNonce = withdraw.withdrawResult?.intentNonce;
   const evmAddress = withdraw.withdrawResult?.intentData?.recipient as string | undefined;
-  const intentStatus = useIntentFlowStatus(evmAddress, intentNonce);
+  // EVM→Miden settles on Miden: the destination chain is the Miden virtual chain
+  // id, so the synthetic Miden row is the settlement to wait on.
+  const intentStatus = useIntentFlowStatus(evmAddress, intentNonce, MIDEN_DESTINATION_CHAIN_ID);
 
   return (
     <div className="ui-tab-panel space-y-6">

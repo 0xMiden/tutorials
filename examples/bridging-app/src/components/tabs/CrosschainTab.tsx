@@ -3,6 +3,7 @@ import { IntentStatus } from '../crosschain/IntentStatus';
 import { useEpochIntent } from '../../hooks/useEpochIntent';
 import { useIntentFlowStatus } from '../../hooks/useIntentFlowStatus';
 import { useMidenWalletAdapterContext } from '../../hooks/MidenWalletAdapterProvider';
+import { parseDestinationChainId } from '../../lib/intentSettlement';
 
 export function CrosschainTab() {
   // Read from the shared provider rather than firing a second
@@ -13,7 +14,12 @@ export function CrosschainTab() {
   const epoch = useEpochIntent();
   const intentNonce = epoch.intentResult?.intentNonce;
   const evmAddress = epoch.intentResult?.intentData?.recipient as string | undefined;
-  const intentStatus = useIntentFlowStatus(evmAddress, intentNonce);
+  // Destination is the EVM chain the user selected; `buildEpochTaskDataParams`
+  // stores it on the submitted intent data as a string. Do not hardcode Sepolia.
+  const destinationChainId = parseDestinationChainId(
+    epoch.intentResult?.intentData?.destinationChainId,
+  );
+  const intentStatus = useIntentFlowStatus(evmAddress, intentNonce, destinationChainId);
 
   return (
     <div className="ui-tab-panel space-y-6">

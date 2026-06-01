@@ -15,6 +15,7 @@ import type { SolveIntentParams } from '@epoch-protocol/epoch-intents-sdk/dist/t
 import { DEFAULT_SEPOLIA_CHAIN_ID_STR } from '../../constants/chains';
 import { useAccount } from 'wagmi';
 import { useIntentTransactionStatus } from '../../hooks/useIntentTransactionStatus';
+import { selectDestinationSettlement } from '../../lib/intentSettlement';
 
 const SEPOLIA_TOKENS = [
   { symbol: 'USDC', address: '0x2BB4FfD7E2c6D432b697554Efd77fA13bdbefd69', decimals: 18 },
@@ -90,22 +91,16 @@ export function IntentForm({
   const latestStatus = txStatuses[txStatuses.length - 1];
   const latestStatusLabel = latestStatus?.status ? String(latestStatus.status) : undefined;
 
-  // Filter out the synthetic Miden settlement row that SIO surfaces under the
-  // pseudo chainId. Miden→EVM only cares about the EVM execution row.
-  const MIDEN_CHAIN_ID = 999_999_999;
-  const evmStatuses = txStatuses.filter((s) => Number(s.chainId) !== MIDEN_CHAIN_ID);
-
-  // Only show the EVM tx hash once the polling API reports a terminal success.
-  // PENDING / FAILED rows do not display a hash to the user.
-  const TERMINAL_OK = new Set(['success', 'completed']);
-  const evmCompletedStatus = evmStatuses.find(
-    (s) =>
-      TERMINAL_OK.has(String(s.status).toLowerCase()) &&
-      typeof s.transactionHash === 'string' &&
-      s.transactionHash.length > 0,
+  // Destination-chain-aware settlement (PR #199 review): filter status rows to
+  // the user-selected destination chain, stay in the waiting state while any
+  // destination-chain row is still pending, and surface the *last* terminal-OK
+  // row — never the first non-Miden row, which can be an intermediate
+  // allocator/Compact step.
+  const { completed: evmCompletedStatus } = selectDestinationSettlement(
+    txStatuses,
+    hasValidDestinationChainId ? destinationChainIdNum : undefined,
   );
   const evmTransactionHash = evmCompletedStatus?.transactionHash;
-
   const evmTxChainId = evmCompletedStatus?.chainId ?? destinationChainIdNum;
 
   const midenScanBase =

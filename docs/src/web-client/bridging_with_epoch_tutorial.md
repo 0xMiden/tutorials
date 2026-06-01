@@ -141,9 +141,9 @@ A Miden → EVM bridge runs four stages: `getTaskData` (the allocator computes a
 
 Once the quote returns and the user clicks **Confirm & sign**, the `createMidenP2IDNote` callback fires. The reference app's callback uses `useMidenFiWallet().requestSend` to construct an explicitly `'public'` P2IDE `SendTransaction`, guards the amount under `Number.MAX_SAFE_INTEGER` (the wallet adapter's `SendTransaction` constructor takes a `number`, not a `bigint`), and awaits a 120-second `waitForTransaction(txId, 120_000)` to read the output note id.
 
-**From `examples/bridging-app/src/components/crosschain/IntentForm.tsx` (lines 205–248):**
+**From `examples/bridging-app/src/components/crosschain/IntentForm.tsx` (lines 200–243):**
 
-<!-- source: examples/bridging-app/src/components/crosschain/IntentForm.tsx:205-248 -->
+<!-- source: examples/bridging-app/src/components/crosschain/IntentForm.tsx:200-243 -->
 
 ```typescript
     const createMidenP2IDNote: SolveIntentParams['createMidenP2IDNote'] = async (
@@ -192,7 +192,7 @@ Once the quote returns and the user clicks **Confirm & sign**, the `createMidenP
     };
 ```
 
-Success is signalled by the 5-second polling loop reporting `evmCompleted && midenConsumed` on the composite `IntentFlowStatus` — the EVM transfer landed, and the allocator burnt the P2IDE note. The Pitfalls section below catalogues the gotchas this step inherits (public note type, awaiting `waitForTransaction`, advisory `midenFaucetDecimals`, the `Number.MAX_SAFE_INTEGER` guard).
+Success is signalled by the 5-second polling loop: `getIntentStatus` returns an `IntentTransactionStatus[]`, which the app reduces into the composite `IntentFlowStatus`. The forward bridge is settled once the destination chain reports a terminal-OK row (`evmCompleted`) and the synthetic Miden row carries a terminal `midenStatus` — the EVM transfer landed and the allocator consumed the P2IDE note. That reducer is destination-chain aware: it filters status rows to the chain the user selected, never reports completion while any destination-chain row is still `pending`, and takes the last destination-chain success — so an intermediate allocator/Compact row is never mistaken for the final settlement. The Pitfalls section below catalogues the gotchas this step inherits (public note type, awaiting `waitForTransaction`, advisory `midenFaucetDecimals`, the `Number.MAX_SAFE_INTEGER` guard).
 
 ## Step 3: EVM → Miden bridge
 

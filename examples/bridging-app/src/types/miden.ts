@@ -22,7 +22,7 @@ export interface CrossChainIntentParams {
   midenFaucetId: string;
   /** Set to use direct-bridge path (same-token). Omit/pass "0" to use minTokenOut reverse-quote route */
   midenAmount?: string;
-  /** From `useFaucetDecimals(midenFaucetId).decimals` (same RPC path as dex-solver inventory). Required for scaling. */
+  /** From `useFaucetDecimals(midenFaucetId).decimals`. Required for scaling. */
   midenDecimals: number;
   /** Optional absolute reclaim height (block number) for P2IDE notes */
   midenReclaimHeight?: number;
