@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply min-h-screen bg-neutral-100 font-sans text-neutral-900;
+  }
+
+  ::selection {
+    @apply bg-primary/15 text-neutral-900;
+  }
+}
+
+@layer components {
+  .ui-card {
+    @apply rounded-xl border border-neutral-200 bg-neutral-50 p-6 shadow-card;
+  }
+
+  .ui-card-muted {
+    @apply rounded-lg border border-neutral-200 bg-neutral-100 p-4;
+  }
+
+  .ui-label {
+    @apply mb-1.5 block text-xs font-medium tracking-wide text-neutral-600;
+  }
+
+  .ui-input {
+    @apply w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm outline-none transition-colors placeholder:text-neutral-400 focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+
+  .ui-input-dim {
+    @apply w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 shadow-sm outline-none transition-colors placeholder:text-neutral-400 focus:border-primary focus:ring-2 focus:ring-primary/20;
+  }
+
+  .ui-select {
+    @apply ui-input;
+  }
+
+  .ui-btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-[transform,background-color,color,border-color,box-shadow,opacity] duration-200 ease-out disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98];
+  }
+
+  .ui-btn-primary {
+    @apply ui-btn bg-primary text-primary-foreground hover:bg-primary-hover;
+  }
+
+  .ui-btn-secondary {
+    @apply ui-btn border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50;
+  }
+
+  .ui-btn-accent {
+    @apply ui-btn bg-emerald-600 text-white hover:bg-emerald-500;
+  }
+
+  .ui-btn-warn {
+    @apply ui-btn bg-amber-500 text-neutral-900 hover:bg-amber-400;
+  }
+
+  .ui-btn-ghost {
+    @apply ui-btn bg-neutral-100 text-neutral-800 hover:bg-neutral-200;
+  }
+
+  .ui-chip {
+    @apply rounded-md border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-neutral-600;
+  }
+
+  .ui-tab-panel {
+    animation: ui-tab-enter 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes ui-tab-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
