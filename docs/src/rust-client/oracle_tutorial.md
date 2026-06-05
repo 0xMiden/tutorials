@@ -308,7 +308,7 @@ mkdir -p masm/accounts masm/scripts
 
 This will create:
 
-```
+```text
 masm/
 ├── accounts/
 └── scripts/
@@ -387,13 +387,13 @@ end
 
 Run the following command to execute src/main.rs:
 
-```
+```bash
 cargo run --release
 ```
 
 The output of our program will look something like this:
 
-```
+```text
 Latest block: 806773
 Oracle accountId prefix: V0(AccountIdPrefixV0 { prefix: 17041133956008732928 }) suffix: 1562038061251555584
 Stack state before step 11449:

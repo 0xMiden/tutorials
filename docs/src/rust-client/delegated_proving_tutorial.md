@@ -52,10 +52,7 @@ miden-client = { version = "0.14", features = ["testing", "tonic"] }
 miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
 miden-protocol = { version = "0.14" }
 rand = { version = "0.9" }
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value"] }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
-rand_chacha = "0.9.0"
 ```
 
 ## Step 2: Initialize the client and prover and construct transactions
@@ -67,7 +64,7 @@ We construct a `LocalTransactionProver` for this walkthrough.
 use miden_client::auth::AuthSecretKey;
 use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
     account::component::BasicWallet,
@@ -93,10 +90,10 @@ async fn main() -> Result<(), ClientError> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)

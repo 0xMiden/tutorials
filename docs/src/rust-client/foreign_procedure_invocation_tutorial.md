@@ -125,46 +125,22 @@ end
 
 ```rust no_run
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
 use miden_client::{
     account::{
-        component::AccountComponentMetadata, AccountBuilder, AccountComponent,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
         AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
-    },
-    account::AccountId,
-    assembly::{
-        CodeBuilder,
-        DefaultSourceManager,
-        Library,
-        Module,
-        ModuleKind,
-        Path as AssemblyPath,
     },
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{domain::account::AccountStorageRequirements, Endpoint, GrpcClient},
-    transaction::{ForeignAccount, TransactionKernel, TransactionRequestBuilder},
+    transaction::{ForeignAccount, TransactionRequestBuilder},
     ClientError, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-fn create_library(
-    library_path: &str,
-    source_code: &str,
-) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager,
-    )?;
-    let library = assembler.assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -173,10 +149,10 @@ async fn main() -> Result<(), ClientError> {
     let timeout_ms = 10_000;
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -194,13 +170,15 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 1] Creating count reader contract.");
 
-    let count_reader_path = Path::new("../masm/accounts/count_reader.masm");
-    let count_reader_code = fs::read_to_string(count_reader_path).unwrap();
+    // `include_str!` resolves at compile time relative to this source file,
+    // so the binary is independent of the working directory it is run from.
+    let count_reader_code = include_str!("../masm/accounts/count_reader.masm");
 
     let count_reader_slot_name =
         StorageSlotName::new("miden::tutorials::count_reader").expect("valid slot name");
-    let count_reader_component_code = CodeBuilder::new()
-        .compile_component_code("external_contract::count_reader_contract", &count_reader_code)
+    let count_reader_component_code = client
+        .code_builder()
+        .compile_component_code("external_contract::count_reader_contract", count_reader_code)
         .unwrap();
     let count_reader_component = AccountComponent::new(
         count_reader_component_code,
@@ -297,13 +275,13 @@ Add this snippet to the end of your file in the `main()` function:
 println!("\n[STEP 3] Call counter contract with FPI from count reader contract");
 
 // Derive the get_count procedure hash from the locally compiled counter library.
-let counter_contract_path = Path::new("../masm/accounts/counter.masm");
-let counter_contract_code = fs::read_to_string(counter_contract_path).unwrap();
+let counter_contract_code = include_str!("../masm/accounts/counter.masm");
 
 // Compile the counter as a component (same path as the deploy binary) to get
 // the correct procedure root that matches the on-chain MAST.
-let counter_component_code = CodeBuilder::new()
-    .compile_component_code("external_contract::counter_contract", &counter_contract_code)
+let counter_component_code = client
+    .code_builder()
+    .compile_component_code("external_contract::counter_contract", counter_contract_code)
     .unwrap();
 let counter_component = AccountComponent::new(
     counter_component_code,
@@ -323,9 +301,7 @@ println!("get_count hash: {:?}", get_count_hash);
 println!("counter id prefix: {:?}", counter_contract_id.prefix());
 println!("counter id suffix: {:?}", counter_contract_id.suffix());
 
-let script_path = Path::new("../masm/scripts/reader_script.masm");
-let script_code_original = fs::read_to_string(script_path).unwrap();
-let script_code = script_code_original
+let script_code = include_str!("../masm/scripts/reader_script.masm")
     .replace("{get_count_proc_hash}", &get_count_hash)
     .replace(
         "{account_id_suffix}",
@@ -336,17 +312,13 @@ let script_code = script_code_original
         &u64::from(counter_contract_id.prefix()).to_string(),
     );
 
-let account_component_lib = create_library(
-    "external_contract::count_reader_contract",
-    &count_reader_code,
-)
-.unwrap();
-
+// Link the count reader contract code into the same `CodeBuilder` chain
+// that compiles the script.
 let tx_script = client
     .code_builder()
-    .with_dynamically_linked_library(&account_component_lib)
+    .with_linked_module("external_contract::count_reader_contract", count_reader_code)
     .unwrap()
-    .compile_tx_script(&script_code)
+    .compile_tx_script(script_code.as_str())
     .unwrap();
 
 let foreign_account =
@@ -406,7 +378,7 @@ The final `src/main.rs` file should look like this:
 
 ```rust no_run
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio::time::sleep;
 
 use miden_client::{
@@ -414,33 +386,14 @@ use miden_client::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
         AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
     },
-    assembly::{
-        CodeBuilder, DefaultSourceManager, Library, Module, ModuleKind,
-        Path as AssemblyPath,
-    },
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
     rpc::{domain::account::AccountStorageRequirements, Endpoint, GrpcClient},
-    transaction::{ForeignAccount, TransactionKernel, TransactionRequestBuilder},
+    transaction::{ForeignAccount, TransactionRequestBuilder},
     ClientError, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-fn create_library(
-    library_path: &str,
-    source_code: &str,
-) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager,
-    )?;
-    let library = assembler.assemble_library([module])?;
-    Ok(library)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -449,10 +402,10 @@ async fn main() -> Result<(), ClientError> {
     let timeout_ms = 10_000;
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -470,15 +423,17 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 1] Creating count reader contract.");
 
-    let count_reader_path = Path::new("../masm/accounts/count_reader.masm");
-    let count_reader_code = fs::read_to_string(count_reader_path).unwrap();
+    // `include_str!` resolves at compile time relative to this source file,
+    // so the binary is independent of the working directory it is run from.
+    let count_reader_code = include_str!("../masm/accounts/count_reader.masm");
 
     let count_reader_slot_name =
         StorageSlotName::new("miden::tutorials::count_reader").expect("valid slot name");
-    let count_reader_component_code = CodeBuilder::new()
+    let count_reader_component_code = client
+        .code_builder()
         .compile_component_code(
             "external_contract::count_reader_contract",
-            &count_reader_code,
+            count_reader_code,
         )
         .unwrap();
     let count_reader_component = AccountComponent::new(
@@ -547,13 +502,13 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 3] Call counter contract with FPI from count reader contract");
 
-    let counter_contract_path = Path::new("../masm/accounts/counter.masm");
-    let counter_contract_code = fs::read_to_string(counter_contract_path).unwrap();
+    let counter_contract_code = include_str!("../masm/accounts/counter.masm");
 
     // Compile the counter as a component (same path as the deploy binary) to get
     // the correct procedure root that matches the on-chain MAST.
-    let counter_component_code = CodeBuilder::new()
-        .compile_component_code("external_contract::counter_contract", &counter_contract_code)
+    let counter_component_code = client
+        .code_builder()
+        .compile_component_code("external_contract::counter_contract", counter_contract_code)
         .unwrap();
     let counter_component = AccountComponent::new(
         counter_component_code,
@@ -573,9 +528,7 @@ async fn main() -> Result<(), ClientError> {
     println!("counter id prefix: {:?}", counter_contract_id.prefix());
     println!("counter id suffix: {:?}", counter_contract_id.suffix());
 
-    let script_path = Path::new("../masm/scripts/reader_script.masm");
-    let script_code_original = fs::read_to_string(script_path).unwrap();
-    let script_code = script_code_original
+    let script_code = include_str!("../masm/scripts/reader_script.masm")
         .replace("{get_count_proc_hash}", &get_count_hash)
         .replace(
             "{account_id_suffix}",
@@ -586,17 +539,13 @@ async fn main() -> Result<(), ClientError> {
             &u64::from(counter_contract_id.prefix()).to_string(),
         );
 
-    let account_component_lib = create_library(
-        "external_contract::count_reader_contract",
-        &count_reader_code,
-    )
-    .unwrap();
-
+    // Link the count reader contract code into the same `CodeBuilder` chain
+    // that compiles the script.
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_linked_module("external_contract::count_reader_contract", count_reader_code)
         .unwrap()
-        .compile_tx_script(&script_code)
+        .compile_tx_script(script_code.as_str())
         .unwrap();
 
     let foreign_account =

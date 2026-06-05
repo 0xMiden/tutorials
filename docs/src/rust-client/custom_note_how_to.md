@@ -49,7 +49,7 @@ Now, combine the minted asset and the secret hash to build the custom note. The 
 2. **Miden Assembly Code:**
    - The Miden assembly note script ensures that the note can only be consumed if the provided secret, when hashed, matches the hash stored in the note input.
 
-Below is the Miden Assembly code for the note:
+Below is the Miden Assembly code for the note. Note scripts in v0.14.5+ are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
 
 ```masm
 use miden::protocol::active_note
@@ -70,7 +70,8 @@ const ERROR_DIGEST_MISMATCH="Expected digest does not match computed digest"
 #!
 #! Note storage is assumed to be as follows:
 #!  => EXPECTED_DIGEST
-begin
+@note_script
+pub proc main
     # => HASH_PREIMAGE_SECRET
     # Hashing the secret number
     hash
@@ -124,7 +125,7 @@ The following Rust code demonstrates how to implement the steps outlined above u
 ```rust no_run
 use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
-use std::{fs, path::Path, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 use tokio::time::{sleep, Duration};
 
 use miden_client::{
@@ -243,10 +244,10 @@ async fn main() -> Result<(), ClientError> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
@@ -334,7 +335,9 @@ async fn main() -> Result<(), ClientError> {
     let digest = Hasher::hash_elements(&secret_vals);
     println!("digest: {:?}", digest);
 
-    let code = fs::read_to_string(Path::new("../masm/notes/hash_preimage_note.masm")).unwrap();
+    // `include_str!` resolves at compile time relative to this source file,
+    // so the binary is independent of the working directory it is run from.
+    let code = include_str!("../masm/notes/hash_preimage_note.masm");
     let serial_num = client.rng().draw_word();
 
     let note_script = client.code_builder().compile_note_script(code).unwrap();

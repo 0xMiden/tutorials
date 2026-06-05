@@ -251,7 +251,7 @@ Your `src/main.rs` function should now look like this:
 ```rust no_run
 use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use tokio::time::Duration;
 
 use miden_client::{
@@ -284,10 +284,10 @@ async fn main() -> Result<(), ClientError> {
     let rpc_client = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("./keystore");
+    let keystore_path = PathBuf::from("./keystore");
     let keystore = Arc::new(FilesystemKeyStore::new(keystore_path).unwrap());
 
-    let store_path = std::path::PathBuf::from("./store.sqlite3");
+    let store_path = PathBuf::from("./store.sqlite3");
 
     let mut client = ClientBuilder::new()
         .rpc(rpc_client)
