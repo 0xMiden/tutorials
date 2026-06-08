@@ -281,9 +281,9 @@ You've completed the Miden Bank tutorial! You now understand:
 
 ### Continue Learning
 
-- **[Testing with MockChain](https://docs.miden.xyz/builder/tutorials/rust-compiler/testing)** - Deep dive into testing patterns
-- **[Debugging Guide](https://docs.miden.xyz/builder/tutorials/rust-compiler/debugging)** - Troubleshoot common issues
-- **[Common Pitfalls](https://docs.miden.xyz/builder/tutorials/rust-compiler/pitfalls)** - Avoid known gotchas
+- **[Testing with MockChain](https://docs.miden.xyz/builder/tutorials/helpers/testing)** - Deep dive into testing patterns
+- **[Debugging Guide](https://docs.miden.xyz/builder/tutorials/helpers/debugging)** - Troubleshoot common issues
+- **[Common Pitfalls](https://docs.miden.xyz/builder/tutorials/helpers/pitfalls)** - Avoid known gotchas
 
 ### Build More
 
