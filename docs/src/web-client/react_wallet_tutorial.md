@@ -932,5 +932,5 @@ The `SignerContextValue` interface requires:
 Now that you've built a React wallet, explore these related topics:
 
 - [Creating Multiple Notes in a Single Transaction](./creating_multiple_notes_tutorial.md) - Learn about batch operations
-- [Miden React SDK Reference](https://github.com/0xMiden/miden-client/tree/main/packages/react-sdk) - Full API documentation
-- [Miden Documentation](https://docs.miden.io/) - Core Miden concepts
+- [Miden React SDK Reference](https://docs.miden.xyz/builder/tools/clients/react-sdk/) - Full API documentation
+- [Miden Documentation](https://docs.miden.xyz/) - Core Miden concepts
