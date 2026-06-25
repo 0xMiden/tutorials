@@ -30,7 +30,7 @@ Install the miden-node crate using this command:
 
 ```bash
 # Installs from GitHub (crates.io publication was not verified):
-cargo install --locked --git https://github.com/0xMiden/miden-node --tag v0.14.6 miden-node
+cargo install --locked --git https://github.com/0xMiden/miden-node --tag v0.15.0 miden-node
 ```
 
 Check the [miden-node releases](https://github.com/0xMiden/miden-node/releases) for the latest version compatible with your target network.

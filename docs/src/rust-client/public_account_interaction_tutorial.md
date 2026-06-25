@@ -37,9 +37,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
 ```

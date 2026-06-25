@@ -4,20 +4,23 @@ use tokio::time::{sleep, Duration, Instant};
 
 use miden_client::{
     account::{
-        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
-        AccountBuilder, AccountStorageMode, AccountType,
+        component::{
+            BasicWallet, BurnPolicyConfig, FungibleFaucet, MintPolicyConfig, PolicyRegistration,
+            TokenName, TokenPolicyManager,
+        },
+        AccountBuilder, AccountType,
     },
     address::NetworkId,
-    asset::{FungibleAsset, TokenSymbol},
+    asset::{AssetAmount, AssetCallbackFlag, AssetVaultKey, FungibleAsset, TokenSymbol},
     auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     keystore::{FilesystemKeyStore, Keystore},
-    note::{Note, NoteAttachment, NoteType, P2idNote},
+    note::{Note, NoteAttachments, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
     store::TransactionFilter,
     transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     utils::{Deserializable, Serializable},
-    Client, ClientError, Felt,
+    Client, ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 
@@ -92,15 +95,28 @@ async fn main() -> Result<(), ClientError> {
     // Faucet parameters
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
-    let max_supply = Felt::new(1_000_000);
+    let max_supply = AssetAmount::new(1_000_000).unwrap();
 
     // Build the account
     let faucet_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::FungibleFaucet)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
-        .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
-        .with_component(AuthControlled::allow_all())
+        .with_component(
+            FungibleFaucet::builder()
+                .name(TokenName::new("MID").unwrap())
+                .symbol(symbol)
+                .decimals(decimals)
+                .max_supply(max_supply)
+                .build()
+                .unwrap(),
+        )
+        .with_components(
+            TokenPolicyManager::new()
+                .with_mint_policy(MintPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap()
+                .with_burn_policy(BurnPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap(),
+        )
         .build()
         .unwrap();
 
@@ -134,8 +150,7 @@ async fn main() -> Result<(), ClientError> {
         let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
         let account = AccountBuilder::new(init_seed)
-            .account_type(AccountType::RegularAccountUpdatableCode)
-            .storage_mode(AccountStorageMode::Public)
+            .account_type(AccountType::Public)
             .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
             .with_component(BasicWallet)
             .build()
@@ -229,7 +244,7 @@ async fn main() -> Result<(), ClientError> {
             accounts[i + 1].id(),
             vec![fungible_asset_send_amount.into()],
             note_type,
-            NoteAttachment::default(),
+            NoteAttachments::empty(),
             client.rng(),
         )
         .unwrap();
@@ -285,7 +300,10 @@ async fn main() -> Result<(), ClientError> {
         let new_account = client.get_account(account.id()).await.unwrap().unwrap();
         let balance = new_account
             .vault()
-            .get_balance(faucet_account.id())
+            .get_balance(AssetVaultKey::new_fungible(
+                faucet_account.id(),
+                AssetCallbackFlag::Disabled,
+            ))
             .unwrap();
         println!(
             "Account: {} balance: {}",

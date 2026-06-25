@@ -48,9 +48,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
 ```
@@ -74,14 +74,17 @@ use tokio::time::Duration;
 
 use miden_client::{
     account::{
-        component::{BasicFungibleFaucet, BasicWallet},
+        component::{
+            BasicWallet, BurnPolicyConfig, FungibleFaucet, MintPolicyConfig, PolicyRegistration,
+            TokenName, TokenPolicyManager,
+        },
         AccountId,
     },
     address::NetworkId,
     auth::AuthSecretKey,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
-    note::{NoteType, P2idNote},
+    note::{NoteAttachments, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
     transaction::TransactionRequestBuilder,
     ClientError,
@@ -89,9 +92,8 @@ use miden_client::{
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_protocol::account::AccountIdVersion;
 use miden_client::{
-    account::{AccountBuilder, AccountStorageMode, AccountType},
-    asset::{FungibleAsset, TokenSymbol},
-    Felt,
+    account::{AccountBuilder, AccountType},
+    asset::{AssetAmount, FungibleAsset, TokenSymbol},
 };
 
 #[tokio::main]
@@ -142,9 +144,9 @@ Latest block number: 3855
 
 Now that we've initialized the client, we can create a wallet for Alice.
 
-To create a wallet for Alice using the Miden client, we define the account type as mutable or immutable and specify whether it is public or private. A mutable wallet means you can change the account code after deployment. A wallet on Miden is simply an account with standardized code.
+To create a wallet for Alice using the Miden client, we specify whether the account is public or private via `AccountType` (in v0.15 the account type is simply `AccountType::Public` or `AccountType::Private`). A wallet on Miden is simply an account with standardized code.
 
-In the example below we create a mutable public account for Alice.
+In the example below we create a public account for Alice.
 
 Add this snippet to the end of your file in the `main()` function:
 
@@ -162,8 +164,7 @@ let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
 // Build the account
 let alice_account = AccountBuilder::new(init_seed)
-    .account_type(AccountType::RegularAccountUpdatableCode)
-    .storage_mode(AccountStorageMode::Public)
+    .account_type(AccountType::Public)
     .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
     .with_component(BasicWallet)
     .build()
@@ -201,17 +202,34 @@ client.rng().fill_bytes(&mut init_seed);
 // Faucet parameters
 let symbol = TokenSymbol::new("MID").unwrap();
 let decimals = 8;
-let max_supply = Felt::new(1_000_000);
+let max_supply = AssetAmount::new(1_000_000).unwrap();
 
 // Generate key pair
 let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
-// Build the faucet account
+// Build the faucet account.
+// In v0.15 the faucet is a `FungibleFaucet` component plus a `TokenPolicyManager`
+// that registers an "allow all" mint (and burn) policy; minting is rejected
+// unless an active mint policy is present.
 let faucet_account = AccountBuilder::new(init_seed)
-    .account_type(AccountType::FungibleFaucet)
-    .storage_mode(AccountStorageMode::Public)
+    .account_type(AccountType::Public)
     .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
-    .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
+    .with_component(
+        FungibleFaucet::builder()
+            .name(TokenName::new("MID").unwrap())
+            .symbol(symbol)
+            .decimals(decimals)
+            .max_supply(max_supply)
+            .build()
+            .unwrap(),
+    )
+    .with_components(
+        TokenPolicyManager::new()
+            .with_mint_policy(MintPolicyConfig::AllowAll, PolicyRegistration::Active)
+            .unwrap()
+            .with_burn_policy(BurnPolicyConfig::AllowAll, PolicyRegistration::Active)
+            .unwrap(),
+    )
     .build()
     .unwrap();
 
@@ -244,14 +262,17 @@ use tokio::time::Duration;
 
 use miden_client::{
     account::{
-        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
+        component::{
+            BasicWallet, BurnPolicyConfig, FungibleFaucet, MintPolicyConfig, PolicyRegistration,
+            TokenName, TokenPolicyManager,
+        },
         AccountId,
     },
     address::NetworkId,
     auth::AuthSecretKey,
     builder::ClientBuilder,
     keystore::{FilesystemKeyStore, Keystore},
-    note::{NoteType, P2idNote},
+    note::{NoteAttachments, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
     transaction::TransactionRequestBuilder,
     ClientError,
@@ -259,9 +280,8 @@ use miden_client::{
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_protocol::account::AccountIdVersion;
 use miden_client::{
-    account::{AccountBuilder, AccountStorageMode, AccountType},
-    asset::{FungibleAsset, TokenSymbol},
-    Felt,
+    account::{AccountBuilder, AccountType},
+    asset::{AssetAmount, FungibleAsset, TokenSymbol},
 };
 
 #[tokio::main]
@@ -301,8 +321,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -329,18 +348,34 @@ async fn main() -> Result<(), ClientError> {
     // Faucet parameters
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
-    let max_supply = Felt::new(1_000_000);
+    let max_supply = AssetAmount::new(1_000_000).unwrap();
 
     // Generate key pair
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
-    // Build the faucet account
+    // Build the faucet account.
+    // In v0.15 the faucet is a `FungibleFaucet` component plus a `TokenPolicyManager`
+    // that registers an "allow all" mint (and burn) policy; minting is rejected
+    // unless an active mint policy is present.
     let faucet_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::FungibleFaucet)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
-        .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
-        .with_component(AuthControlled::allow_all())
+        .with_component(
+            FungibleFaucet::builder()
+                .name(TokenName::new("MID").unwrap())
+                .symbol(symbol)
+                .decimals(decimals)
+                .max_supply(max_supply)
+                .build()
+                .unwrap(),
+        )
+        .with_components(
+            TokenPolicyManager::new()
+                .with_mint_policy(MintPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap()
+                .with_burn_policy(BurnPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap(),
+        )
         .build()
         .unwrap();
 

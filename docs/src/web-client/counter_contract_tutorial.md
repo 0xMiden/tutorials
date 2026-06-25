@@ -42,7 +42,7 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 
 3. Install the Miden SDK:
    ```bash
-   yarn add @miden-sdk/miden-sdk@0.14.4
+   yarn add @miden-sdk/miden-sdk@0.15.2
    ```
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -192,10 +192,10 @@ Copy and paste the following code into the `lib/incrementCounterContract.ts` fil
 // lib/incrementCounterContract.ts
 import counterContractCode from './masm/counter_contract.masm';
 import {
-  AccountType,
   AuthSecretKey,
   StorageMode,
   StorageSlot,
+  StorageResult,
   MidenClient,
 } from '@miden-sdk/miden-sdk/lazy';
 
@@ -228,7 +228,6 @@ export async function incrementCounterContract(): Promise<void> {
 
   // Create the counter contract account
   const account = await client.accounts.create({
-    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: walletSeed,
     auth,
@@ -265,12 +264,14 @@ export async function incrementCounterContract(): Promise<void> {
   // Logging the count of the counter contract we just incremented
   const counter = await client.accounts.get(account);
 
-  // Here we get the Word from storage of the counter contract.
-  // The counter is stored as a Felt widened to Word [count, 0, 0, 0];
-  // toU64s() preserves native order so the value lives at index 0.
-  const count = counter?.storage().getItem(counterSlotName);
+  // `getItem()` is typed to return a low-level `Word`, but at runtime the SDK
+  // wraps the slot in a `StorageResult` whose `toBigInt()` reads the first
+  // felt — the count. The cast reflects that runtime type.
+  const count = counter?.storage().getItem(counterSlotName) as unknown as
+    | StorageResult
+    | undefined;
 
-  const counterValue = Number(count!.toU64s()[0]);
+  const counterValue = Number(count!.toBigInt());
 
   console.log('Count: ', counterValue);
 }
@@ -371,13 +372,12 @@ const counterAccountComponent = await client.compile.component({
 
 ### Creating the contract account
 
-Use `client.accounts.create()` with `type: AccountType.RegularAccountImmutableCode` to build and register the contract. You must supply a `seed` (for deterministic ID derivation) and a raw `AuthSecretKey` — the client stores the key automatically:
+Use `client.accounts.create()` to build and register the contract. Passing `components` makes this a contract account, so no account type is needed — `storage` selects visibility (`StorageMode.Public` here). You must supply a `seed` (for deterministic ID derivation) and a raw `AuthSecretKey` — the client stores the key automatically:
 
 ```ts
 const auth = AuthSecretKey.rpoFalconWithRNG(walletSeed);
 
 const account = await client.accounts.create({
-  type: AccountType.RegularAccountImmutableCode,
   storage: StorageMode.Public,
   seed: walletSeed,
   auth,

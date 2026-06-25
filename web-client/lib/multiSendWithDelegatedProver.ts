@@ -6,7 +6,6 @@
  */
 import {
   MidenClient,
-  AccountType,
   NoteVisibility,
   StorageMode,
   createP2IDNote,
@@ -29,14 +28,13 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   // ── Creating new account ──────────────────────────────────────────────────────
   console.log('Creating account for Alice…');
   const alice = await client.accounts.create({
-    type: AccountType.RegularAccountUpdatableCode,
     storage: StorageMode.Public,
   });
   console.log('Alice account ID:', alice.id().toString());
 
   // ── Creating new faucet ──────────────────────────────────────────────────────
   const faucet = await client.accounts.create({
-    type: AccountType.FungibleFaucet,
+    type: 0, // 0 = FungibleFaucet
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),
@@ -60,17 +58,20 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
     account: alice,
   });
 
-  // ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
-  const recipientAddresses = [
-    'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04',
-    'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn',
-    'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd',
-  ];
+  // ── create 3 recipient accounts, then build a P2ID note (100 MID) for each ─────────
+  const recipients = [];
+  for (let i = 0; i < 3; i++) {
+    const recipient = await client.accounts.create({
+      storage: StorageMode.Public,
+    });
+    recipients.push(recipient);
+    console.log(`Recipient ${i + 1} ID:`, recipient.id().toString());
+  }
 
-  const p2idNotes = recipientAddresses.map((addr) =>
+  const p2idNotes = recipients.map((recipient) =>
     createP2IDNote({
       from: alice,
-      to: addr,
+      to: recipient,
       assets: { token: faucet, amount: BigInt(100) },
       type: NoteVisibility.Public,
     }),

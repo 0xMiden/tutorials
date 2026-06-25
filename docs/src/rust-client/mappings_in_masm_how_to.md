@@ -150,7 +150,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
     account::{
-        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent,
         AccountType, StorageMap, StorageSlot, StorageSlotName,
     },
     auth::NoAuth,
@@ -215,7 +215,7 @@ async fn main() -> Result<(), ClientError> {
     let mapping_contract_component = AccountComponent::new(
         component_code,
         vec![empty_storage_slot, storage_slot_map],
-        AccountComponentMetadata::new("miden_by_example::mapping_example_contract", AccountType::all()),
+        AccountComponentMetadata::new("miden_by_example::mapping_example_contract"),
     )
     .unwrap();
 
@@ -225,8 +225,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Build the new `Account` with the component
     let mapping_example_contract = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_component(mapping_contract_component.clone())
         .with_auth_component(NoAuth)
         .build()
@@ -277,9 +276,15 @@ async fn main() -> Result<(), ClientError> {
         .await
         .unwrap()
         .expect("mapping contract not found");
-    let key = [Felt::new(0), Felt::new(0), Felt::new(0), Felt::new(0)].into();
+    let key = [
+        Felt::new_unchecked(0),
+        Felt::new_unchecked(0),
+        Felt::new_unchecked(0),
+        Felt::new_unchecked(0),
+    ]
+    .into();
     println!(
-        "Mapping state\n Slot: {:?}\n Key: {:?}\n Value: {:?}",
+        "Mapping state\n Index: {:?}\n Key: {:?}\n Value: {:?}",
         map_slot_name,
         key,
         account.storage().get_map_item(&map_slot_name, key)

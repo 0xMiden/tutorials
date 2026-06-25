@@ -860,7 +860,7 @@ If you need to integrate with a different signing service, you can build your ow
 ```tsx
 import { useState, useCallback, type ReactNode } from 'react';
 import { SignerContext, type SignerContextValue } from '@miden-sdk/react/lazy';
-import { AccountStorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 interface CustomSignerProviderProps {
   children: ReactNode;
@@ -887,7 +887,7 @@ export function CustomSignerProvider({ children }: CustomSignerProviderProps) {
       accountConfig: {
         publicKeyCommitment,
         accountType: 'RegularAccountImmutableCode',
-        storageMode: AccountStorageMode.public(),
+        storageMode: StorageMode.Public,
       },
       storeName: 'custom_signer',
       name: 'CustomSigner',

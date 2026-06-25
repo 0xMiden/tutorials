@@ -37,9 +37,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
 ```
@@ -56,7 +56,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
     account::{
-        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent,
         AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
@@ -241,7 +241,7 @@ let component_code = client
 let counter_component = AccountComponent::new(
     component_code,
     vec![StorageSlot::with_value(counter_slot_name.clone(), Word::default())],
-    AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+    AccountComponentMetadata::new("external_contract::counter_contract"),
 )
 .unwrap();
 
@@ -251,8 +251,7 @@ client.rng().fill_bytes(&mut seed);
 
 // Build the new `Account` with the component
 let counter_contract = AccountBuilder::new(seed)
-    .account_type(AccountType::RegularAccountImmutableCode)
-    .storage_mode(AccountStorageMode::Public)
+    .account_type(AccountType::Public)
     .with_component(counter_component.clone())
     .with_auth_component(NoAuth)
     .build()
@@ -355,7 +354,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
     account::{
-        component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountStorageMode,
+        component::AccountComponentMetadata, AccountBuilder, AccountComponent,
         AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
@@ -412,7 +411,7 @@ async fn main() -> Result<(), ClientError> {
     let counter_component = AccountComponent::new(
         component_code,
         vec![StorageSlot::with_value(counter_slot_name.clone(), Word::default())],
-        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+        AccountComponentMetadata::new("external_contract::counter_contract"),
     )
     .unwrap();
 
@@ -422,8 +421,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Build the new `Account` with the component
     let counter_contract = AccountBuilder::new(seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_component(counter_component.clone())
         .with_auth_component(NoAuth)
         .build()

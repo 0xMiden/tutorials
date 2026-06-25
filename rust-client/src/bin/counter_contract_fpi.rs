@@ -5,7 +5,7 @@ use tokio::time::sleep;
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
-        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
+        AccountType, StorageSlot, StorageSlotName,
     },
     auth::NoAuth,
     builder::ClientBuilder,
@@ -64,10 +64,7 @@ async fn main() -> Result<(), ClientError> {
             count_reader_slot_name.clone(),
             Word::default(),
         )],
-        AccountComponentMetadata::new(
-            "external_contract::count_reader_contract",
-            AccountType::all(),
-        ),
+        AccountComponentMetadata::new("external_contract::count_reader_contract"),
     )
     .unwrap();
 
@@ -75,8 +72,7 @@ async fn main() -> Result<(), ClientError> {
     client.rng().fill_bytes(&mut init_seed);
 
     let count_reader_contract = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_component(count_reader_component.clone())
         .with_auth_component(NoAuth)
         .build()
@@ -135,7 +131,7 @@ async fn main() -> Result<(), ClientError> {
     let counter_component = AccountComponent::new(
         counter_component_code,
         vec![],
-        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+        AccountComponentMetadata::new("external_contract::counter_contract"),
     )
     .unwrap();
 

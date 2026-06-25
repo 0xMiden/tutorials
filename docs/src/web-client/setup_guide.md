@@ -95,7 +95,7 @@ declare module '*.masm' {
 
 ## Entry points: eager vs lazy
 
-Starting with `@miden-sdk/miden-sdk@0.14.4`, the SDK ships two entry points:
+The SDK ships two entry points:
 
 - **Default entry** (`@miden-sdk/miden-sdk`, `@miden-sdk/react`) — awaits WASM initialization at module top level. Ergonomic for Vite and plain-browser projects: import the SDK and construct wasm-bindgen types on the next line, no ceremony. **Not usable from Next.js App Router** — top-level `await` blocks the server render phase.
 - **`/lazy` subpath** (`@miden-sdk/miden-sdk/lazy`, `@miden-sdk/react/lazy`) — synchronous import with no top-level `await`. The caller is responsible for awaiting WASM readiness before constructing any wasm-bindgen type. **This is the correct entry for Next.js.**
@@ -246,7 +246,7 @@ Pass `auth` and `seed` when creating contract accounts that require authenticati
 
 ### Concurrency safety and `waitForIdle()`
 
-As of `@miden-sdk/miden-sdk@0.14.4`, all mutating `WebClient` methods (`transactions.execute`, `transactions.submit`, `syncState`, account creation) and async proxy-fallback reads (`getAccount`, `importAccountById`, `getAccountStorage`, etc.) are internally serialized through a single promise chain. Consumers no longer need to maintain their own JS-level mutex, and the `"recursive use of an object detected"` wasm-bindgen panic caused by the 15-second auto-sync timer racing with user operations is gone.
+All mutating `MidenClient` operations (`transactions.execute`, `transactions.submit`, `sync`, account creation) and async reads are internally serialized through a single promise chain. Consumers no longer need to maintain their own JS-level mutex, and the `"recursive use of an object detected"` wasm-bindgen panic caused by the auto-sync timer racing with user operations is gone.
 
 For the rare case where you need to coordinate a non-WASM side effect (for example, clearing an in-memory auth key on wallet lock) with whatever SDK work is currently in flight, drain the queue first:
 

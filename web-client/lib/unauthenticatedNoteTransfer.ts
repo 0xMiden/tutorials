@@ -4,7 +4,7 @@
  *
  * @throws {Error} If the function cannot be executed in a browser environment
  */
-import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function unauthenticatedNoteTransfer(): Promise<void> {
   // Ensure this runs only in a browser context
@@ -23,7 +23,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
   console.log('Creating account for Alice…');
   const alice = await client.accounts.create({
-    type: AccountType.RegularAccountUpdatableCode,
     storage: StorageMode.Public,
   });
   console.log('Alice account ID:', alice.id().toString());
@@ -31,7 +30,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   const wallets = [];
   for (let i = 0; i < 5; i++) {
     const wallet = await client.accounts.create({
-      type: AccountType.RegularAccountUpdatableCode,
       storage: StorageMode.Public,
     });
     wallets.push(wallet);
@@ -40,7 +38,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
   // ── Creating new faucet ──────────────────────────────────────────────────────
   const faucet = await client.accounts.create({
-    type: AccountType.FungibleFaucet,
+    type: 0, // 0 = FungibleFaucet
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),

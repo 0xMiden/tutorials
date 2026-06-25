@@ -47,15 +47,18 @@ function MultiSendInner() {
     const notes = await waitForConsumableNotes({ accountId: alice });
     await consume({ accountId: alice.id().toString(), notes });
 
-    // 5. Send 100 MID to three recipients in a single transaction
+    // 5. Create three recipient wallets, then send 100 MID to each in a single transaction
+    const recipients = [];
+    for (let i = 0; i < 3; i++) {
+      const recipient = await createWallet({ storageMode: StorageMode.Public });
+      recipients.push(recipient);
+      console.log(`Recipient ${i + 1} ID:`, recipient.id().toString());
+    }
+
     await sendMany({
       from: alice,
       assetId: faucet,
-      recipients: [
-        { to: 'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04', amount: BigInt(100) },
-        { to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },
-        { to: 'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd', amount: BigInt(100) },
-      ],
+      recipients: recipients.map((recipient) => ({ to: recipient, amount: BigInt(100) })),
       noteType: NoteVisibility.Public,
     });
 

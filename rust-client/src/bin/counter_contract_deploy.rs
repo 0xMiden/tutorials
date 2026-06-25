@@ -4,7 +4,7 @@ use std::{path::PathBuf, sync::Arc};
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent,
-        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
+        AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
     auth::NoAuth,
@@ -63,7 +63,7 @@ async fn main() -> Result<(), ClientError> {
             counter_slot_name.clone(),
             Word::default(),
         )],
-        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+        AccountComponentMetadata::new("external_contract::counter_contract"),
     )
     .unwrap();
 
@@ -73,8 +73,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Build the new `Account` with the component
     let counter_contract = AccountBuilder::new(seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_component(counter_component.clone())
         .with_auth_component(NoAuth)
         .build()

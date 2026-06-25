@@ -21,14 +21,15 @@ pub proc main
     # => []
 
     # Get asset contained in note into memory (ASSET_KEY at 0, ASSET_VALUE at 4)
-    push.ASSET_KEY_PTR exec.active_note::get_assets drop drop
+    # get_assets leaves [num_assets] on the stack in v0.15; drop it.
+    push.ASSET_KEY_PTR exec.active_note::get_assets drop
     # => []
 
     # Load ASSET_VALUE and compute half amount
     padw push.ASSET_VALUE_PTR mem_loadw_le
     # => [av0, av1, av2, av3]  (av0 = amount for fungible asset, av1/av2/av3 = 0)
 
-    # Halve the amount (av0 is amount for fungible assets in v0.14)
+    # Halve the amount (av0 is the amount for fungible assets)
     push.2 div
     # => [av0/2, av1, av2, av3]
 
@@ -61,7 +62,9 @@ pub proc main
     swap
     # => [dest_ptr, num_storage_items, SERIAL_NUM+1, SCRIPT_HASH]
 
-    exec.note::build_recipient
+    # v0.15 renamed note::build_recipient -> note::compute_and_store_recipient
+    # (same [storage_ptr, num_storage_items, SERIAL_NUM, SCRIPT_ROOT] arg shape).
+    exec.note::compute_and_store_recipient
     # => [RECIPIENT]
 
     # Push note type to stack (public note = 1)

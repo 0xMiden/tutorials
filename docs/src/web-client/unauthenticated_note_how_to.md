@@ -77,8 +77,8 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.14.4` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.14.4` },
+  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.15.2` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.15.2` },
 }} reactFilename="" tsFilename="" />
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -254,7 +254,6 @@ export default function UnauthenticatedNoteTransfer() {
 }`},
   typescript: { code:`import {
 .MidenClient,
-.AccountType,
 .NoteVisibility,
 .StorageMode,
 } from '@miden-sdk/miden-sdk/lazy';
@@ -281,7 +280,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .// ── Creating accounts ──────────────────────────────────────────────────────
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice account ID:', alice.id().toString());
@@ -289,7 +287,6 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .const wallets = [];
 .for (let i = 0; i < 5; i++) {
 ..const wallet = await client.accounts.create({
-...type: AccountType.RegularAccountUpdatableCode,
 ...storage: StorageMode.Public,
 ..});
 ..wallets.push(wallet);
@@ -298,7 +295,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 
 .// ── Creating new faucet ──────────────────────────────────────────────────────
 .const faucet = await client.accounts.create({
-..type: AccountType.FungibleFaucet,
+..type: 0, // 0 = FungibleFaucet
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

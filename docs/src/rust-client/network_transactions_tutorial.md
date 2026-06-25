@@ -11,12 +11,12 @@ _Using the Miden client in Rust to deploy and interact with smart contracts usin
 
 In this tutorial, we will explore Network Transactions (NTXs) on Miden - a powerful feature that enables autonomous smart contract execution and public shared state management. Unlike local transactions that require users to execute and prove, network transactions are executed and proven by a network transaction builder.
 
-We'll build a network counter smart contract using the same MASM code as the regular counter, but with different storage configuration in Rust to enable network execution.
+We'll build a network counter smart contract using the same MASM code as the regular counter. In v0.15 there is no separate network storage mode: the contract is a public account (`AccountType::Public`), and network execution is triggered by targeting it from a note that carries a `NetworkAccountTarget` attachment.
 
 ## What we'll cover
 
 - Understanding Network Transactions and when to use them
-- Deploying smart contracts with network storage mode
+- Deploying public smart contracts that the network operator can execute
 - Using transaction scripts to initialize network contracts on-chain
 - Creating network notes for user interactions
 - Validating network transaction results
@@ -49,9 +49,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
 ```
@@ -117,11 +117,11 @@ begin
 end
 ```
 
-This script executes a function call (increment) that creates a necessary state change for our contract to be deployed and stored on the network on-chain. In Miden, network contracts must have their state modified through a transaction to be properly registered and committed to the blockchain - simply creating the account isn't sufficient for network storage mode.
+This script executes a function call (increment) that creates a necessary state change for our contract to be deployed and stored on the network on-chain. In Miden, public contracts must have their state modified through a transaction to be properly registered and committed to the blockchain - simply creating the account isn't sufficient.
 
 ### Network Note for User Interaction
 
-Create `masm/notes/network_increment_note.masm`. Note scripts in v0.14.5+ are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
+Create `masm/notes/network_increment_note.masm`. Note scripts are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
 
 ```masm
 use external_contract::counter_contract
@@ -148,7 +148,7 @@ use std::{path::PathBuf, sync::Arc};
 use miden_client::{
     account::{
         component::{AccountComponentMetadata, BasicWallet}, AccountBuilder, AccountComponent,
-        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
+        AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
     auth::{self, AuthSchemeId, AuthSecretKey, AuthSingleSig},
@@ -156,8 +156,8 @@ use miden_client::{
     crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
-        NetworkAccountTarget, Note, NoteAssets, NoteError, NoteExecutionHint, NoteMetadata,
-        NoteRecipient, NoteStorage, NoteTag, NoteType,
+        NetworkAccountTarget, Note, NoteAssets, NoteAttachments, NoteError, NoteExecutionHint,
+        NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata,
     },
     rpc::{Endpoint, GrpcClient},
     store::TransactionFilter,
@@ -237,8 +237,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -263,7 +262,7 @@ This step initializes the Miden client and creates a basic user account (Alice) 
 
 ## Step 4: Create the network counter smart contract
 
-Now we'll create a network smart contract. The key difference from regular contracts is using `AccountStorageMode::Network` instead of `AccountStorageMode::Public`.
+Now we'll create a network smart contract. It is built as a public account (`AccountType::Public`), just like any other public contract; what makes it network-executable is that notes target it with a `NetworkAccountTarget` attachment (see Step 6).
 
 Add this code to your `main()` function:
 
@@ -287,8 +286,8 @@ let component_code = client
     .unwrap();
 let counter_component = AccountComponent::new(
     component_code,
-    vec![StorageSlot::with_value(counter_slot_name.clone(), [Felt::new(0); 4].into())], // Initialize counter storage to 0
-    AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+    vec![StorageSlot::with_value(counter_slot_name.clone(), [Felt::new_unchecked(0); 4].into())], // Initialize counter storage to 0
+    AccountComponentMetadata::new("external_contract::counter_contract"),
 )
 .unwrap();
 
@@ -298,8 +297,7 @@ client.rng().fill_bytes(&mut init_seed);
 
 // Build the immutable network account with no authentication
 let counter_contract = AccountBuilder::new(init_seed)
-    .account_type(AccountType::RegularAccountImmutableCode) // Immutable code
-    .storage_mode(AccountStorageMode::Network) // Stored on network
+    .account_type(AccountType::Public) // Public, network-executable account
     .with_auth_component(auth::NoAuth) // No authentication required
     .with_component(counter_component)
     .build()
@@ -313,7 +311,7 @@ println!(
 );
 ```
 
-This step creates a network smart contract with `AccountStorageMode::Network`, which enables the contract to be executed by the network operator.
+This step creates a public smart contract (`AccountType::Public`) that the network operator can execute once a note targets it with a `NetworkAccountTarget` attachment.
 
 ## Step 5: Deploy the network account with a transaction script
 
@@ -391,12 +389,12 @@ let tag = NoteTag::with_account_target(counter_contract.id());
 let attachment = NetworkAccountTarget::new(counter_contract.id(), NoteExecutionHint::Always)
     .map_err(|e| NoteError::other(e.to_string()))?
     .into();
-let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public)
-    .with_tag(tag)
-    .with_attachment(attachment);
+let metadata = PartialNoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
+let attachments = NoteAttachments::new(vec![attachment]).unwrap();
 
 // Create the complete note
-let increment_note = Note::new(NoteAssets::default(), metadata, recipient);
+let increment_note =
+    Note::with_attachments(NoteAssets::default(), metadata, recipient, attachments);
 
 // Build and submit the transaction containing the note
 let note_req = TransactionRequestBuilder::new()
@@ -467,7 +465,7 @@ use std::{path::PathBuf, sync::Arc};
 use miden_client::{
     account::{
         component::{AccountComponentMetadata, BasicWallet}, AccountBuilder, AccountComponent,
-        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
+        AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
     auth::{self, AuthSchemeId, AuthSecretKey, AuthSingleSig},
@@ -475,8 +473,8 @@ use miden_client::{
     crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
-        NetworkAccountTarget, Note, NoteAssets, NoteError, NoteExecutionHint, NoteMetadata,
-        NoteRecipient, NoteStorage, NoteTag, NoteType,
+        NetworkAccountTarget, Note, NoteAssets, NoteAttachments, NoteError, NoteExecutionHint,
+        NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata,
     },
     rpc::{Endpoint, GrpcClient},
     store::TransactionFilter,
@@ -556,8 +554,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -593,8 +590,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     let counter_component = AccountComponent::new(
         component_code,
-        vec![StorageSlot::with_value(counter_slot_name.clone(), [Felt::new(0); 4].into())], // Initialize counter storage to 0
-        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+        vec![StorageSlot::with_value(counter_slot_name.clone(), [Felt::new_unchecked(0); 4].into())], // Initialize counter storage to 0
+        AccountComponentMetadata::new("external_contract::counter_contract"),
     )
     .unwrap();
 
@@ -604,8 +601,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the immutable network account with no authentication
     let counter_contract = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode) // Immutable code
-        .storage_mode(AccountStorageMode::Network) // Stored on network
+        .account_type(AccountType::Public) // Public, network-executable account
         .with_auth_component(auth::NoAuth) // No authentication required
         .with_component(counter_component)
         .build()
@@ -677,12 +673,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let attachment = NetworkAccountTarget::new(counter_contract.id(), NoteExecutionHint::Always)
         .map_err(|e| NoteError::other(e.to_string()))?
         .into();
-    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public)
-        .with_tag(tag)
-        .with_attachment(attachment);
+    let metadata = PartialNoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
+    let attachments = NoteAttachments::new(vec![attachment]).unwrap();
 
     // Create the complete note
-    let increment_note = Note::new(NoteAssets::default(), metadata, recipient);
+    let increment_note =
+        Note::with_attachments(NoteAssets::default(), metadata, recipient, attachments);
 
     // Build and submit the transaction containing the note
     let note_req = TransactionRequestBuilder::new()
@@ -780,7 +776,7 @@ network increment note created, waiting for onchain commitment
 Network transactions on Miden enable powerful use cases by allowing the operator to execute transactions on behalf of users. The key steps are:
 
 1. **Create user account**: Standard account creation for interaction
-2. **Create network account**: Use `AccountStorageMode::Network` instead of `Public`
+2. **Create network account**: Build a public account (`AccountType::Public`); network execution comes from a `NetworkAccountTarget` attachment on the note
 3. **Deploy with transaction script**: Ensures the contract is registered on-chain
 4. **Interact with network notes**: Users create public notes that the operator executes
 

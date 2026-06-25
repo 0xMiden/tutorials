@@ -166,9 +166,8 @@ for _ in 1..=4 {
     };
     let target_account_id = AccountId::dummy(
         init_seed,
-        AccountIdVersion::Version0,
-        AccountType::RegularAccountUpdatableCode,
-        AccountStorageMode::Public,
+        AccountIdVersion::Version1,
+        AccountType::Public,
     );
 
     let send_amount = 50;
@@ -179,7 +178,7 @@ for _ in 1..=4 {
         target_account_id,
         vec![fungible_asset.into()],
         NoteType::Public,
-        NoteAttachment::default(),
+        NoteAttachments::empty(),
         client.rng(),
     )?;
     p2id_notes.push(p2id_note);
@@ -213,9 +212,8 @@ let init_seed: [u8; 15] = {
 };
 let target_account_id = AccountId::dummy(
     init_seed,
-    AccountIdVersion::Version0,
-    AccountType::RegularAccountUpdatableCode,
-    AccountStorageMode::Public,
+    AccountIdVersion::Version1,
+    AccountType::Public,
 );
 
 let send_amount = 50;
@@ -226,7 +224,7 @@ let p2id_note = P2idNote::create(
     target_account_id,
     vec![fungible_asset.into()],
     NoteType::Public,
-    NoteAttachment::default(),
+    NoteAttachments::empty(),
     client.rng(),
 )?;
 
@@ -249,32 +247,30 @@ Note: _In a production environment do not use `AccountId::dummy()`, this is simp
 Your `src/main.rs` function should now look like this:
 
 ```rust no_run
-use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
 use tokio::time::Duration;
 
 use miden_client::{
     account::{
-        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
-        AccountId,
+        component::{
+            BasicWallet, BurnPolicyConfig, FungibleFaucet, MintPolicyConfig, PolicyRegistration,
+            TokenName, TokenPolicyManager,
+        },
+        AccountBuilder, AccountId, AccountType,
     },
     address::NetworkId,
-    auth::AuthSecretKey,
+    asset::{AssetAmount, FungibleAsset, TokenSymbol},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     keystore::{FilesystemKeyStore, Keystore},
-    note::{NoteAttachment, NoteType, P2idNote},
+    note::{NoteAttachments, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
     transaction::TransactionRequestBuilder,
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_protocol::account::AccountIdVersion;
-use miden_client::{
-    account::{AccountBuilder, AccountStorageMode, AccountType},
-    asset::{FungibleAsset, TokenSymbol},
-    Felt,
-};
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -313,8 +309,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -341,18 +336,34 @@ async fn main() -> Result<(), ClientError> {
     // Faucet parameters
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
-    let max_supply = Felt::new(1_000_000);
+    let max_supply = AssetAmount::new(1_000_000).unwrap();
 
     // Generate key pair
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
-    // Build the faucet account
+    // Build the faucet account.
+    // In v0.15 the faucet is a `FungibleFaucet` component plus a `TokenPolicyManager`
+    // that registers an "allow all" mint (and burn) policy; minting is rejected
+    // unless an active mint policy is present.
     let faucet_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::FungibleFaucet)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
-        .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
-        .with_component(AuthControlled::allow_all())
+        .with_component(
+            FungibleFaucet::builder()
+                .name(TokenName::new("MID").unwrap())
+                .symbol(symbol)
+                .decimals(decimals)
+                .max_supply(max_supply)
+                .build()
+                .unwrap(),
+        )
+        .with_components(
+            TokenPolicyManager::new()
+                .with_mint_policy(MintPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap()
+                .with_burn_policy(BurnPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap(),
+        )
         .build()
         .unwrap();
 
@@ -422,9 +433,8 @@ async fn main() -> Result<(), ClientError> {
 
         if notes.len() == 5 {
             println!("Found 5 consumable notes for Alice. Consuming them now...");
-            let transaction_request = TransactionRequestBuilder::new()
-                .build_consume_notes(notes)
-                .unwrap();
+            let transaction_request =
+                TransactionRequestBuilder::new().build_consume_notes(notes)?;
 
             let tx_id = client
                 .submit_new_transaction(alice_account.id(), transaction_request)
@@ -461,9 +471,8 @@ async fn main() -> Result<(), ClientError> {
         };
         let target_account_id = AccountId::dummy(
             init_seed,
-            AccountIdVersion::Version0,
-            AccountType::RegularAccountUpdatableCode,
-            AccountStorageMode::Public,
+            AccountIdVersion::Version1,
+            AccountType::Public,
         );
 
         let send_amount = 50;
@@ -474,15 +483,16 @@ async fn main() -> Result<(), ClientError> {
             target_account_id,
             vec![fungible_asset.into()],
             NoteType::Public,
-            NoteAttachment::default(),
+            NoteAttachments::empty(),
             client.rng(),
         )?;
         p2id_notes.push(p2id_note);
     }
 
     // Specifying output notes and creating a tx request to create them
+    let output_notes = p2id_notes;
     let transaction_request = TransactionRequestBuilder::new()
-        .own_output_notes(p2id_notes)
+        .own_output_notes(output_notes)
         .build()
         .unwrap();
 
@@ -500,9 +510,8 @@ async fn main() -> Result<(), ClientError> {
     };
     let target_account_id = AccountId::dummy(
         init_seed,
-        AccountIdVersion::Version0,
-        AccountType::RegularAccountUpdatableCode,
-        AccountStorageMode::Public,
+        AccountIdVersion::Version1,
+        AccountType::Public,
     );
 
     let send_amount = 50;
@@ -513,7 +522,7 @@ async fn main() -> Result<(), ClientError> {
         target_account_id,
         vec![fungible_asset.into()],
         NoteType::Public,
-        NoteAttachment::default(),
+        NoteAttachments::empty(),
         client.rng(),
     )?;
 

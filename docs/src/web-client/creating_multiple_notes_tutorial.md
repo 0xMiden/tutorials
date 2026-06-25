@@ -61,8 +61,8 @@ proving service. This means your browser never has to generate the full ZK proof
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.14.4` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.14.4` },
+  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.15.2` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.15.2` },
 }} reactFilename="" tsFilename="" />
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -179,7 +179,6 @@ export default function MultiSendWithDelegatedProver() {
 }`},
   typescript: { code:`import {
 .MidenClient,
-.AccountType,
 .NoteVisibility,
 .StorageMode,
 .createP2IDNote,
@@ -240,14 +239,13 @@ await consume({ accountId: aliceId, notes });`},
   typescript: { code:`// ── Creating new account ──────────────────────────────────────────────────────
 console.log('Creating account for Alice…');
 const alice = await client.accounts.create({
-.type: AccountType.RegularAccountUpdatableCode,
 .storage: StorageMode.Public,
 });
 console.log('Alice account ID:', alice.id().toString());
 
 // ── Creating new faucet ──────────────────────────────────────────────────────
 const faucet = await client.accounts.create({
-.type: AccountType.FungibleFaucet,
+.type: 0, // 0 = FungibleFaucet
 .symbol: 'MID',
 .decimals: 8,
 .maxSupply: BigInt(1_000_000),
@@ -274,33 +272,39 @@ await client.transactions.consumeAll({
 
 ## Step 5 — Build and Create P2ID notes
 
-Add the following code to the function. This code defines three recipient addresses, builds three P2ID notes with 100 `MID` each, and then creates all three notes in the same transaction.
+Add the following code to the function. This code creates three recipient accounts, builds three P2ID notes with 100 `MID` each, and then creates all three notes in the same transaction.
 
 <CodeSdkTabs example={{
-react: { code: `// 5. Send 100 MID to three recipients in a single transaction
+react: { code: `// 5. Create three recipient wallets, then send 100 MID to each in a single transaction
+const recipients = [];
+for (let i = 0; i < 3; i++) {
+.const recipient = await createWallet({ storageMode: StorageMode.Public });
+.recipients.push(recipient);
+.console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
+}
+
 await sendMany({
-.from: aliceId,
-.assetId: faucetId,
-.recipients: [
-..{ to: 'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04', amount: BigInt(100) },
-..{ to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },
-..{ to: 'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd', amount: BigInt(100) },
-.],
+.from: alice,
+.assetId: faucet,
+.recipients: recipients.map((recipient) => ({ to: recipient, amount: BigInt(100) })),
 .noteType: NoteVisibility.Public,
 });
 
 console.log('All notes created ✅');`},
-  typescript: { code:`// ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
-const recipientAddresses = [
-.'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04',
-.'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn',
-.'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd',
-];
+  typescript: { code:`// ── create 3 recipient accounts, then build a P2ID note (100 MID) for each ─────────
+const recipients = [];
+for (let i = 0; i < 3; i++) {
+.const recipient = await client.accounts.create({
+..storage: StorageMode.Public,
+.});
+.recipients.push(recipient);
+.console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
+}
 
-const p2idNotes = recipientAddresses.map((addr) =>
+const p2idNotes = recipients.map((recipient) =>
 .createP2IDNote({
 ..from: alice,
-..to: addr,
+..to: recipient,
 ..assets: { token: faucet, amount: BigInt(100) },
 ..type: NoteVisibility.Public,
 .}),
@@ -366,15 +370,18 @@ function MultiSendInner() {
 ..const notes = await waitForConsumableNotes({ accountId: aliceId });
 ..await consume({ accountId: aliceId, notes });
 
-..// 5. Send 100 MID to three recipients in a single transaction
+..// 5. Create three recipient wallets, then send 100 MID to each in a single transaction
+..const recipients = [];
+..for (let i = 0; i < 3; i++) {
+...const recipient = await createWallet({ storageMode: StorageMode.Public });
+...recipients.push(recipient);
+...console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
+..}
+
 ..await sendMany({
-...from: aliceId,
-...assetId: faucetId,
-...recipients: [
-....{ to: 'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04', amount: BigInt(100) },
-....{ to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },
-....{ to: 'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd', amount: BigInt(100) },
-...],
+...from: alice,
+...assetId: faucet,
+...recipients: recipients.map((recipient) => ({ to: recipient, amount: BigInt(100) })),
 ...noteType: NoteVisibility.Public,
 ..});
 
@@ -399,7 +406,6 @@ export default function MultiSendWithDelegatedProver() {
 }`},
   typescript: { code:`import {
 .MidenClient,
-.AccountType,
 .NoteVisibility,
 .StorageMode,
 .createP2IDNote,
@@ -429,14 +435,13 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 .// ── Creating new account ──────────────────────────────────────────────────────
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice account ID:', alice.id().toString());
 
 .// ── Creating new faucet ──────────────────────────────────────────────────────
 .const faucet = await client.accounts.create({
-..type: AccountType.FungibleFaucet,
+..type: 0, // 0 = FungibleFaucet
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),
@@ -460,17 +465,20 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 ..account: alice,
 .});
 
-.// ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
-.const recipientAddresses = [
-..'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04',
-..'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn',
-..'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd',
-.];
+.// ── create 3 recipient accounts, then build a P2ID note (100 MID) for each ─────────
+.const recipients = [];
+.for (let i = 0; i < 3; i++) {
+..const recipient = await client.accounts.create({
+...storage: StorageMode.Public,
+..});
+..recipients.push(recipient);
+..console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
+.}
 
-.const p2idNotes = recipientAddresses.map((addr) =>
+.const p2idNotes = recipients.map((recipient) =>
 ..createP2IDNote({
 ...from: alice,
-...to: addr,
+...to: recipient,
 ...assets: { token: faucet, amount: BigInt(100) },
 ...type: NoteVisibility.Public,
 ..}),

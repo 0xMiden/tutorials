@@ -55,12 +55,14 @@ function CreateMintConsumeInner() {
     await consume({ accountId: alice.id().toString(), notes });
     console.log('Notes consumed.');
 
-    // 7. Send 100 tokens to Bob
-    const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+    // 7. Create Bob's wallet, then send 100 tokens to it
+    console.log('Creating account for Bob…');
+    const bob = await createWallet({ storageMode: StorageMode.Public });
+    console.log('Bob ID:', bob.id().toString());
     console.log("Sending tokens to Bob's account...");
     await send({
       from: alice,
-      to: bobAddress,
+      to: bob,
       assetId: faucet,
       amount: BigInt(100),
       noteType: NoteVisibility.Public,

@@ -1,6 +1,6 @@
 // lib/incrementCounterContract.ts
 import counterContractCode from './masm/counter_contract.masm';
-import { AccountType, AuthSecretKey, StorageMode, StorageSlot, MidenClient } from '@miden-sdk/miden-sdk/lazy';
+import { AuthSecretKey, StorageMode, StorageSlot, StorageResult, MidenClient } from '@miden-sdk/miden-sdk/lazy';
 
 export async function incrementCounterContract(): Promise<void> {
   if (typeof window === 'undefined') {
@@ -26,7 +26,6 @@ export async function incrementCounterContract(): Promise<void> {
   const auth = AuthSecretKey.rpoFalconWithRNG(walletSeed);
 
   const account = await client.accounts.create({
-    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: walletSeed,
     auth,
@@ -53,10 +52,12 @@ export async function incrementCounterContract(): Promise<void> {
   console.log('Counter contract ID:', account.id().toString());
 
   const counter = await client.accounts.get(account);
-  const count = counter?.storage().getItem(counterSlotName);
-  // The counter contract stores its count as a Felt widened to Word
-  // [count, 0, 0, 0]; `toU64s()` preserves native order so the value
-  // lives at index 0.
-  const counterValue = Number(count!.toU64s()[0]);
+  // `getItem()` is typed to return a low-level `Word`, but at runtime the SDK
+  // wraps the slot in a `StorageResult` whose `toBigInt()` reads the first
+  // felt — the count. The cast reflects that runtime type.
+  const count = counter?.storage().getItem(counterSlotName) as unknown as
+    | StorageResult
+    | undefined;
+  const counterValue = Number(count!.toBigInt());
   console.log('Count: ', counterValue);
 }

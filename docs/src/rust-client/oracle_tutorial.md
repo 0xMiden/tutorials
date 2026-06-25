@@ -37,9 +37,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -55,7 +55,7 @@ Copy and paste the following code into your `src/main.rs` file:
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
-        AccountStorageMode, AccountType, StorageMapKey, StorageSlot, StorageSlotName,
+        AccountType, StorageMapKey, StorageSlot, StorageSlotName,
     },
     assembly::{
         CodeBuilder, DefaultSourceManager, Module, ModuleKind, Path as AssemblyPath,
@@ -107,7 +107,7 @@ pub async fn get_oracle_foreign_accounts(
         StorageSlotName::new("pragma::oracle::publishers").expect("valid slot name");
     let publisher_ids: Vec<AccountId> = (2..next_publisher_index)
         .map(|index| {
-            let key: Word = [Felt::new(index), ZERO, ZERO, ZERO].into();
+            let key: Word = [Felt::new_unchecked(index), ZERO, ZERO, ZERO].into();
             let publisher_word = storage
                 .get_map_item(&publishers_slot, key)
                 .expect("publisher entry missing from oracle storage");
@@ -136,7 +136,7 @@ pub async fn get_oracle_foreign_accounts(
     // the publisher registry from the oracle's `publishers` map, so the proofs
     // for those map keys must be requested as well.
     let publisher_index_keys: Vec<StorageMapKey> = (2..next_publisher_index)
-        .map(|index| StorageMapKey::new([Felt::new(index), ZERO, ZERO, ZERO].into()))
+        .map(|index| StorageMapKey::new([Felt::new_unchecked(index), ZERO, ZERO, ZERO].into()))
         .collect();
     foreign_accounts.push(ForeignAccount::public(
         oracle_account_id,
@@ -200,7 +200,7 @@ async fn main() -> Result<(), ClientError> {
     let pair_prefix: u64 = 1;
     let pair_suffix: u64 = 0;
     let btc_usd_pair: Word =
-        [ZERO, ZERO, Felt::new(pair_suffix), Felt::new(pair_prefix)].into();
+        [ZERO, ZERO, Felt::new_unchecked(pair_suffix), Felt::new_unchecked(pair_prefix)].into();
     let foreign_accounts: Vec<ForeignAccount> =
         get_oracle_foreign_accounts(&mut client, oracle_account_id, btc_usd_pair).await?;
 
@@ -227,7 +227,7 @@ async fn main() -> Result<(), ClientError> {
             contract_slot_name.clone(),
             Word::default(),
         )],
-        AccountComponentMetadata::new("external_contract::oracle_reader", AccountType::all()),
+        AccountComponentMetadata::new("external_contract::oracle_reader"),
     )
     .unwrap();
 
@@ -235,8 +235,7 @@ async fn main() -> Result<(), ClientError> {
     client.rng().fill_bytes(&mut seed);
 
     let oracle_reader_contract = AccountBuilder::new(seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_component(contract_component.clone())
         .with_auth_component(NoAuth)
         .build()

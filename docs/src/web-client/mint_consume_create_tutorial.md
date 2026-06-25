@@ -102,24 +102,30 @@ _The standard asset transfer note on Miden is the P2ID note (Pay-to-Id). There i
 Now that Alice has tokens in her account, she can send some to Bob:
 
 <CodeSdkTabs example={{
-react: { code: `// 6. Send 100 tokens to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+react: { code: `// 7. Create Bob's wallet, then send 100 tokens to it
+console.log('Creating account for Bob…');
+const bob = await createWallet({ storageMode: StorageMode.Public });
+console.log('Bob ID:', bob.id().toString());
 console.log("Sending tokens to Bob's account...");
 await send({
-.from: aliceId,
-.to: bobAddress,
-.assetId: faucetId,
+.from: alice,
+.to: bob,
+.assetId: faucet,
 .amount: BigInt(100),
 .noteType: NoteVisibility.Public,
 });
 console.log('Tokens sent successfully!');` },
-typescript: { code: `// 7. Send tokens from Alice to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+typescript: { code: `// 7. Send tokens to Bob (create a fresh recipient account to send to)
+console.log("Creating account for Bob…");
+const bob = await client.accounts.create({
+.storage: StorageMode.Public,
+});
+console.log('Bob ID:', bob.id().toString());
 console.log("Sending tokens to Bob's account...");
 
 await client.transactions.send({
-.account: alice, // Sender account ID
-.to: bobAddress, // Recipient (bech32 address)
+.account: alice, // Sender account
+.to: bob, // Recipient account
 .token: faucet, // Asset ID (faucet that created the tokens)
 .amount: BigInt(100), // Amount to send
 .type: NoteVisibility.Public, // Note visibility
@@ -195,13 +201,15 @@ function CreateMintConsumeInner() {
 ..await consume({ accountId: alice.id().toString(), notes });
 ..console.log('Notes consumed.');
 
-..// 6. Send 100 tokens to Bob
-..const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+..// 7. Create Bob's wallet, then send 100 tokens to it
+..console.log('Creating account for Bob…');
+..const bob = await createWallet({ storageMode: StorageMode.Public });
+..console.log('Bob ID:', bob.id().toString());
 ..console.log("Sending tokens to Bob's account...");
 ..await send({
-...from: aliceId,
-...to: bobAddress,
-...assetId: faucetId,
+...from: alice,
+...to: bob,
+...assetId: faucet,
 ...amount: BigInt(100),
 ...noteType: NoteVisibility.Public,
 ..});
@@ -225,7 +233,7 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
-import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
@@ -247,7 +255,6 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -255,7 +262,7 @@ export async function createMintConsume(): Promise<void> {
 .// 3. Deploy a fungible faucet
 .console.log('Creating faucet…');
 .const faucet = await client.accounts.create({
-..type: AccountType.FungibleFaucet,
+..type: 0, // 0 = FungibleFaucet
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),
@@ -284,12 +291,16 @@ export async function createMintConsume(): Promise<void> {
 
 .console.log('Notes consumed.');
 
-.// 7. Send tokens to Bob
-.const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+.// 7. Send tokens to Bob (create a fresh recipient account to send to)
+.console.log("Creating account for Bob…");
+.const bob = await client.accounts.create({
+..storage: StorageMode.Public,
+.});
+.console.log('Bob ID:', bob.id().toString());
 .console.log("Sending tokens to Bob's account...");
 .await client.transactions.send({
 ..account: alice,
-..to: bobAddress,
+..to: bob,
 ..token: faucet,
 ..amount: BigInt(100),
 ..type: NoteVisibility.Public,
@@ -313,6 +324,8 @@ Minting tokens to Alice...
 Waiting for transaction confirmation...
 Consuming minted notes...
 Notes consumed.
+Creating account for Bob…
+Bob ID: <testnet_account_id>
 Sending tokens to Bob's account...
 Tokens sent successfully!
 ```
