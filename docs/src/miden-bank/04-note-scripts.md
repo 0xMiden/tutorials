@@ -13,7 +13,8 @@ In this section, you'll learn how to write note scripts - code that executes whe
 By the end of this section, you will have:
 
 - Created the `deposit-note` contract
-- Understood the `#[note]` struct+impl pattern and `#[note_script]` method attribute
+- Understood the `#[note]` struct+impl pattern and the `#[note_script]` method attribute
+- Used the `#[account(...)]` wallet wrapper to call the bank's methods from a note
 - Used `active_note` APIs to access sender and assets
 - Built the note script and its dependencies
 - **Verified it works** with a complete deposit flow test
@@ -45,7 +46,7 @@ Part 3:                          Part 4:
 | Purpose     | Persistent account logic  | One-time execution when consumed           |
 | Storage     | Has persistent storage    | No storage (reads from note data)          |
 | Attribute   | `#[component]`            | `#[note]` struct + `#[note_script]` method |
-| Entry point | Methods on struct         | `fn run(self, _arg: Word)`                 |
+| Entry point | Methods on struct         | `fn run(self, _arg: Word, account: &mut Wallet)` |
 | Invocation  | Called by other contracts | Executes when note is consumed             |
 
 Note scripts are like "messages" that carry code along with data and assets.
@@ -63,9 +64,11 @@ rm -rf contracts/increment-note
 mkdir -p contracts/deposit-note/src
 ```
 
-## Step 2: Configure Cargo.toml
+## Step 2: Configure the Project Files
 
-Create the `Cargo.toml` for the deposit note:
+Like every contract in this tutorial, the deposit note has three small config files: a `Cargo.toml`, a `miden-project.toml`, and a `.cargo/config.toml`.
+
+Create the `Cargo.toml`:
 
 ```toml title="contracts/deposit-note/Cargo.toml"
 [package]
@@ -77,39 +80,60 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.12" }
+miden = { git = "https://github.com/0xMiden/compiler", branch = "i697-acc-sibling-call-part2" }
+```
 
-[package.metadata.component]
-package = "miden:deposit-note"
+Create the `miden-project.toml`. This is where the note declares its kind and its dependency on the bank account it calls into:
 
-[package.metadata.miden]
-project-kind = "note-script"
+```toml title="contracts/deposit-note/miden-project.toml"
+[package]
+name = "deposit-note"
+version = "0.1.0"
 
-# Dependencies on account components
+[lib]
+kind = "note"
+namespace = "miden:deposit-note/miden-deposit-note@0.1.0"
+
+[dependencies]
+miden-core = "*"
+miden-protocol = "*"
+bank-account = { path = "../bank-account" }
+
+# WIT for the account component this note calls, produced by building bank-account.
 [package.metadata.miden.dependencies]
-"miden:bank-account" = { path = "../bank-account" }
+bank-account = { wit = "../bank-account/target/generated-wit/" }
+```
 
-[package.metadata.component.target.dependencies]
-"miden:bank-account" = { path = "../bank-account/target/generated-wit/" }
+Finally, the `.cargo/config.toml` pins the WebAssembly target and the `miden` cfg:
+
+```toml title="contracts/deposit-note/.cargo/config.toml"
+[build]
+target = "wasm32-wasip2"
+
+[target.wasm32-wasip2]
+rustflags = ["--cfg", "miden"]
 ```
 
 Key configuration:
 
-- `project-kind = "note-script"` - Marks this as a note script
-- Dependencies sections declare which accounts it can interact with
+- `kind = "note"` - Marks this as a note script
+- `bank-account = { path = "../bank-account" }` and the `[package.metadata.miden.dependencies]` `wit` entry declare the account component this note calls; the `wit` path points at the WIT files produced when `bank-account` is built
 
 ## Step 3: Implement the Deposit Note
 
 Create the note script implementation:
 
 ```rust title="contracts/deposit-note/src/lib.rs"
+// Do not link against libstd (i.e. anything defined in `std::`)
 #![no_std]
 #![feature(alloc_error_handler)]
 
 use miden::*;
 
-// Import the bank account's generated bindings
-use crate::bindings::miden::bank_account::bank_account;
+/// Native (active) account of this note: exposes the `bank-account` component's
+/// `Bank` methods, gathered from the `bank-account` package's generated WIT.
+#[account(bank_account::Bank)]
+pub struct Wallet;
 
 /// Deposit Note Script
 ///
@@ -121,7 +145,7 @@ struct DepositNote;
 #[note]
 impl DepositNote {
     #[note_script]
-    fn run(self, _arg: Word) {
+    fn run(self, _arg: Word, account: &mut Wallet) {
         // The depositor is whoever created/sent this note
         let depositor = active_note::get_sender();
 
@@ -130,14 +154,14 @@ impl DepositNote {
 
         // Deposit each asset into the bank
         for asset in assets {
-            bank_account::deposit(depositor, asset);
+            account.deposit(depositor, asset);
         }
     }
 }
 ```
 
 :::info Cross-Component Calls
-The `crate::bindings::miden::bank_account::bank_account` import and `bank_account::deposit()` call use Miden's cross-component binding system. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). For now, just know that building `bank-account` first generates WIT files that `deposit-note` imports.
+The `#[account(bank_account::Bank)] pub struct Wallet;` declaration and the `account.deposit(...)` call use Miden's cross-component binding system. The `#[account(...)]` macro wraps the consuming account so the note can call the bank's `Bank` methods directly. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). For now, just know that building `bank-account` first generates the WIT files that `deposit-note` binds against.
 :::
 
 ### The #[note] and #[note_script] Attributes
@@ -145,10 +169,10 @@ The `crate::bindings::miden::bank_account::bank_account` import and `bank_accoun
 The `#[note]` attribute is applied to both a unit struct and its `impl` block to define a note script. Within the `impl` block, the `#[note_script]` attribute marks the entry point method. The function signature is always:
 
 ```rust
-fn run(self, _arg: Word)
+fn run(self, _arg: Word, account: &mut Wallet)
 ```
 
-The method takes `self` as its first parameter. The `_arg` parameter can pass additional data, but we don't use it in the deposit note.
+The method takes `self` as its first parameter. The `_arg` parameter can pass additional data (we don't use it in the deposit note), and `account: &mut Wallet` is the consuming account, through which we call the bank's methods.
 
 ## Note Context APIs
 
@@ -188,17 +212,17 @@ Returns a slice of `Felt` values passed when the note was created. We'll use sto
 ## Step 4: Build the Note Script
 
 :::info Build Order Matters
-Build account components **first** before building note scripts that depend on them. The note script needs the generated WIT files from the account.
+Build account components **first** before building note scripts that depend on them. The note script needs the generated WIT files from the account, and the FPI `#[account(...)]` macro reads the bank account's procedure roots from its compiled `.masp` at compile time.
 :::
 
 ```bash title=">_ Terminal"
-# First, ensure bank-account is built (generates WIT files)
+# First, ensure bank-account is built (generates WIT + the .masp the note binds against)
 cd contracts/bank-account
-miden build
+cargo miden build --release
 
 # Now build the deposit note
 cd ../deposit-note
-miden build
+cargo miden build --release
 ```
 
 <details>
@@ -211,6 +235,10 @@ Creating Miden package /path/to/miden-bank/target/miden/release/deposit_note.mas
 ```
 
 </details>
+
+:::note Cosmetic MAST-serialization errors
+The part2 compiler prints non-fatal `ERROR` lines about `MAST` serialization on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
+:::
 
 ## Execution Flow Diagram
 
@@ -231,7 +259,7 @@ Creating Miden package /path/to/miden-bank/target/miden/release/deposit_note.mas
 3. Note script runs
    depositor = get_sender()  → User's AccountId
    assets = get_assets()     → [100 tokens]
-   bank_account::deposit(depositor, 100 tokens)
+   account.deposit(depositor, 100 tokens)
 
 4. Bank's deposit() method executes
    - Validates initialization and amount
@@ -245,10 +273,10 @@ First, verify your deposit-note builds successfully:
 
 ```bash title=">_ Terminal"
 # Ensure bank-account is built first
-cd contracts/bank-account && miden build
+cd contracts/bank-account && cargo miden build --release
 
 # Then build deposit-note
-cd ../deposit-note && miden build
+cd ../deposit-note && cargo miden build --release
 ```
 
 This is the first runnable test in the tutorial. It verifies the deposit flow end-to-end — building the bank and deposit-note contracts, creating a deposit, and checking the balance.
@@ -272,7 +300,7 @@ use miden_client::account::{component::{InitStorageData, StorageValueName}, Stor
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::auth::AuthSchemeId;
 use miden_client::note::NoteAssets;
-use miden_client::transaction::{RawOutputNote, TransactionScript};
+use miden_client::transaction::RawOutputNote;
 use miden_client::{Felt, Word};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
@@ -307,10 +335,10 @@ async fn deposit_test() -> anyhow::Result<()> {
     // flow directly against the bank's commented-out `require_initialized()`
     // guard. Part 6 enables the guard and adds the init step.
     let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
+        StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
+        StorageSlotName::new("bank_account::bank::balances")
             .expect("Valid slot name");
 
     let mut init_storage_data = InitStorageData::default();
@@ -362,20 +390,33 @@ async fn deposit_test() -> anyhow::Result<()> {
     // =========================================================================
     // VERIFY: Check balance was updated
     // =========================================================================
+    // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
+    // In v0.15 the fungible-asset vault key is
+    // [asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix],
+    // so `key[2]` is the faucet suffix combined with a metadata byte (composition +
+    // callback flag) — not the raw faucet suffix. Derive the read key from the asset's
+    // actual key word so it matches the key the contract writes.
+    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_key_word();
     let depositor_key = Word::from([
         sender.id().prefix().as_felt(),
         sender.id().suffix(),
-        faucet.id().prefix().as_felt(),
-        faucet.id().suffix(),
+        asset_key_word[3],
+        asset_key_word[2],
     ]);
 
     let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
-    let balance_value = balance[3].as_canonical_u64();
 
-    println!("Depositor balance: {}", balance_value);
+    // The contract stores `balance` as a `Felt`; reading the map returns the
+    // single-Felt value widened into a Word at position [0] ([amount, 0, 0, 0]).
+    let expected_balance = Word::from([
+        Felt::new_unchecked(deposit_amount),
+        Felt::new_unchecked(0),
+        Felt::new_unchecked(0),
+        Felt::new_unchecked(0),
+    ]);
+
     assert_eq!(
-        balance_value,
-        deposit_amount,
+        balance, expected_balance,
         "Balance should equal deposited amount"
     );
 
@@ -413,10 +454,17 @@ test result: ok. 3 passed; 0 failed; 0 ignored
 For withdrawals, we'll use note inputs to pass parameters. Here's a preview of the withdraw request note (implemented in Part 7):
 
 ```rust title="contracts/withdraw-request-note/src/lib.rs (preview)"
+/// Native (active) account of this note: exposes the `bank-account` component's
+/// `Bank` methods, gathered from the `bank-account` package's generated WIT.
+#[account(bank_account::Bank)]
+pub struct Wallet;
+
 /// Withdraw Request Note Script
 ///
 /// # Note Storage (14 Felts)
-/// [0-3]: withdraw asset encoded as [amount, 0, faucet_suffix, faucet_prefix]
+/// [0-3]: withdraw asset, encoded as [amount, 0, faucet_suffix(+metadata), faucet_prefix].
+///        `storage[2]` carries the faucet suffix with the asset's metadata byte in its
+///        low 8 bits (host side: `FungibleAsset::to_key_word()[2]`), not the raw suffix.
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
 /// [9]: note_type (1 = Public, 2 = Private)
@@ -427,32 +475,34 @@ struct WithdrawRequestNote;
 #[note]
 impl WithdrawRequestNote {
     #[note_script]
-    fn run(self, _arg: Word) {
-        // Get the 14 storage items and validate the expected count.
+    fn run(self, _arg: Word, account: &mut Wallet) {
+        // Get the storage items and validate the expected count.
         let storage = active_note::get_storage();
         assert!(
             storage.len() == 14,
             "Withdraw request requires exactly 14 storage items"
         );
 
-        // Parse parameters from storage
+        // Asset: reconstruct the v0.15 fungible-asset key/value from the note storage.
+        // key   = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
+        //         byte (low 8 bits) and storage[3] = faucet prefix.
+        // value = [amount, 0, 0, 0]
         let withdraw_asset = Asset::new(
             Word::from([felt!(0), felt!(0), storage[2], storage[3]]),
             Word::from([storage[0], felt!(0), felt!(0), felt!(0)]),
         );
 
-        let serial_num = Word::from([
-            storage[4], storage[5], storage[6], storage[7]
-        ]);
+        let serial_num = Word::from([storage[4], storage[5], storage[6], storage[7]]);
 
         let tag = storage[8];
         let note_type = storage[9];
 
-        // Note: P2ID script root (storage[10..13]) is read by the bank account
-        // directly from the active note's storage inside bank_account::withdraw.
+        // Note: P2ID script root (storage[10..13]) is read by the bank account directly
+        // from the active note's storage inside `Bank::withdraw`.
 
-        // The bank identifies the depositor internally via active_note::get_sender()
-        bank_account::withdraw(withdraw_asset, serial_num, tag, note_type);
+        // The bank identifies the depositor internally via `active_note::get_sender()`,
+        // which is cryptographically bound to this note's metadata and cannot be spoofed.
+        account.withdraw(withdraw_asset, serial_num, tag, note_type);
     }
 }
 ```
@@ -467,26 +517,37 @@ Note inputs are limited. Keep your input layout compact. See [Common Pitfalls](h
 <summary>Click to expand deposit-note/src/lib.rs</summary>
 
 ```rust title="contracts/deposit-note/src/lib.rs"
+// Do not link against libstd (i.e. anything defined in `std::`)
 #![no_std]
 #![feature(alloc_error_handler)]
 
 use miden::*;
 
-use crate::bindings::miden::bank_account::bank_account;
+/// Native (active) account of this note: exposes the `bank-account` component's
+/// `Bank` methods, gathered from the `bank-account` package's generated WIT.
+#[account(bank_account::Bank)]
+pub struct Wallet;
 
 /// Deposit Note Script
+///
+/// When consumed by the Bank account, this note transfers all its assets
+/// to the bank and credits the depositor (note sender) with the deposited amount.
 #[note]
 struct DepositNote;
 
 #[note]
 impl DepositNote {
     #[note_script]
-    fn run(self, _arg: Word) {
+    fn run(self, _arg: Word, account: &mut Wallet) {
+        // The depositor is whoever created/sent this note
         let depositor = active_note::get_sender();
+
+        // Get all assets attached to this note
         let assets = active_note::get_assets();
 
+        // Deposit each asset into the bank
         for asset in assets {
-            bank_account::deposit(depositor, asset);
+            account.deposit(depositor, asset);
         }
     }
 }
@@ -496,12 +557,13 @@ impl DepositNote {
 
 ## Key Takeaways
 
-1. **`#[note]`** marks the struct and impl block, with **`#[note_script]`** on the entry point method `fn run(self, _arg: Word)`
-2. **`active_note::get_sender()`** returns who created the note
-3. **`active_note::get_assets()`** returns assets attached to the note
-4. **`active_note::get_storage()`** returns parameterized data
-5. **Note scripts execute once** when consumed - no persistent state
-6. **Build order matters** - account components first, then note scripts
+1. **`#[note]`** marks the struct and impl block, with **`#[note_script]`** on the entry point method `fn run(self, _arg: Word, account: &mut Wallet)`
+2. **`#[account(bank_account::Bank)] pub struct Wallet;`** wraps the consuming account so the note can call the bank's methods via `account.deposit(...)`
+3. **`active_note::get_sender()`** returns who created the note
+4. **`active_note::get_assets()`** returns assets attached to the note
+5. **`active_note::get_storage()`** returns parameterized data
+6. **Note scripts execute once** when consumed - no persistent state
+7. **Build order matters** - account components first, then note scripts
 
 :::tip View Complete Source
 See the complete note script implementations:

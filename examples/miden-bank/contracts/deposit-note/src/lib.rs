@@ -4,8 +4,10 @@
 
 use miden::*;
 
-// Import the bank account's generated bindings
-use crate::bindings::miden::bank_account::bank_account;
+/// Native (active) account of this note: exposes the `bank-account` component's
+/// `Bank` methods, gathered from the `bank-account` package's generated WIT.
+#[account(bank_account::Bank)]
+pub struct Wallet;
 
 /// Deposit Note Script
 ///
@@ -16,8 +18,7 @@ use crate::bindings::miden::bank_account::bank_account;
 /// 1. Note is created by a user with fungible assets attached
 /// 2. Bank account consumes this note
 /// 3. Note script reads the sender (depositor) and assets
-///
-/// 4. For each asset, calls `bank_account::deposit(depositor,y asset)`
+/// 4. For each asset, calls `account.deposit(depositor, asset)`
 /// 5. Bank receives the asset and updates the depositor's balance
 ///
 /// # Note Inputs
@@ -28,7 +29,7 @@ struct DepositNote;
 #[note]
 impl DepositNote {
     #[note_script]
-    fn run(self, _arg: Word) {
+    fn run(self, _arg: Word, account: &mut Wallet) {
         // The depositor is whoever created/sent this note
         let depositor = active_note::get_sender();
 
@@ -37,7 +38,7 @@ impl DepositNote {
 
         // Deposit each asset into the bank
         for asset in assets {
-            bank_account::deposit(depositor, asset);
+            account.deposit(depositor, asset);
         }
     }
 }

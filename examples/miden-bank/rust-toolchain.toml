@@ -1,8 +1,5 @@
 [toolchain]
-channel = "nightly-2025-12-10"
+channel = "nightly-2026-04-30"
 components = ["rustfmt", "rust-src", "clippy"]
-# Note: do NOT add wasm32-wasip2 to targets here.
-# cargo-miden uses -Z build-std to compile core from source, which conflicts
-# with a pre-installed wasm32-wasip2 target (duplicate lang item error).
-# cargo-miden will install the target itself if needed.
+targets = ["wasm32-wasip2"]
 profile = "minimal"

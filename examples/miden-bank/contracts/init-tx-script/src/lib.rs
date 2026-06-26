@@ -4,8 +4,9 @@
 
 use miden::*;
 
-// Import the Account binding which wraps the bank-account component methods
-use crate::bindings::Account;
+/// Native (active) account this tx-script runs against: the bank-account `Bank` component.
+#[account(bank_account::Bank)]
+pub struct Wallet;
 
 /// Initialize Transaction Script
 ///
@@ -20,8 +21,8 @@ use crate::bindings::Account;
 ///
 /// # Arguments
 /// * `_arg` - Transaction script argument (unused in this script)
-/// * `account` - Mutable reference to the Account (bank component)
+/// * `account` - Mutable reference to the bank account (`Bank` component)
 #[tx_script]
-fn run(_arg: Word, account: &mut Account) {
+fn run(_arg: Word, account: &mut Wallet) {
     account.initialize();
 }
