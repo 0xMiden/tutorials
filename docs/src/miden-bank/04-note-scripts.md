@@ -80,7 +80,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { git = "https://github.com/0xMiden/compiler", branch = "i697-acc-sibling-call-part2" }
+miden = { git = "https://github.com/0xMiden/compiler", rev = "97eb019ded3a2d1f29d77639190bad5d3f0f099b" }
 ```
 
 Create the `miden-project.toml`. This is where the note declares its kind and its dependency on the bank account it calls into:

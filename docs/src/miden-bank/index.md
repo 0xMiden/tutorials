@@ -20,7 +20,7 @@ You'll create a **banking system** consisting of:
 The tutorial includes runnable tests where appropriate — some parts are setup-only or conceptual, with the first runnable test in Part 4.
 
 :::note Verification runs on MockChain
-This tutorial targets protocol **v0.15** and the **part2** Rust compiler (the `i697-acc-sibling-call-part2` branch of `cargo-miden`). The flow is verified end-to-end by the MockChain integration tests (`tests/{init,deposit,withdraw}_test.rs`), which all pass.
+This tutorial targets protocol **v0.15** and the v0.15-aligned Rust compiler, pinned to a specific `cargo-miden` commit (the cross-component / sibling-call work, pending a tagged release). The flow is verified end-to-end by the MockChain integration tests (`tests/{init,deposit,withdraw}_test.rs`), which all pass.
 
 The live-network binaries (`cargo run --bin initialize` / `--bin deposit`) currently fail to deploy a fresh account on testnet through the part2 toolchain: `submit_new_transaction` hits an advice-map miss because miden-client cannot yet supply a lazily-requested witness for a fresh, uncommitted account. This is an upstream miden-client/part2 limitation, not a tutorial bug — tracked at [rust-sdk#2289](https://github.com/0xMiden/rust-sdk/issues/2289). Use the MockChain tests to verify the flow until the upstream fix lands.
 :::

@@ -100,7 +100,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { git = "https://github.com/0xMiden/compiler", branch = "i697-acc-sibling-call-part2" }
+miden = { git = "https://github.com/0xMiden/compiler", rev = "97eb019ded3a2d1f29d77639190bad5d3f0f099b" }
 ```
 
 Next, create `contracts/bank-account/miden-project.toml`. This is the Miden-specific project manifest that tells the compiler what kind of artifact to build and which package namespace to export:
@@ -148,7 +148,7 @@ rustflags = ["--cfg", "miden"]
 :::
 
 :::note Toolchain
-This tutorial targets protocol v0.15 and uses the `i697-acc-sibling-call-part2` branch of the Miden compiler (the cross-component / sibling-call work that is not yet on a released `cargo-miden`). The pinned `rust-toolchain.toml` is `nightly-2026-04-30` with the `wasm32-wasip2` target.
+This tutorial targets protocol v0.15 and pins the Miden compiler to a specific commit (`rev = "97eb019ded3a2d1f29d77639190bad5d3f0f099b"`) of its v0.15 line — the cross-component / sibling-call work, merged into the compiler's `next` branch but not yet on a tagged `cargo-miden` release. The pinned `rust-toolchain.toml` is `nightly-2026-04-30` with the `wasm32-wasip2` target.
 :::
 
 ## Step 3: Create a Minimal Bank Component

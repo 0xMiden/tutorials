@@ -210,7 +210,7 @@ function UnauthenticatedNoteTransferInner() {
 
 ..// 4. Consume the freshly minted notes
 ..const notes = await waitForConsumableNotes({ accountId: alice });
-..await consume({ accountId: alice, notes });
+..await consume({ accountId: alice.id().toString(), notes });
 
 ..// 5. Create the unauthenticated note transfer chain:
 ..// Alice → Wallet 0 → Wallet 1 → Wallet 2 → Wallet 3 → Wallet 4
