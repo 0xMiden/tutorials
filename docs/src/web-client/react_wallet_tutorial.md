@@ -859,8 +859,11 @@ If you need to integrate with a different signing service, you can build your ow
 
 ```tsx
 import { useState, useCallback, type ReactNode } from 'react';
-import { SignerContext, type SignerContextValue } from '@miden-sdk/react/lazy';
-import { StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import {
+  SignerContext,
+  type SignerContextValue,
+  AccountStorageMode,
+} from '@miden-sdk/react/lazy';
 
 interface CustomSignerProviderProps {
   children: ReactNode;
@@ -886,8 +889,7 @@ export function CustomSignerProvider({ children }: CustomSignerProviderProps) {
       },
       accountConfig: {
         publicKeyCommitment,
-        accountType: 'RegularAccountImmutableCode',
-        storageMode: StorageMode.Public,
+        storageMode: AccountStorageMode.public(),
       },
       storeName: 'custom_signer',
       name: 'CustomSigner',
@@ -918,7 +920,7 @@ The `SignerContextValue` interface requires:
 | Field           | Type                                             | Description                                                     |
 | --------------- | ------------------------------------------------ | --------------------------------------------------------------- |
 | `signCb`        | `(pubKey, signingInputs) => Promise<Uint8Array>` | Signs transaction inputs and returns the signature              |
-| `accountConfig` | `SignerAccountConfig`                            | Public key commitment, account type, and storage mode           |
+| `accountConfig` | `SignerAccountConfig`                            | Public key commitment and storage mode                          |
 | `storeName`     | `string`                                         | Unique suffix for IndexedDB isolation (e.g., "custom_walletId") |
 | `name`          | `string`                                         | Display name for UI (e.g., "CustomSigner")                      |
 | `isConnected`   | `boolean`                                        | Whether the signer is connected and ready                       |
