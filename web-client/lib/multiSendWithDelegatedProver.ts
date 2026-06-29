@@ -58,20 +58,17 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
     account: alice,
   });
 
-  // ── create 3 recipient accounts, then build a P2ID note (100 MID) for each ─────────
-  const recipients = [];
-  for (let i = 0; i < 3; i++) {
-    const recipient = await client.accounts.create({
-      storage: StorageMode.Public,
-    });
-    recipients.push(recipient);
-    console.log(`Recipient ${i + 1} ID:`, recipient.id().toString());
-  }
+  // ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
+  const recipientAddresses = [
+    'mtst1arqeemdpnzu4k52wlpd3xekl5uklfjl5',
+    'mtst1arqk5qt3kms0cut9rdtqdaz8y5xmj245',
+    'mtst1aq6kyfrh23n9gvt6jkg0z7fyts99hdqr',
+  ];
 
-  const p2idNotes = recipients.map((recipient) =>
+  const p2idNotes = recipientAddresses.map((addr) =>
     createP2IDNote({
       from: alice,
-      to: recipient,
+      to: addr,
       assets: { token: faucet, amount: BigInt(100) },
       type: NoteVisibility.Public,
     }),

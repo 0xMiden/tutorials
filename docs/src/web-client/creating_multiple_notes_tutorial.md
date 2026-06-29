@@ -272,39 +272,33 @@ await client.transactions.consumeAll({
 
 ## Step 5 — Build and Create P2ID notes
 
-Add the following code to the function. This code creates three recipient accounts, builds three P2ID notes with 100 `MID` each, and then creates all three notes in the same transaction.
+Add the following code to the function. This code builds three P2ID notes with 100 `MID` each (one per hardcoded recipient address), and then creates all three notes in the same transaction.
 
 <CodeSdkTabs example={{
-react: { code: `// 5. Create three recipient wallets, then send 100 MID to each in a single transaction
-const recipients = [];
-for (let i = 0; i < 3; i++) {
-.const recipient = await createWallet({ storageMode: StorageMode.Public });
-.recipients.push(recipient);
-.console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
-}
-
+react: { code: `// 5. Send 100 MID to three recipients in a single transaction
 await sendMany({
 .from: alice,
 .assetId: faucet,
-.recipients: recipients.map((recipient) => ({ to: recipient, amount: BigInt(100) })),
+.recipients: [
+..{ to: 'mtst1arqeemdpnzu4k52wlpd3xekl5uklfjl5', amount: BigInt(100) },
+..{ to: 'mtst1arqk5qt3kms0cut9rdtqdaz8y5xmj245', amount: BigInt(100) },
+..{ to: 'mtst1aq6kyfrh23n9gvt6jkg0z7fyts99hdqr', amount: BigInt(100) },
+.],
 .noteType: NoteVisibility.Public,
 });
 
 console.log('All notes created ✅');`},
-  typescript: { code:`// ── create 3 recipient accounts, then build a P2ID note (100 MID) for each ─────────
-const recipients = [];
-for (let i = 0; i < 3; i++) {
-.const recipient = await client.accounts.create({
-..storage: StorageMode.Public,
-.});
-.recipients.push(recipient);
-.console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
-}
+  typescript: { code:`// ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
+const recipientAddresses = [
+.'mtst1arqeemdpnzu4k52wlpd3xekl5uklfjl5',
+.'mtst1arqk5qt3kms0cut9rdtqdaz8y5xmj245',
+.'mtst1aq6kyfrh23n9gvt6jkg0z7fyts99hdqr',
+];
 
-const p2idNotes = recipients.map((recipient) =>
+const p2idNotes = recipientAddresses.map((addr) =>
 .createP2IDNote({
 ..from: alice,
-..to: recipient,
+..to: addr,
 ..assets: { token: faucet, amount: BigInt(100) },
 ..type: NoteVisibility.Public,
 .}),
@@ -370,18 +364,15 @@ function MultiSendInner() {
 ..const notes = await waitForConsumableNotes({ accountId: aliceId });
 ..await consume({ accountId: aliceId, notes });
 
-..// 5. Create three recipient wallets, then send 100 MID to each in a single transaction
-..const recipients = [];
-..for (let i = 0; i < 3; i++) {
-...const recipient = await createWallet({ storageMode: StorageMode.Public });
-...recipients.push(recipient);
-...console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
-..}
-
+..// 5. Send 100 MID to three recipients in a single transaction
 ..await sendMany({
 ...from: alice,
 ...assetId: faucet,
-...recipients: recipients.map((recipient) => ({ to: recipient, amount: BigInt(100) })),
+...recipients: [
+....{ to: 'mtst1arqeemdpnzu4k52wlpd3xekl5uklfjl5', amount: BigInt(100) },
+....{ to: 'mtst1arqk5qt3kms0cut9rdtqdaz8y5xmj245', amount: BigInt(100) },
+....{ to: 'mtst1aq6kyfrh23n9gvt6jkg0z7fyts99hdqr', amount: BigInt(100) },
+...],
 ...noteType: NoteVisibility.Public,
 ..});
 
@@ -465,20 +456,17 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 ..account: alice,
 .});
 
-.// ── create 3 recipient accounts, then build a P2ID note (100 MID) for each ─────────
-.const recipients = [];
-.for (let i = 0; i < 3; i++) {
-..const recipient = await client.accounts.create({
-...storage: StorageMode.Public,
-..});
-..recipients.push(recipient);
-..console.log(\`Recipient \${i + 1} ID:\`, recipient.id().toString());
-.}
+.// ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
+.const recipientAddresses = [
+..'mtst1arqeemdpnzu4k52wlpd3xekl5uklfjl5',
+..'mtst1arqk5qt3kms0cut9rdtqdaz8y5xmj245',
+..'mtst1aq6kyfrh23n9gvt6jkg0z7fyts99hdqr',
+.];
 
-.const p2idNotes = recipients.map((recipient) =>
+.const p2idNotes = recipientAddresses.map((addr) =>
 ..createP2IDNote({
 ...from: alice,
-...to: recipient,
+...to: addr,
 ...assets: { token: faucet, amount: BigInt(100) },
 ...type: NoteVisibility.Public,
 ..}),

@@ -28,16 +28,14 @@ export async function mintTestnetToAddress(): Promise<void> {
   });
   console.log('Faucet ID:', faucet.id().toString());
 
-  // ── Create a recipient account and mint to it ────────────────────────────────
-  const recipient = await client.accounts.create({
-    storage: StorageMode.Public,
-  });
-  console.log('Recipient ID:', recipient.id().toString());
+  // ── Mint to recipient ───────────────────────────────────────────────────────
+  const recipientAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
+  console.log('Recipient address:', recipientAddress);
 
   console.log('Minting 100 MIDEN tokens...');
   const { txId: mintTxId } = await client.transactions.mint({
     account: faucet,
-    to: recipient,
+    to: recipientAddress,
     amount: BigInt(100),
     type: NoteVisibility.Public,
   });

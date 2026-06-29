@@ -55,16 +55,12 @@ export async function createMintConsume(): Promise<void> {
 
   console.log('Notes consumed.');
 
-  // 7. Send tokens to Bob (create a fresh recipient account to send to)
-  console.log("Creating account for Bob…");
-  const bob = await client.accounts.create({
-    storage: StorageMode.Public,
-  });
-  console.log('Bob ID:', bob.id().toString());
+  // 7. Send tokens to Bob
+  const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
   console.log("Sending tokens to Bob's account...");
   await client.transactions.send({
     account: alice,
-    to: bob,
+    to: bobAddress,
     token: faucet,
     amount: BigInt(100),
     type: NoteVisibility.Public,

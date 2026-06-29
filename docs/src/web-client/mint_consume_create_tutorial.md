@@ -102,30 +102,24 @@ _The standard asset transfer note on Miden is the P2ID note (Pay-to-Id). There i
 Now that Alice has tokens in her account, she can send some to Bob:
 
 <CodeSdkTabs example={{
-react: { code: `// 7. Create Bob's wallet, then send 100 tokens to it
-console.log('Creating account for Bob…');
-const bob = await createWallet({ storageMode: StorageMode.Public });
-console.log('Bob ID:', bob.id().toString());
+react: { code: `// 7. Send 100 tokens to Bob
+const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 console.log("Sending tokens to Bob's account...");
 await send({
 .from: alice,
-.to: bob,
+.to: bobAddress,
 .assetId: faucet,
 .amount: BigInt(100),
 .noteType: NoteVisibility.Public,
 });
 console.log('Tokens sent successfully!');` },
-typescript: { code: `// 7. Send tokens to Bob (create a fresh recipient account to send to)
-console.log("Creating account for Bob…");
-const bob = await client.accounts.create({
-.storage: StorageMode.Public,
-});
-console.log('Bob ID:', bob.id().toString());
+typescript: { code: `// 7. Send tokens to Bob
+const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 console.log("Sending tokens to Bob's account...");
 
 await client.transactions.send({
 .account: alice, // Sender account
-.to: bob, // Recipient account
+.to: bobAddress, // Recipient address
 .token: faucet, // Asset ID (faucet that created the tokens)
 .amount: BigInt(100), // Amount to send
 .type: NoteVisibility.Public, // Note visibility
@@ -201,14 +195,12 @@ function CreateMintConsumeInner() {
 ..await consume({ accountId: alice.id().toString(), notes });
 ..console.log('Notes consumed.');
 
-..// 7. Create Bob's wallet, then send 100 tokens to it
-..console.log('Creating account for Bob…');
-..const bob = await createWallet({ storageMode: StorageMode.Public });
-..console.log('Bob ID:', bob.id().toString());
+..// 7. Send 100 tokens to Bob
+..const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 ..console.log("Sending tokens to Bob's account...");
 ..await send({
 ...from: alice,
-...to: bob,
+...to: bobAddress,
 ...assetId: faucet,
 ...amount: BigInt(100),
 ...noteType: NoteVisibility.Public,
@@ -291,16 +283,12 @@ export async function createMintConsume(): Promise<void> {
 
 .console.log('Notes consumed.');
 
-.// 7. Send tokens to Bob (create a fresh recipient account to send to)
-.console.log("Creating account for Bob…");
-.const bob = await client.accounts.create({
-..storage: StorageMode.Public,
-.});
-.console.log('Bob ID:', bob.id().toString());
+.// 7. Send tokens to Bob
+.const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 .console.log("Sending tokens to Bob's account...");
 .await client.transactions.send({
 ..account: alice,
-..to: bob,
+..to: bobAddress,
 ..token: faucet,
 ..amount: BigInt(100),
 ..type: NoteVisibility.Public,
@@ -324,8 +312,6 @@ Minting tokens to Alice...
 Waiting for transaction confirmation...
 Consuming minted notes...
 Notes consumed.
-Creating account for Bob…
-Bob ID: <testnet_account_id>
 Sending tokens to Bob's account...
 Tokens sent successfully!
 ```
