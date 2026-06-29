@@ -999,7 +999,7 @@ checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 [[package]]
 name = "miden"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "miden-base",
  "miden-base-macros",
@@ -1080,7 +1080,7 @@ dependencies = [
 [[package]]
 name = "miden-base"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "miden-base-sys",
  "miden-stdlib-sys",
@@ -1089,7 +1089,7 @@ dependencies = [
 [[package]]
 name = "miden-base-macros"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "heck",
  "miden-assembly-syntax",
@@ -1111,7 +1111,7 @@ dependencies = [
 [[package]]
 name = "miden-base-sys"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "miden-field-repr",
  "miden-stdlib-sys",
@@ -1248,7 +1248,7 @@ dependencies = [
 [[package]]
 name = "miden-field-repr"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "miden-field",
  "miden-field-repr-derive",
@@ -1257,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "miden-field-repr-derive"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1438,7 +1438,7 @@ dependencies = [
 [[package]]
 name = "miden-sdk-alloc"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 
 [[package]]
 name = "miden-serde-utils"
@@ -1475,7 +1475,7 @@ dependencies = [
 [[package]]
 name = "miden-stdlib-sys"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "miden-field",
 ]
@@ -1545,7 +1545,7 @@ dependencies = [
 [[package]]
 name = "midenc-frontend-wasm-metadata"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "serde",
  "serde_json",

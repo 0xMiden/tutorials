@@ -474,7 +474,7 @@ dependencies = [
 [[package]]
 name = "cargo-miden"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "anyhow",
  "clap",
@@ -2848,7 +2848,7 @@ dependencies = [
 [[package]]
 name = "midenc-codegen-masm"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "anyhow",
  "inventory",
@@ -2877,7 +2877,7 @@ dependencies = [
 [[package]]
 name = "midenc-compile"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "cargo_metadata",
  "clap",
@@ -2902,7 +2902,7 @@ dependencies = [
 [[package]]
 name = "midenc-dialect-arith"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "midenc-hir",
  "paste",
@@ -2911,7 +2911,7 @@ dependencies = [
 [[package]]
 name = "midenc-dialect-cf"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "log",
  "midenc-dialect-arith",
@@ -2921,7 +2921,7 @@ dependencies = [
 [[package]]
 name = "midenc-dialect-hir"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "log",
  "miden-thiserror",
@@ -2936,7 +2936,7 @@ dependencies = [
 [[package]]
 name = "midenc-dialect-scf"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "bitvec",
  "log",
@@ -2950,7 +2950,7 @@ dependencies = [
 [[package]]
 name = "midenc-dialect-ub"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "midenc-hir",
 ]
@@ -2958,7 +2958,7 @@ dependencies = [
 [[package]]
 name = "midenc-dialect-wasm"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "midenc-dialect-arith",
  "midenc-dialect-hir",
@@ -2968,7 +2968,7 @@ dependencies = [
 [[package]]
 name = "midenc-frontend-masm"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "miden-assembly",
  "miden-assembly-syntax",
@@ -2987,7 +2987,7 @@ dependencies = [
 [[package]]
 name = "midenc-frontend-wasm"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "addr2line 0.26.1",
  "anyhow",
@@ -3013,7 +3013,7 @@ dependencies = [
 [[package]]
 name = "midenc-frontend-wasm-metadata"
 version = "0.12.0"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "serde",
  "serde_json",
@@ -3022,7 +3022,7 @@ dependencies = [
 [[package]]
 name = "midenc-hir"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "anyhow",
  "base64",
@@ -3051,7 +3051,7 @@ dependencies = [
 [[package]]
 name = "midenc-hir-analysis"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "bitvec",
  "blink-alloc",
@@ -3062,7 +3062,7 @@ dependencies = [
 [[package]]
 name = "midenc-hir-macros"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "Inflector",
  "darling",
@@ -3074,7 +3074,7 @@ dependencies = [
 [[package]]
 name = "midenc-hir-symbol"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "Inflector",
  "compact_str",
@@ -3089,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "midenc-hir-transform"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "log",
  "midenc-hir",
@@ -3114,7 +3114,7 @@ dependencies = [
 [[package]]
 name = "midenc-log"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "anstream",
  "anstyle",
@@ -3126,7 +3126,7 @@ dependencies = [
 [[package]]
 name = "midenc-session"
 version = "0.8.1"
-source = "git+https://github.com/0xMiden/compiler?branch=i697-acc-sibling-call-part2#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
+source = "git+https://github.com/0xMiden/compiler?rev=97eb019ded3a2d1f29d77639190bad5d3f0f099b#97eb019ded3a2d1f29d77639190bad5d3f0f099b"
 dependencies = [
  "anyhow",
  "clap",
