@@ -19,7 +19,7 @@ jobs:
           node-version: '16'
 
       - name: Install Prettier
-        run: npm install -g prettier
+        run: npm install -g prettier@3.8.4
 
       - name: Check Markdown formatting
         run: prettier --check "**/*.md"

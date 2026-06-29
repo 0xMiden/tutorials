@@ -358,8 +358,8 @@ test result: ok. 1 passed; 0 failed; 0 ignored
 
 At this point, you have:
 
-| Component        | Status      | Description                           |
-| ---------------- | ----------- | ------------------------------------- |
+| Component               | Status      | Description                           |
+| ----------------------- | ----------- | ------------------------------------- |
 | `bank-account`          | Minimal     | Initialization flag + balance storage |
 | `deposit-note`          | Not started | Coming in Part 4                      |
 | `withdraw-request-note` | Not started | Coming in Part 7                      |

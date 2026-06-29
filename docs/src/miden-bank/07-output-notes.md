@@ -375,7 +375,7 @@ Note Storage (14 Felts):
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-*Index 2 is the v0.15 fungible-asset vault key's `key[2]`: the faucet ID suffix with the asset's metadata byte folded into its low 8 bits, not the raw suffix. The host side encodes it from `FungibleAsset::new(faucet.id(), amount)?.to_key_word()[2]`.
+\*Index 2 is the v0.15 fungible-asset vault key's `key[2]`: the faucet ID suffix with the asset's metadata byte folded into its low 8 bits, not the raw suffix. The host side encodes it from `FungibleAsset::new(faucet.id(), amount)?.to_key_word()[2]`.
 
 :::note Why the Asset is in Inputs
 Unlike the deposit note which gets assets from `active_note::get_assets()`, the withdraw request note doesn't carry assets. Instead, the asset to withdraw is specified in the note inputs. The bank then withdraws from its own vault based on these inputs.

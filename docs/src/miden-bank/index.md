@@ -173,17 +173,17 @@ This tutorial assumes no prior experience with the Miden Rust compiler. We'll ex
 
 This tutorial covers the following Miden Rust compiler features:
 
-| Concept                      | Description                                                | Part |
-| ---------------------------- | ---------------------------------------------------------- | ---- |
-| `#[component]`               | Define account components with storage                     | 1    |
+| Concept                      | Description                                                       | Part |
+| ---------------------------- | ----------------------------------------------------------------- | ---- |
+| `#[component]`               | Define account components with storage                            | 1    |
 | Storage Types                | `StorageValue` for single values, `StorageMap` for key-value data | 1    |
-| Constants                    | Define compile-time business rules                         | 2    |
-| Assertions                   | Validate conditions and handle errors                      | 2    |
-| Asset Handling               | Add and remove assets from account vaults                  | 3    |
-| `#[note]` + `#[note_script]` | Note struct/impl pattern for scripts consumed by accounts  | 4    |
-| Cross-Component Calls        | Call account methods from note scripts                     | 5    |
-| `#[tx_script]`               | Transaction scripts for account operations                 | 6    |
-| Output Notes                 | Create notes programmatically                              | 7    |
+| Constants                    | Define compile-time business rules                                | 2    |
+| Assertions                   | Validate conditions and handle errors                             | 2    |
+| Asset Handling               | Add and remove assets from account vaults                         | 3    |
+| `#[note]` + `#[note_script]` | Note struct/impl pattern for scripts consumed by accounts         | 4    |
+| Cross-Component Calls        | Call account methods from note scripts                            | 5    |
+| `#[tx_script]`               | Transaction scripts for account operations                        | 6    |
+| Output Notes                 | Create notes programmatically                                     | 7    |
 
 ## Source Code
 

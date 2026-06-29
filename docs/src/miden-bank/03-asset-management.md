@@ -47,12 +47,12 @@ Asset key:   [asset_id_suffix, asset_id_prefix, faucet_suffix | metadata, faucet
                                                         key index 2        key index 3
 ```
 
-| Word         | Index | Field                       | Description                                                           |
-| ------------ | ----- | --------------------------- | --------------------------------------------------------------------- |
-| `value`      | 0     | `amount`                    | The quantity of tokens                                                |
-| `value`      | 1     | (reserved)                  | Always 0 for fungible assets                                          |
-| `key`        | 2     | `faucet_suffix \| metadata` | Faucet ID suffix with a metadata byte folded into the low 8 bits      |
-| `key`        | 3     | `faucet_prefix`             | First part of the faucet account ID                                   |
+| Word    | Index | Field                       | Description                                                      |
+| ------- | ----- | --------------------------- | ---------------------------------------------------------------- |
+| `value` | 0     | `amount`                    | The quantity of tokens                                           |
+| `value` | 1     | (reserved)                  | Always 0 for fungible assets                                     |
+| `key`   | 2     | `faucet_suffix \| metadata` | Faucet ID suffix with a metadata byte folded into the low 8 bits |
+| `key`   | 3     | `faucet_prefix`             | First part of the faucet account ID                              |
 
 Access the amount through `asset.value` and the faucet ID through `asset.key`:
 
@@ -165,7 +165,7 @@ This design allows:
 - **Unique keys**: The combination ensures no collisions
 
 Because `asset.key[2]` carries the v0.15 metadata byte in its low bits (not the raw
-faucet suffix), the host side must derive the *same* key from
+faucet suffix), the host side must derive the _same_ key from
 `FungibleAsset::to_key_word()` rather than from `faucet.id().suffix()` directly — the
 test below shows this.
 

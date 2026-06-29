@@ -41,13 +41,13 @@ Part 3:                          Part 4:
 
 ## Note Scripts vs Account Components
 
-| Feature     | Account Component         | Note Script                                |
-| ----------- | ------------------------- | ------------------------------------------ |
-| Purpose     | Persistent account logic  | One-time execution when consumed           |
-| Storage     | Has persistent storage    | No storage (reads from note data)          |
-| Attribute   | `#[component]`            | `#[note]` struct + `#[note_script]` method |
+| Feature     | Account Component         | Note Script                                      |
+| ----------- | ------------------------- | ------------------------------------------------ |
+| Purpose     | Persistent account logic  | One-time execution when consumed                 |
+| Storage     | Has persistent storage    | No storage (reads from note data)                |
+| Attribute   | `#[component]`            | `#[note]` struct + `#[note_script]` method       |
 | Entry point | Methods on struct         | `fn run(self, _arg: Word, account: &mut Wallet)` |
-| Invocation  | Called by other contracts | Executes when note is consumed             |
+| Invocation  | Called by other contracts | Executes when note is consumed                   |
 
 Note scripts are like "messages" that carry code along with data and assets.
 
