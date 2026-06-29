@@ -143,7 +143,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
     let p2id_script_root = Word::from(P2idNote::script_root());
 
     // Note storage layout (14 Felts):
-    // [0-3]: withdraw asset encoded as [amount, 0, faucet_suffix, faucet_prefix]
+    // [0-3]: withdraw asset encoded as [amount, 0, asset.key[2] (faucet suffix + metadata byte), asset.key[3] (faucet prefix)]
     // [4-7]: serial_num (random/unique per note)
     // [8]: tag (P2ID note tag for routing)
     // [9]: note_type (1 = Public, 2 = Private)

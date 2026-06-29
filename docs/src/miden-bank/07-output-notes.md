@@ -103,7 +103,12 @@ impl Bank for BankStorage {
         let withdraw_amount = withdraw_asset.value[0];
 
         // Derive the balance-map key from the depositor and the asset's faucet.
-        let key = BankStorage::balance_key(depositor, &withdraw_asset);
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            withdraw_asset.key[3], // faucet_prefix
+            withdraw_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+        ]);
 
         // Get current balance and validate sufficient funds exist.
         let current_balance: Felt = self.balances.get(key);
@@ -126,7 +131,7 @@ impl Bank for BankStorage {
 }
 ```
 
-The withdraw method derives the balance-map key via `BankStorage::balance_key(depositor, &withdraw_asset)`. In the v0.15 fungible-asset vault-key layout, `asset.key[3]` is the faucet id prefix and `asset.key[2]` is the faucet id suffix with the asset's metadata byte folded into its low 8 bits — so `key[2]` is NOT the raw faucet suffix. `withdraw()` and `deposit()` share this helper so a withdrawal reconstructs the exact key the deposit was recorded under.
+The withdraw method derives the balance-map key inline by packing `depositor.prefix`, `depositor.suffix`, `withdraw_asset.key[3]`, and `withdraw_asset.key[2]` into a `Word`. In the v0.15 fungible-asset vault-key layout, `asset.key[3]` is the faucet id prefix and `asset.key[2]` is the faucet id suffix with the asset's metadata byte folded into its low 8 bits — so `key[2]` is NOT the raw faucet suffix. `withdraw()` and `deposit()` derive the key the same way so a withdrawal reconstructs the exact key the deposit was recorded under.
 
 :::danger Critical Security: Balance Validation
 Always validate `current_balance >= withdraw_amount` BEFORE subtraction. Miden uses modular field arithmetic - subtracting a larger value silently wraps to a massive positive number!
@@ -145,7 +150,7 @@ This design keeps the bank contract version-agnostic: callers embed the P2ID scr
 
 ## Step 3: Implement create_p2id_note
 
-This replaces the `todo!()` placeholder from Part 3. The `#[component]` macro exports only the `Bank` trait methods, so `create_p2id_note` (along with the other private helpers `balance_key` and `require_initialized`) lives in a plain `impl BankStorage` block, NOT inside `impl Bank for BankStorage`. Add the full implementation:
+This replaces the `todo!()` placeholder from Part 3. The `#[component]` macro exports only the `Bank` trait methods, so `create_p2id_note` (along with the other private helper `require_initialized`) lives in a plain `impl BankStorage` block, NOT inside `impl Bank for BankStorage`. Add the full implementation:
 
 ```rust title="contracts/bank-account/src/lib.rs"
 /// Internal helpers that are not part of the component's exported WIT API.
@@ -153,7 +158,7 @@ This replaces the `todo!()` placeholder from Part 3. The `#[component]` macro ex
 /// The `#[component]` macro exports only the methods of the `Bank` trait, so these
 /// inherent methods stay private to the contract.
 impl BankStorage {
-    // ... other helpers (balance_key, require_initialized) ...
+    // ... other helpers (require_initialized) ...
 
     /// Create a P2ID (Pay-to-ID) note to send assets to a recipient.
     ///

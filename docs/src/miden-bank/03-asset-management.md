@@ -115,7 +115,12 @@ fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     );
 
     // Derive the balance-map key from the depositor and the asset's faucet.
-    let key = BankStorage::balance_key(depositor, &deposit_asset);
+    let key = Word::from([
+        depositor.prefix,
+        depositor.suffix,
+        deposit_asset.key[3], // faucet_prefix
+        deposit_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+    ]);
 
     // Update balance in integer space to avoid modular Felt wraparound.
     // Felt arithmetic is modular (wraps at the Goldilocks prime), so we
@@ -142,20 +147,17 @@ fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
 
 ### Balance Key Design
 
-The key is derived by a private helper, `BankStorage::balance_key`, which packs the
-depositor and the asset's faucet into a composite `Word`:
+The key is derived inline at each call site (in `deposit`, `withdraw`, and
+`get_depositor_balance`) by packing the depositor and the asset's faucet into a
+composite `Word`:
 
 ```rust
-/// Derive the `balances` map key identifying a (depositor, faucet) pair:
-/// `[depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]`.
-fn balance_key(depositor: AccountId, asset: &Asset) -> Word {
-    Word::from([
-        depositor.prefix,  // Who deposited
-        depositor.suffix,
-        asset.key[3],      // Which asset type (faucet ID prefix)
-        asset.key[2],      // Which asset type (faucet ID suffix + metadata byte)
-    ])
-}
+let key = Word::from([
+    depositor.prefix,      // Who deposited
+    depositor.suffix,
+    deposit_asset.key[3],  // Which asset type (faucet ID prefix)
+    deposit_asset.key[2],  // Which asset type (faucet ID suffix + metadata byte)
+]);
 ```
 
 This design allows:
@@ -169,9 +171,10 @@ faucet suffix), the host side must derive the _same_ key from
 `FungibleAsset::to_key_word()` rather than from `faucet.id().suffix()` directly — the
 test below shows this.
 
-The helper lives in a separate, plain `impl BankStorage` block (not the `#[component]
-trait impl`), because the `#[component]` macro exports only the trait methods as the
-contract's WIT API; inherent methods like `balance_key` stay private to the contract.
+The remaining internal helpers live in a separate, plain `impl BankStorage` block (not
+the `#[component]` trait impl), because the `#[component]` macro exports only the trait
+methods as the contract's WIT API; inherent methods like `require_initialized` and
+`create_p2id_note` stay private to the contract.
 
 ## Step 2: Add the Withdraw Method Skeleton
 
@@ -227,7 +230,12 @@ fn withdraw(
     let withdraw_amount = withdraw_asset.value[0];
 
     // Derive the balance-map key from the depositor and the asset's faucet.
-    let key = BankStorage::balance_key(depositor, &withdraw_asset);
+    let key = Word::from([
+        depositor.prefix,
+        depositor.suffix,
+        withdraw_asset.key[3], // faucet_prefix
+        withdraw_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+    ]);
 
     // ========================================================================
     // CRITICAL: Validate balance BEFORE subtraction
@@ -613,7 +621,14 @@ impl Bank for BankStorage {
     }
 
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
-        self.balances.get(BankStorage::balance_key(depositor, &asset))
+        // Create key from depositor's AccountId and asset faucet ID
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.key[3], // faucet_prefix
+            asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+        ]);
+        self.balances.get(key)
     }
 
     fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
@@ -632,7 +647,12 @@ impl Bank for BankStorage {
             "Deposit amount exceeds maximum allowed"
         );
 
-        let key = BankStorage::balance_key(depositor, &deposit_asset);
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            deposit_asset.key[3], // faucet_prefix
+            deposit_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+        ]);
 
         // Validate in integer space — Felt addition is modular
         let current_balance: Felt = self.balances.get(key);
@@ -670,7 +690,12 @@ impl Bank for BankStorage {
 
         let withdraw_amount = withdraw_asset.value[0];
 
-        let key = BankStorage::balance_key(depositor, &withdraw_asset);
+        let key = Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            withdraw_asset.key[3], // faucet_prefix
+            withdraw_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+        ]);
 
         // CRITICAL: Validate balance BEFORE subtraction
         let current_balance: Felt = self.balances.get(key);
@@ -692,20 +717,6 @@ impl Bank for BankStorage {
 /// The `#[component]` macro exports only the methods of the `Bank` trait, so these
 /// inherent methods stay private to the contract.
 impl BankStorage {
-    /// Derive the `balances` map key identifying a (depositor, faucet) pair:
-    /// `[depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]`.
-    ///
-    /// `asset.key[2]` is the faucet id suffix with the asset's metadata byte folded
-    /// into its low 8 bits — the v0.15 vault-key layout — so it is NOT the raw suffix.
-    fn balance_key(depositor: AccountId, asset: &Asset) -> Word {
-        Word::from([
-            depositor.prefix,
-            depositor.suffix,
-            asset.key[3],
-            asset.key[2],
-        ])
-    }
-
     /// Check that the bank is initialized.
     fn require_initialized(&self) {
         let current: Word = self.initialized.get();

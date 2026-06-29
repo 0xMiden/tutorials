@@ -281,8 +281,8 @@ cd ../deposit-note && cargo miden build --release
 
 This is the first runnable test in the tutorial. It verifies the deposit flow end-to-end — building the bank and deposit-note contracts, creating a deposit, and checking the balance.
 
-:::note No initialization needed
-The initialization guard (`require_initialized()`) is intentionally commented out at this tutorial stage. We'll enable it in Part 6 when we build the init transaction script.
+:::note Initialization happens before deposits
+The bank's `require_initialized()` guard is active, so a deposit only succeeds once the bank has been initialized. The shipped `deposit_test.rs` initializes the bank first via the init transaction script (which we build in Part 6). The illustrative excerpt below omits that step to keep the focus on the deposit and note-script mechanics; see the shipped test for the complete init-then-deposit flow.
 :::
 
 Create the test file:
@@ -318,7 +318,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create sender (depositor) wallet
     let sender = builder.add_existing_wallet_with_assets(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, [FungibleAsset::new(faucet.id(), 100)?.into()])?;
 
-    // Build bank-account and deposit-note only (no init-tx-script needed)
+    // Build bank-account and deposit-note (the shipped test also builds init-tx-script; omitted here for brevity)
     let bank_package = Arc::new(build_project_in_dir(
         Path::new("../contracts/bank-account"),
         true,
@@ -331,9 +331,9 @@ async fn deposit_test() -> anyhow::Result<()> {
 
     // Create the bank account with storage slots.
     //
-    // Part 4 does NOT run the init transaction script — we exercise the deposit
-    // flow directly against the bank's commented-out `require_initialized()`
-    // guard. Part 6 enables the guard and adds the init step.
+    // The shipped deposit_test.rs initializes the bank first (via the init
+    // transaction script built in Part 6) because `require_initialized()` is
+    // active; this excerpt omits that step and focuses on the deposit flow.
     let initialized_slot =
         StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
@@ -374,7 +374,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     let mut mock_chain = builder.build()?;
 
     // =========================================================================
-    // EXECUTE DEPOSIT (no init needed — guard is commented out at this stage)
+    // EXECUTE DEPOSIT (the shipped test initializes the bank first; this excerpt omits that step)
     // =========================================================================
     let tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?

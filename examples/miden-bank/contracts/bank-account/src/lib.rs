@@ -50,7 +50,7 @@ struct BankStorage {
     initialized: StorageValue<Word>,
 
     /// Maps (depositor AccountId, faucet ID) -> balance (as Felt).
-    /// Key is derived as: [depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix],
+    /// Key is derived as: [depositor.prefix, depositor.suffix, faucet_prefix (asset.key[3]), faucet_suffix (asset.key[2])],
     /// which isolates balances per depositor per asset type.
     ///
     /// Note (v0.15): the asset's metadata byte (composition + callback flag) is folded
