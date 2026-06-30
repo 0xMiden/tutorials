@@ -243,7 +243,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { git = "https://github.com/0xMiden/compiler", rev = "97eb019ded3a2d1f29d77639190bad5d3f0f099b" }
+miden = "0.13"
 ```
 
 ```toml title="contracts/withdraw-request-note/miden-project.toml"

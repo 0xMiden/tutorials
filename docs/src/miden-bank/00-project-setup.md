@@ -100,7 +100,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { git = "https://github.com/0xMiden/compiler", rev = "97eb019ded3a2d1f29d77639190bad5d3f0f099b" }
+miden = "0.13"
 ```
 
 Next, create `contracts/bank-account/miden-project.toml`. This is the Miden-specific project manifest that tells the compiler what kind of artifact to build and which package namespace to export:
@@ -148,7 +148,7 @@ rustflags = ["--cfg", "miden"]
 :::
 
 :::note Toolchain
-This tutorial targets protocol v0.15 and pins the Miden compiler to a specific commit (`rev = "97eb019ded3a2d1f29d77639190bad5d3f0f099b"`) of its v0.15 line — the cross-component / sibling-call work, merged into the compiler's `next` branch but not yet on a tagged `cargo-miden` release. The pinned `rust-toolchain.toml` is `nightly-2026-04-30` with the `wasm32-wasip2` target.
+This tutorial targets protocol v0.15. The contracts depend on the published `miden = "0.13"` SDK (the cross-component / sibling-call line of the v0.15 compiler). The integration harness builds them with `cargo-miden` tracked from the compiler's `next` branch, because `cargo-miden` is not yet published with the `.masp`-path fix (compiler PR #1216); that is the only remaining git dependency. The pinned `rust-toolchain.toml` is `nightly-2026-04-30` with the `wasm32-wasip2` target.
 :::
 
 ## Step 3: Create a Minimal Bank Component
@@ -272,7 +272,7 @@ A `.masp` file is a Miden Assembly Package. It contains the compiled MASM (Miden
 :::
 
 :::info Build Order Matters
-The bank account is the base contract. The deposit/withdraw notes and the init transaction script call into it, and their build relies on the bank account's already-compiled package (the FPI `#[account(...)]` macro reads the bank's procedure roots from its persisted `.masp` at compile time). So always build `bank-account` first, then the notes and transaction script. The integration test harness handles this ordering for you, persisting the bank's `.masp` where dependent contracts look for it.
+The bank account is the base contract. The deposit/withdraw notes and the init transaction script call into it, and their build relies on the bank account's already-compiled package (the FPI `#[account(...)]` macro reads the bank's procedure roots from its `.masp` at compile time). So always build `bank-account` first, then the notes and transaction script. The integration test harness handles this ordering for you.
 :::
 
 ## Optional: Verify Your Setup
