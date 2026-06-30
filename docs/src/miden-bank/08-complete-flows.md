@@ -207,8 +207,8 @@ test result: ok. 1 passed; 0 failed; 0 ignored
 
 </details>
 
-:::warning Live network bins are a known limitation
-The repository also ships `cargo run --bin initialize` and `cargo run --bin deposit` (under `examples/miden-bank/integration/src/bin/`) for exercising the same flow against a live testnet node. On the current part2 toolchain these bins **fail to deploy a fresh bank account**: `submit_new_transaction` aborts during local execution with an advice-map miss, because miden-client cannot supply a lazily-requested witness/foreign-account advice entry for a fresh, uncommitted account. This is an upstream miden-client/part2 gap, not a tutorial bug — tracked at [rust-sdk#2289](https://github.com/0xMiden/rust-sdk/issues/2289). Until it lands, use the MockChain integration tests above to verify the deposit, init, and withdraw flows end-to-end.
+:::note Live network bins
+The repository also ships `cargo run --bin initialize` and `cargo run --bin deposit` (under `examples/miden-bank/integration/src/bin/`) for exercising the same flow against a live testnet node. The MockChain integration tests above verify the deposit, init, and withdraw flows end-to-end.
 :::
 
 ## Summary: All Components

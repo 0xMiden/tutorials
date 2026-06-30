@@ -472,8 +472,8 @@ Your actual output may include additional trace lines from the Miden VM or MockC
 **"Dependency not found"**: Check that the `bank-account` path dependency and the `[package.metadata.miden.dependencies]` WIT entry are both present in `miden-project.toml` with correct paths.
 :::
 
-:::warning Live network limitation
-The MockChain test above is the source of truth for verifying this flow. The live-network bin (`cargo run --bin initialize`) currently **fails to deploy a fresh account on testnet** under the part2 toolchain: `submit_new_transaction` fails during local execution with an advice-map miss, because miden-client cannot supply a lazily-requested witness/foreign-account advice entry for a fresh, uncommitted account. This is an upstream miden-client/part2 gap, not a tutorial bug, tracked at [rust-sdk#2289](https://github.com/0xMiden/rust-sdk/issues/2289). Use the `init_test` MockChain test to verify the initialization flow until the upstream fix lands.
+:::note Live network bin
+The MockChain test above is the source of truth for verifying this flow. The live-network bin (`cargo run --bin initialize`) also runs against a testnet node.
 :::
 
 ## What We've Built So Far
