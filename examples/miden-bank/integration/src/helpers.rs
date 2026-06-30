@@ -56,13 +56,8 @@ pub async fn setup_client() -> Result<ClientSetup> {
     Ok(ClientSetup { client, keystore })
 }
 
-/// Builds a Miden project in the specified directory via the `cargo-miden` library.
-///
-/// In addition to returning the compiled [`Package`], the produced `.masp` is persisted
-/// to `<dir>/target/miden/<profile>/` (alongside the compiler's `target/midenc/miden/...`
-/// output). The FPI `#[account(...)]` macro searches the former path when building any
-/// contract that calls this one, so persisting it lets dependent contracts (the notes /
-/// transaction script that call the bank account) compile.
+/// Builds a Miden project in the specified directory via the `cargo-miden` library
+/// and returns the compiled [`Package`].
 pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
     let profile = if release { "--release" } else { "--debug" };
     let manifest_path = dir.join("Cargo.toml");
@@ -93,23 +88,7 @@ pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
         "Failed to read compiled package from {}",
         artifact_path.display()
     ))?;
-    let package = Package::read_from_bytes(&package_bytes)
-        .context("Failed to deserialize package from bytes")?;
-
-    // Persist the package to the contract's own `target/miden/<profile>` directory, where the
-    // FPI `#[account]` macro searches for dependency packages when building a contract that
-    // calls this one. The compiler writes the package under the *building crate's*
-    // `target/midenc/miden/...` (the build is invoked from the integration crate's cwd via
-    // `--manifest-path`), which is not where dependents look.
-    let profile_dir = if release { "release" } else { "debug" };
-    let dest_dir = dir.join("target").join("miden").join(profile_dir);
-    std::fs::create_dir_all(&dest_dir)
-        .with_context(|| format!("Failed to create {}", dest_dir.display()))?;
-    package.write_masp_file(&dest_dir).map_err(|err| {
-        anyhow::anyhow!("Failed to persist package to {}: {err}", dest_dir.display())
-    })?;
-
-    Ok(package)
+    Package::read_from_bytes(&package_bytes).context("Failed to deserialize package from bytes")
 }
 
 /// Builds a [`TransactionScript`] from a compiled transaction-script package.
