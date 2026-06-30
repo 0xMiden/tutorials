@@ -271,14 +271,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_secs(6)).await;
     }
 
+    // The network note was submitted, but it is executed asynchronously by the
+    // network transaction builder. If the counter has not reached 2 within the
+    // polling window, the tutorial's final state is unconfirmed, so fail rather
+    // than claim success.
     if let Some(val) = last_val {
-        println!(
-            "Counter value did not reach 2 yet (last observed value: {}).",
+        Err(format!(
+            "Counter did not reach the expected value 2 within the timeout (last observed {}). \
+             The network note was submitted but its execution is still pending on the network \
+             transaction builder; re-run or check Midenscan.",
             val
-        );
+        )
+        .into())
     } else {
-        println!("Counter value not available yet.");
+        Err("Counter state was not available within the timeout; the network note execution is still pending."
+            .into())
     }
-
-    Ok(())
 }
