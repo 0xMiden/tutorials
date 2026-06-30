@@ -248,7 +248,7 @@ async fn main() -> Result<(), ClientError> {
         serial_num[0],
         serial_num[1],
         serial_num[2],
-        Felt::new_unchecked(serial_num[3].as_canonical_u64() + 1),
+        serial_num[3] + Felt::new_unchecked(1),
     ]
     .into();
 
