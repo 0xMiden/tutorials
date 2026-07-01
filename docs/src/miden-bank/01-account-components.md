@@ -262,7 +262,7 @@ miden build
 
 This compiles the Rust code to Miden Assembly and generates:
 
-- `target/miden/release/bank_account.masp` - The compiled package
+- `target/miden/release/bank-account.masp` - The compiled package
 - `target/generated-wit/` - WIT interface files for other contracts to use
 
 :::note Cosmetic build errors

@@ -234,7 +234,6 @@ cargo miden build --release
 ```text
    Compiling init-tx-script v0.1.0
     Finished `release` profile [optimized] target(s)
-Creating Miden package .../init-tx-script/target/miden/release/init_tx_script.masp
 ```
 
 </details>

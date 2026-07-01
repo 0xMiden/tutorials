@@ -20,7 +20,7 @@ You'll create a **banking system** consisting of:
 The tutorial includes runnable tests where appropriate — some parts are setup-only or conceptual, with the first runnable test in Part 4.
 
 :::note Verification runs on MockChain
-This tutorial targets protocol **v0.15** and the v0.15-aligned Rust compiler. The contracts depend on the published `miden = "0.13"` SDK, and the integration harness builds them with `cargo-miden` tracked from the compiler's `next` branch (pending a tagged release with the `.masp`-path fix). The flow is verified end-to-end by the MockChain integration tests (`tests/{init,deposit,withdraw}_test.rs`), which all pass. The live-network binaries (`cargo run --bin initialize` / `--bin deposit`) also run against testnet.
+This tutorial targets protocol **v0.15** and the v0.15-aligned Rust compiler. The contracts depend on the published `miden = "0.13"` SDK, and the integration harness builds them with the published `cargo-miden = "0.9"` release. The flow is verified end-to-end by the MockChain integration tests (`tests/{init,deposit,withdraw}_test.rs`), which all pass. The live-network binaries (`cargo run --bin initialize` / `--bin deposit`) also run against testnet.
 :::
 
 ## Tutorial Structure

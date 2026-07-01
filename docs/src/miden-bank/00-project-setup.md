@@ -148,7 +148,7 @@ rustflags = ["--cfg", "miden"]
 :::
 
 :::note Toolchain
-This tutorial targets protocol v0.15. The contracts depend on the published `miden = "0.13"` SDK (the cross-component / sibling-call line of the v0.15 compiler). The integration harness builds them with `cargo-miden` tracked from the compiler's `next` branch, because `cargo-miden` is not yet published with the `.masp`-path fix (compiler PR #1216); that is the only remaining git dependency. The pinned `rust-toolchain.toml` is `nightly-2026-04-30` with the `wasm32-wasip2` target.
+This tutorial targets protocol v0.15. The contracts depend on the published `miden = "0.13"` SDK (the cross-component / sibling-call line of the v0.15 compiler), and the integration harness builds them with the published `cargo-miden = "0.9"` release. The pinned `rust-toolchain.toml` is `nightly-2026-04-30` with the `wasm32-wasip2` target.
 :::
 
 ## Step 3: Create a Minimal Bank Component
@@ -256,12 +256,11 @@ miden build --release
 ```text
    Compiling bank-account v0.1.0 (/path/to/miden-bank/contracts/bank-account)
     Finished `release` profile [optimized] target(s)
-Creating Miden package /path/to/miden-bank/target/miden/release/bank_account.masp
 ```
 
 </details>
 
-The compiled output is stored in `target/miden/release/bank_account.masp`.
+The compiled output is stored in `target/miden/release/bank-account.masp`.
 
 :::note Cosmetic MAST ERROR lines
 On the part2 compiler, every contract build prints one or more non-fatal `MAST`-serialization lines starting with `ERROR`. These are cosmetic — the build still succeeds and produces the `.masp` package. You can ignore them.

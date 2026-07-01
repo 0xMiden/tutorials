@@ -231,7 +231,6 @@ cargo miden build --release
 ```text
    Compiling deposit-note v0.1.0
     Finished `release` profile [optimized] target(s)
-Creating Miden package /path/to/miden-bank/target/miden/release/deposit_note.masp
 ```
 
 </details>
