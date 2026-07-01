@@ -137,9 +137,8 @@ pub proc main
     # => [SERIAL_NUM+1, SCRIPT_HASH]
 
     # Load note storage into memory for recipient construction.
-    # v0.15: get_storage consumes dest_ptr and leaves only [num_storage_items]
-    # (in v0.14 it also left dest_ptr on the stack), so re-push the storage_ptr
-    # for the recipient call rather than swapping.
+    # get_storage consumes dest_ptr and leaves only [num_storage_items],
+    # so re-push the storage_ptr for the recipient call rather than swapping.
     push.ACCOUNT_ID_PREFIX
     exec.active_note::get_storage
     # => [num_storage_items, SERIAL_NUM+1, SCRIPT_HASH]

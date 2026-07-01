@@ -78,8 +78,8 @@ pub proc main
     # => [DIGEST]
 
     # Writing the note storage to memory.
-    # v0.15: get_storage leaves only [num_storage_items] (v0.14 also left dest_ptr),
-    # so drop a single element here, not two, to keep the computed DIGEST intact.
+    # get_storage leaves only [num_storage_items], so drop a single element
+    # here, not two, to keep the computed DIGEST intact.
     push.EXPECTED_DIGEST_PTR exec.active_note::get_storage drop
 
     # Pad stack and load expected digest from memory (LE: mem[addr] ends up on top)

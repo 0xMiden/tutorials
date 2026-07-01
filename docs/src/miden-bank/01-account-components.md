@@ -266,7 +266,7 @@ This compiles the Rust code to Miden Assembly and generates:
 - `target/generated-wit/` - WIT interface files for other contracts to use
 
 :::note Cosmetic build errors
-With the part2 compiler the build prints non-fatal `MAST`-serialization `ERROR` lines on every run. These are cosmetic — the build still succeeds and produces the `.masp` package.
+The build prints non-fatal `MAST`-serialization `ERROR` lines on every run. These are cosmetic — the build still succeeds and produces the `.masp` package.
 :::
 
 ## Optional: Verify Your Code

@@ -236,7 +236,7 @@ cargo miden build --release
 </details>
 
 :::note Cosmetic MAST-serialization errors
-The part2 compiler prints non-fatal `ERROR` lines about `MAST` serialization on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
+The Miden compiler prints non-fatal `ERROR` lines about `MAST` serialization on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
 :::
 
 ## Execution Flow Diagram

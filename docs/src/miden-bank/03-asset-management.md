@@ -290,7 +290,7 @@ miden build
 ```
 
 :::note Cosmetic build output
-The part2 compiler prints non-fatal `MAST`-serialization `ERROR` lines on every
+The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every
 build. They are cosmetic — the build still succeeds and produces the `.masp`.
 :::
 
@@ -527,7 +527,7 @@ test result: ok. 3 passed; 0 failed; 0 ignored
 
 :::note Cosmetic build output
 Each contract build during the test prints non-fatal `MAST`-serialization `ERROR`
-lines from the part2 compiler. They are cosmetic and do not affect the result.
+lines from the Miden compiler. They are cosmetic and do not affect the result.
 :::
 
 </details>

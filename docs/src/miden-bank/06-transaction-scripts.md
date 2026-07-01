@@ -239,7 +239,7 @@ cargo miden build --release
 </details>
 
 :::note Cosmetic build errors
-The part2 compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
+The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
 :::
 
 ## Account Deployment Pattern

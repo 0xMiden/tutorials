@@ -401,7 +401,7 @@ cargo miden build --release
 ```
 
 :::note Cosmetic build errors
-The part2 compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. They are cosmetic — the build still succeeds and produces the package. You can ignore them.
+The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. They are cosmetic — the build still succeeds and produces the package. You can ignore them.
 :::
 
 ## Try It: Verify Withdrawals Work

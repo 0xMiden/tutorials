@@ -263,7 +263,7 @@ miden build --release
 The compiled output is stored in `target/miden/release/bank-account.masp`.
 
 :::note Cosmetic MAST ERROR lines
-On the part2 compiler, every contract build prints one or more non-fatal `MAST`-serialization lines starting with `ERROR`. These are cosmetic — the build still succeeds and produces the `.masp` package. You can ignore them.
+Every contract build prints one or more non-fatal `MAST`-serialization lines starting with `ERROR`. These are cosmetic — the build still succeeds and produces the `.masp` package. You can ignore them.
 :::
 
 :::tip What's a .masp File?
