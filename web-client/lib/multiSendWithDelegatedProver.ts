@@ -6,7 +6,6 @@
  */
 import {
   MidenClient,
-  AccountType,
   NoteVisibility,
   StorageMode,
   createP2IDNote,
@@ -29,14 +28,13 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
   // ── Creating new account ──────────────────────────────────────────────────────
   console.log('Creating account for Alice…');
   const alice = await client.accounts.create({
-    type: AccountType.RegularAccountUpdatableCode,
     storage: StorageMode.Public,
   });
   console.log('Alice account ID:', alice.id().toString());
 
   // ── Creating new faucet ──────────────────────────────────────────────────────
   const faucet = await client.accounts.create({
-    type: AccountType.FungibleFaucet,
+    type: 0, // 0 = FungibleFaucet
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),
@@ -62,9 +60,9 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
   // ── build 3 P2ID notes (100 MID each) ─────────────────────────────────────────────
   const recipientAddresses = [
-    'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04',
-    'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn',
-    'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd',
+    'mtst1arqeemdpnzu4k52wlpd3xekl5uklfjl5',
+    'mtst1arqk5qt3kms0cut9rdtqdaz8y5xmj245',
+    'mtst1aq6kyfrh23n9gvt6jkg0z7fyts99hdqr',
   ];
 
   const p2idNotes = recipientAddresses.map((addr) =>

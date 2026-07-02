@@ -102,24 +102,24 @@ _The standard asset transfer note on Miden is the P2ID note (Pay-to-Id). There i
 Now that Alice has tokens in her account, she can send some to Bob:
 
 <CodeSdkTabs example={{
-react: { code: `// 6. Send 100 tokens to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+react: { code: `// 7. Send 100 tokens to Bob
+const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 console.log("Sending tokens to Bob's account...");
 await send({
-.from: aliceId,
+.from: alice,
 .to: bobAddress,
-.assetId: faucetId,
+.assetId: faucet,
 .amount: BigInt(100),
 .noteType: NoteVisibility.Public,
 });
 console.log('Tokens sent successfully!');` },
-typescript: { code: `// 7. Send tokens from Alice to Bob
-const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+typescript: { code: `// 7. Send tokens to Bob
+const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 console.log("Sending tokens to Bob's account...");
 
 await client.transactions.send({
-.account: alice, // Sender account ID
-.to: bobAddress, // Recipient (bech32 address)
+.account: alice, // Sender account
+.to: bobAddress, // Recipient address
 .token: faucet, // Asset ID (faucet that created the tokens)
 .amount: BigInt(100), // Amount to send
 .type: NoteVisibility.Public, // Note visibility
@@ -195,13 +195,13 @@ function CreateMintConsumeInner() {
 ..await consume({ accountId: alice.id().toString(), notes });
 ..console.log('Notes consumed.');
 
-..// 6. Send 100 tokens to Bob
-..const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+..// 7. Send 100 tokens to Bob
+..const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 ..console.log("Sending tokens to Bob's account...");
 ..await send({
-...from: aliceId,
+...from: alice,
 ...to: bobAddress,
-...assetId: faucetId,
+...assetId: faucet,
 ...amount: BigInt(100),
 ...noteType: NoteVisibility.Public,
 ..});
@@ -225,7 +225,7 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
-import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
@@ -247,7 +247,6 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -255,7 +254,7 @@ export async function createMintConsume(): Promise<void> {
 .// 3. Deploy a fungible faucet
 .console.log('Creating faucet…');
 .const faucet = await client.accounts.create({
-..type: AccountType.FungibleFaucet,
+..type: 0, // 0 = FungibleFaucet
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),
@@ -285,7 +284,7 @@ export async function createMintConsume(): Promise<void> {
 .console.log('Notes consumed.');
 
 .// 7. Send tokens to Bob
-.const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+.const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
 .console.log("Sending tokens to Bob's account...");
 .await client.transactions.send({
 ..account: alice,

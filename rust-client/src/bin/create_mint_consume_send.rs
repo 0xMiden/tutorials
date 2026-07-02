@@ -4,18 +4,21 @@ use tokio::time::Duration;
 
 use miden_client::{
     account::{
-        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
-        AccountBuilder, AccountId, AccountStorageMode, AccountType,
+        component::{
+            BasicWallet, BurnPolicyConfig, FungibleFaucet, MintPolicyConfig, PolicyRegistration,
+            TokenName, TokenPolicyManager,
+        },
+        AccountBuilder, AccountId, AccountType,
     },
     address::NetworkId,
-    asset::{FungibleAsset, TokenSymbol},
+    asset::{AssetAmount, FungibleAsset, TokenSymbol},
     auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     keystore::{FilesystemKeyStore, Keystore},
-    note::{NoteAttachment, NoteType, P2idNote},
+    note::{NoteAttachments, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
     transaction::TransactionRequestBuilder,
-    ClientError, Felt,
+    ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_protocol::account::AccountIdVersion;
@@ -57,8 +60,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -85,18 +87,34 @@ async fn main() -> Result<(), ClientError> {
     // Faucet parameters
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
-    let max_supply = Felt::new(1_000_000);
+    let max_supply = AssetAmount::new(1_000_000).unwrap();
 
     // Generate key pair
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
-    // Build the faucet account
+    // Build the faucet account.
+    // In v0.15 the faucet is a `FungibleFaucet` component plus a `TokenPolicyManager`
+    // that registers an "allow all" mint (and burn) policy; minting is rejected
+    // unless an active mint policy is present.
     let faucet_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::FungibleFaucet)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
-        .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
-        .with_component(AuthControlled::allow_all())
+        .with_component(
+            FungibleFaucet::builder()
+                .name(TokenName::new("MID").unwrap())
+                .symbol(symbol)
+                .decimals(decimals)
+                .max_supply(max_supply)
+                .build()
+                .unwrap(),
+        )
+        .with_components(
+            TokenPolicyManager::new()
+                .with_mint_policy(MintPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap()
+                .with_burn_policy(BurnPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap(),
+        )
         .build()
         .unwrap();
 
@@ -204,9 +222,8 @@ async fn main() -> Result<(), ClientError> {
         };
         let target_account_id = AccountId::dummy(
             init_seed,
-            AccountIdVersion::Version0,
-            AccountType::RegularAccountUpdatableCode,
-            AccountStorageMode::Public,
+            AccountIdVersion::Version1,
+            AccountType::Public,
         );
 
         let send_amount = 50;
@@ -217,7 +234,7 @@ async fn main() -> Result<(), ClientError> {
             target_account_id,
             vec![fungible_asset.into()],
             NoteType::Public,
-            NoteAttachment::default(),
+            NoteAttachments::empty(),
             client.rng(),
         )?;
         p2id_notes.push(p2id_note);
@@ -244,9 +261,8 @@ async fn main() -> Result<(), ClientError> {
     };
     let target_account_id = AccountId::dummy(
         init_seed,
-        AccountIdVersion::Version0,
-        AccountType::RegularAccountUpdatableCode,
-        AccountStorageMode::Public,
+        AccountIdVersion::Version1,
+        AccountType::Public,
     );
 
     let send_amount = 50;
@@ -257,7 +273,7 @@ async fn main() -> Result<(), ClientError> {
         target_account_id,
         vec![fungible_asset.into()],
         NoteType::Public,
-        NoteAttachment::default(),
+        NoteAttachments::empty(),
         client.rng(),
     )?;
 

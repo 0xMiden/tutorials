@@ -56,7 +56,7 @@ function CreateMintConsumeInner() {
     console.log('Notes consumed.');
 
     // 7. Send 100 tokens to Bob
-    const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+    const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
     console.log("Sending tokens to Bob's account...");
     await send({
       from: alice,

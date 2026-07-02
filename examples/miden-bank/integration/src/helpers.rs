@@ -3,11 +3,11 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::{bail, Context, Result};
-use cargo_miden::{run, OutputType};
+use cargo_miden::run;
 use miden_client::{
     account::{
         component::{BasicWallet, InitStorageData, NoAuth},
-        Account, AccountBuilder, AccountComponent, AccountStorageMode, AccountType,
+        Account, AccountBuilder, AccountComponent, AccountType,
     },
     auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
@@ -15,11 +15,12 @@ use miden_client::{
     keystore::{FilesystemKeyStore, Keystore},
     note::{Note, NoteAssets, NoteScript, NoteTag, NoteType},
     rpc::{Endpoint, GrpcClient},
+    transaction::TransactionScript,
     utils::Deserializable,
-    Client,
+    Client, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_mast_package::Package;
+use miden_mast_package::{Package, PackageExport, TargetType};
 use miden_standards::testing::note::NoteBuilder;
 use rand::RngCore;
 
@@ -55,7 +56,8 @@ pub async fn setup_client() -> Result<ClientSetup> {
     Ok(ClientSetup { client, keystore })
 }
 
-/// Builds a Miden project in the specified directory via the `cargo-miden` library.
+/// Builds a Miden project in the specified directory via the `cargo-miden` library
+/// and returns the compiled [`Package`].
 pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
     let profile = if release { "--release" } else { "--debug" };
     let manifest_path = dir.join("Cargo.toml");
@@ -70,15 +72,15 @@ pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
         &manifest_arg,
     ];
 
-    let output = run(args.into_iter().map(String::from), OutputType::Masm)
+    let output = run(args.into_iter().map(String::from))
         .context("Failed to compile project")?
         .context("Cargo miden build returned None")?;
 
     let artifact_path = match output {
-        cargo_miden::CommandOutput::BuildCommandOutput { output } => match output {
-            cargo_miden::BuildOutput::Masm { artifact_path } => artifact_path,
-            other => bail!("Expected Masm output, got {:?}", other),
-        },
+        cargo_miden::CommandOutput::BuildCommandOutput { output } => output
+            .into_iter()
+            .next()
+            .context("cargo miden build produced no artifact")?,
         other => bail!("Expected BuildCommandOutput, got {:?}", other),
     };
 
@@ -86,16 +88,57 @@ pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
         "Failed to read compiled package from {}",
         artifact_path.display()
     ))?;
-
     Package::read_from_bytes(&package_bytes).context("Failed to deserialize package from bytes")
+}
+
+/// Builds a [`TransactionScript`] from a compiled transaction-script package.
+///
+/// A `kind = "tx-script"` contract compiles to a `TransactionScript`-kind package (not an
+/// `Executable`), so `TransactionScript::from_package` / `Package::unwrap_program` do not apply.
+/// This mirrors the compiler's own helper: locate the `main`/`run` export and build the script
+/// from the package's MAST forest plus that entrypoint.
+pub fn build_tx_script_from_package(package: &Package) -> Result<TransactionScript> {
+    if package.kind != TargetType::TransactionScript {
+        bail!(
+            "expected a transaction-script package, got {:?}",
+            package.kind
+        );
+    }
+
+    let mut first_procedure = None;
+    let mut selected_procedure = None;
+    let mut num_procedures = 0usize;
+    for export in package.manifest.exports() {
+        let PackageExport::Procedure(procedure) = export else {
+            continue;
+        };
+        num_procedures += 1;
+        first_procedure.get_or_insert(procedure);
+        if matches!(export.name(), "main" | "run") {
+            selected_procedure = Some(procedure);
+        }
+    }
+
+    let procedure = selected_procedure
+        .or_else(|| (num_procedures == 1).then(|| first_procedure.unwrap()))
+        .context("transaction-script package should export exactly one entry procedure")?;
+    let entrypoint = package
+        .mast
+        .mast_forest()
+        .find_procedure_root(procedure.digest)
+        .context("transaction-script main export should have a MAST node")?;
+
+    Ok(TransactionScript::from_parts(
+        package.mast.mast_forest().clone(),
+        entrypoint,
+    ))
 }
 
 /// Configuration for creating an account with a custom component.
 pub struct AccountCreationConfig {
-    /// The account type to create.
+    /// The account type to create. In protocol v0.15 this also encodes the
+    /// storage visibility (`AccountType::Public` / `AccountType::Private`).
     pub account_type: AccountType,
-    /// The account storage visibility mode.
-    pub storage_mode: AccountStorageMode,
     /// Initial component storage data keyed by storage slot schema.
     pub init_storage_data: InitStorageData,
 }
@@ -103,8 +146,7 @@ pub struct AccountCreationConfig {
 impl Default for AccountCreationConfig {
     fn default() -> Self {
         Self {
-            account_type: AccountType::RegularAccountImmutableCode,
-            storage_mode: AccountStorageMode::Public,
+            account_type: AccountType::Public,
             init_storage_data: InitStorageData::default(),
         }
     }
@@ -132,7 +174,6 @@ pub async fn create_account_from_package(
 
     let account = AccountBuilder::new(init_seed)
         .account_type(config.account_type)
-        .storage_mode(config.storage_mode)
         .with_component(account_component)
         .with_auth_component(NoAuth)
         .build()
@@ -157,7 +198,6 @@ pub fn create_testing_account_from_package(
 
     let account = AccountBuilder::new([3u8; 32])
         .account_type(config.account_type)
-        .storage_mode(config.storage_mode)
         .with_component(account_component)
         .with_auth_component(NoAuth)
         .build_existing()
@@ -201,7 +241,7 @@ pub fn create_note_from_package(
         .context("Failed to build note script from package")?;
     let serial_num = client.rng().draw_word();
 
-    NoteBuilder::new(sender_id, &mut RandomCoin::new(note_script.root()))
+    NoteBuilder::new(sender_id, &mut RandomCoin::new(Word::from(note_script.root())))
         .package((*package).clone())
         .note_type(config.note_type)
         .tag(config.tag.into())
@@ -216,9 +256,8 @@ pub fn create_note_from_package(
 /// Creates a deterministic note from a compiled note-script package for testing.
 ///
 /// The note script is resolved from the package's `@note_script`-attributed procedure
-/// via `NoteScript::from_package`, so the note contract must be compiled with
-/// `miden >= 0.12`. The note is built with `NoteBuilder`, which derives the serial
-/// number from the note-script digest for deterministic test runs.
+/// via `NoteScript::from_package`. The note is built with `NoteBuilder`, which derives the
+/// serial number from the note-script digest for deterministic test runs.
 pub fn create_testing_note_from_package(
     package: Arc<Package>,
     sender_id: miden_client::account::AccountId,
@@ -226,7 +265,7 @@ pub fn create_testing_note_from_package(
 ) -> Result<Note> {
     let note_script = NoteScript::from_package(package.as_ref())
         .context("Failed to build note script from package")?;
-    let mut rng = RandomCoin::new(note_script.root());
+    let mut rng = RandomCoin::new(Word::from(note_script.root()));
 
     NoteBuilder::new(sender_id, &mut rng)
         .package((*package).clone())
@@ -252,7 +291,6 @@ pub async fn create_basic_wallet_account(
 
     let builder = AccountBuilder::new(init_seed)
         .account_type(config.account_type)
-        .storage_mode(config.storage_mode)
         .with_auth_component(AuthSingleSig::new(
             key_pair.public_key().to_commitment(),
             AuthSchemeId::Falcon512Poseidon2,

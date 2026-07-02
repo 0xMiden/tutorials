@@ -1,13 +1,13 @@
 use integration::helpers::{
-    build_project_in_dir, create_testing_account_from_package, create_testing_note_from_package,
-    AccountCreationConfig, NoteCreationConfig,
+    build_project_in_dir, build_tx_script_from_package, create_testing_account_from_package,
+    create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
 
 use miden_client::{
     account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
     auth::AuthSchemeId,
     note::NoteAssets,
-    transaction::{RawOutputNote, TransactionScript},
+    transaction::RawOutputNote,
     Felt, Word,
 };
 use miden_client::asset::{Asset, FungibleAsset};
@@ -16,15 +16,15 @@ use std::{path::Path, sync::Arc};
 
 /// Storage slot names for the bank account component.
 ///
-/// The component's initial storage (initialized = 0, empty balances map) is seeded
-/// automatically by `AccountComponent::from_package` using the component's schema,
-/// so no explicit `InitStorageData` entries are needed.
+/// The `initialized` value slot has no schema default, so `AccountComponent::from_package`
+/// requires it to be seeded via `InitStorageData` (otherwise it errors with
+/// `InitValueNotProvided`). The `balances` map slot defaults to empty and needs no entry.
 fn bank_storage_slots() -> (StorageSlotName, StorageSlotName) {
     let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
+        StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
+        StorageSlotName::new("bank_account::bank::balances")
             .expect("Valid slot name");
     (initialized_slot, balances_slot)
 }
@@ -66,8 +66,9 @@ async fn deposit_test() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create the bank account. Seed the component's `initialized` value slot with
-    // Word::default() (uninitialized); the `balances` map starts empty by default.
+    // Create the bank account. The `initialized` value slot has no schema default, so it must
+    // be seeded (here with a zero Word = uninitialized) or `from_package` errors with
+    // `InitValueNotProvided`; the `balances` map defaults to empty.
     let (initialized_slot, balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
         init_storage_data: {
@@ -113,8 +114,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // The bank must be initialized before deposits are accepted.
     // This is done via a transaction script that calls bank.initialize()
 
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new(init_program);
+    let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
@@ -147,13 +147,19 @@ async fn deposit_test() -> anyhow::Result<()> {
     mock_chain.add_pending_executed_transaction(&executed_transaction)?;
     mock_chain.prove_next_block()?;
 
-    // Create the key for the depositor (sender) in the storage map
-    // Key format: [depositor_prefix, depositor_suffix, faucet_prefix, faucet_suffix]
+    // Create the key for the depositor (sender) in the storage map.
+    // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
+    // In v0.15 the fungible-asset vault key is
+    // [asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix],
+    // so `key[2]` is the faucet suffix combined with a metadata byte (composition +
+    // callback flag) — not the raw faucet suffix. Derive the read key from the asset's
+    // actual key word so it matches the key the contract writes.
+    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_key_word();
     let depositor_key = Word::from([
         sender.id().prefix().as_felt(),
         sender.id().suffix(),
-        faucet.id().prefix().as_felt(),
-        faucet.id().suffix(),
+        asset_key_word[3],
+        asset_key_word[2],
     ]);
 
     // Get the depositor's balance from the bank's storage using named slot
@@ -162,10 +168,10 @@ async fn deposit_test() -> anyhow::Result<()> {
     // The contract stores `balance` as a `Felt`; reading the map returns the
     // single-Felt value widened into a Word at position [0] ([amount, 0, 0, 0]).
     let expected_balance = Word::from([
-        Felt::new(deposit_amount),
-        Felt::new(0),
-        Felt::new(0),
-        Felt::new(0),
+        Felt::new_unchecked(deposit_amount),
+        Felt::new_unchecked(0),
+        Felt::new_unchecked(0),
+        Felt::new_unchecked(0),
     ]);
 
     assert_eq!(
@@ -220,7 +226,7 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create the bank account; the component's schema seeds its own initial storage.
+    // Create the bank account, seeding the required `initialized` value slot (see below).
     let (initialized_slot, _balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
         init_storage_data: {
@@ -258,8 +264,7 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
     let mut mock_chain = builder.build()?;
 
     // Initialize the bank first
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new(init_program);
+    let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
@@ -328,7 +333,7 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create the bank account; the component's schema seeds its own initial storage.
+    // Create the bank account, seeding the required `initialized` value slot (see below).
     // Note: We intentionally do NOT initialize the bank (initialized stays at 0).
     let (initialized_slot, _balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {

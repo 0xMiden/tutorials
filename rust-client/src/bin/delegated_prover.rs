@@ -2,7 +2,7 @@ use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
 
 use miden_client::{
-    account::{component::BasicWallet, AccountBuilder, AccountStorageMode, AccountType},
+    account::{component::BasicWallet, AccountBuilder, AccountType},
     auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     keystore::{FilesystemKeyStore, Keystore},
@@ -45,8 +45,7 @@ async fn main() -> Result<(), ClientError> {
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Private)
+        .account_type(AccountType::Private)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()

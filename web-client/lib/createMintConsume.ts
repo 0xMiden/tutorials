@@ -1,5 +1,5 @@
 // lib/createMintConsume.ts
-import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
   if (typeof window === 'undefined') {
@@ -20,7 +20,6 @@ export async function createMintConsume(): Promise<void> {
   // 2. Create Alice's account
   console.log('Creating account for Alice…');
   const alice = await client.accounts.create({
-    type: AccountType.RegularAccountUpdatableCode,
     storage: StorageMode.Public,
   });
   console.log('Alice ID:', alice.id().toString());
@@ -28,7 +27,7 @@ export async function createMintConsume(): Promise<void> {
   // 3. Deploy a fungible faucet
   console.log('Creating faucet…');
   const faucet = await client.accounts.create({
-    type: AccountType.FungibleFaucet,
+    type: 0, // 0 = FungibleFaucet
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),
@@ -57,7 +56,7 @@ export async function createMintConsume(): Promise<void> {
   console.log('Notes consumed.');
 
   // 7. Send tokens to Bob
-  const bobAddress = 'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+  const bobAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
   console.log("Sending tokens to Bob's account...");
   await client.transactions.send({
     account: alice,

@@ -45,7 +45,7 @@ In Parts 4-5, you created note scripts that execute when notes are consumed. Now
 | Initiation | Explicitly called by account owner | Triggered when note is consumed  |
 | Access     | Direct account method access       | Must call through bindings       |
 | Use case   | Setup, owner operations            | Receiving messages/assets        |
-| Parameter  | `account: &mut Account`            | Note context via `active_note::` |
+| Parameter  | `account: &mut Wallet`             | Note context via `active_note::` |
 
 **Use transaction scripts for:**
 
@@ -67,9 +67,11 @@ Create a new directory for the transaction script:
 mkdir -p contracts/init-tx-script/src
 ```
 
-## Step 2: Configure Cargo.toml
+## Step 2: Configure the Project Files
 
-Create the Cargo.toml with transaction script configuration:
+Like the account component and the note scripts, a transaction script needs three project files: `Cargo.toml`, `miden-project.toml`, and `.cargo/config.toml`.
+
+Create the `Cargo.toml`:
 
 ```toml title="contracts/init-tx-script/Cargo.toml"
 [package]
@@ -81,25 +83,44 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.12" }
+miden = "0.13"
+```
 
-[package.metadata.component]
-package = "miden:init-tx-script"
+Create the `miden-project.toml`:
 
-[package.metadata.miden]
-project-kind = "transaction-script"
+```toml title="contracts/init-tx-script/miden-project.toml"
+[package]
+name = "init-tx-script"
+version = "0.1.0"
+
+[lib]
+kind = "tx-script"
+namespace = "miden:base/transaction-script@1.0.0"
+
+[dependencies]
+miden-core = "*"
+miden-protocol = "*"
+bank-account = { path = "../bank-account" }
 
 [package.metadata.miden.dependencies]
-"miden:bank-account" = { path = "../bank-account" }
+bank-account = { wit = "../bank-account/target/generated-wit/" }
+```
 
-[package.metadata.component.target.dependencies]
-"miden:bank-account" = { path = "../bank-account/target/generated-wit/" }
+Create the `.cargo/config.toml`:
+
+```toml title="contracts/init-tx-script/.cargo/config.toml"
+[build]
+target = "wasm32-wasip2"
+
+[target.wasm32-wasip2]
+rustflags = ["--cfg", "miden"]
 ```
 
 Key configuration:
 
-- `project-kind = "transaction-script"` - Marks this as a transaction script (not "account" or "note")
-- Dependencies reference the account component (same pattern as note scripts)
+- `kind = "tx-script"` - Marks this as a transaction script (not `account-component` or `note`)
+- `namespace = "miden:base/transaction-script@1.0.0"` - The standard transaction-script namespace
+- The `bank-account` path dependency plus the `[package.metadata.miden.dependencies]` WIT entry let the script call into the account component (same pattern as the note scripts)
 
 ## Step 3: Implement the Transaction Script
 
@@ -112,8 +133,9 @@ Create the initialization script:
 
 use miden::*;
 
-// Import the Account binding which wraps the bank-account component methods
-use crate::bindings::Account;
+/// Native (active) account this tx-script runs against: the bank-account `Bank` component.
+#[account(bank_account::Bank)]
+pub struct Wallet;
 
 /// Initialize Transaction Script
 ///
@@ -125,11 +147,27 @@ use crate::bindings::Account;
 /// 2. Script executes in the context of the bank account
 /// 3. Calls `account.initialize()` to enable deposits
 /// 4. Bank account is now "deployed" and visible on chain
+///
+/// # Arguments
+/// * `_arg` - Transaction script argument (unused in this script)
+/// * `account` - Mutable reference to the bank account (`Bank` component)
 #[tx_script]
-fn run(_arg: Word, account: &mut Account) {
+fn run(_arg: Word, account: &mut Wallet) {
     account.initialize();
 }
 ```
+
+## The #[account] Attribute and the Native Account
+
+A transaction script runs against the transaction's _native_ (active) account. The `#[account(...)]` attribute binds a wrapper struct to a component so the script can call that component's methods directly:
+
+```rust
+/// Native (active) account this tx-script runs against: the bank-account `Bank` component.
+#[account(bank_account::Bank)]
+pub struct Wallet;
+```
+
+This generates a `Wallet` type that wraps the bank-account `Bank` component. The `#[tx_script]` function then receives a `&mut Wallet`, giving it direct access to the component's public methods (such as `initialize()`).
 
 ## The #[tx_script] Attribute
 
@@ -137,54 +175,57 @@ The `#[tx_script]` attribute marks the entry point for a transaction script:
 
 ```rust
 #[tx_script]
-fn run(_arg: Word, account: &mut Account) {
+fn run(_arg: Word, account: &mut Wallet) {
     account.initialize();
 }
 ```
 
 ### Function Signature
 
-| Parameter | Type           | Description                                |
-| --------- | -------------- | ------------------------------------------ |
-| `_arg`    | `Word`         | Optional argument passed when executing    |
-| `account` | `&mut Account` | Mutable reference to the account component |
+| Parameter | Type          | Description                             |
+| --------- | ------------- | --------------------------------------- |
+| `_arg`    | `Word`        | Optional argument passed when executing |
+| `account` | `&mut Wallet` | Mutable reference to the native account |
 
-The `Account` type is generated from your component's bindings and provides access to all public methods.
+The `Wallet` type is generated by the `#[account(...)]` attribute and provides access to the bound component's public methods.
 
-## The Account Binding
+## The Native Account Binding
 
-Unlike note scripts that import bindings like `bank_account::deposit()`, transaction scripts receive the account as a parameter:
+Both note scripts and transaction scripts bind the native account with `#[account(bank_account::Bank)]` and call its methods directly on the `&mut Wallet` parameter. The difference is the trigger and the available context:
 
 ```rust
-// Note script style (indirect):
-use crate::bindings::miden::bank_account::bank_account;
-bank_account::deposit(depositor, asset);
+// Note script: triggered by note consumption, has access to note context.
+#[note_script]
+fn run(self, _arg: Word, account: &mut Wallet) {
+    let depositor = active_note::get_sender();  // note context
+    account.deposit(depositor, asset);          // native-account method
+}
 
-// Transaction script style (direct):
-use crate::bindings::Account;
-fn run(_arg: Word, account: &mut Account) {
-    account.initialize();  // Direct method call
+// Transaction script: explicitly run by the owner, no note context.
+#[tx_script]
+fn run(_arg: Word, account: &mut Wallet) {
+    account.initialize();  // native-account method
 }
 ```
 
-The `Account` wrapper provides:
+The `Wallet` wrapper provides:
 
 - Direct method access without module prefixes
 - Proper mutable/immutable borrowing
-- Automatic context binding
+- Automatic native-account context binding
 
 ## Step 4: Build the Transaction Script
 
-Build in dependency order:
+Build in dependency order. The transaction script calls into the bank account via the FPI `#[account(...)]` macro, which reads the account's procedure roots from its compiled `.masp` at build time, so the `bank-account` component must be built first:
 
 ```bash title=">_ Terminal"
-# First, ensure the account component is built (generates WIT files)
+# First, build the account component (generates WIT files and its .masp)
 cd contracts/bank-account
-miden build
+cargo miden build --release
 
 # Then build the transaction script
 cd ../init-tx-script
-miden build
+cargo miden build --release
 ```
 
 <details>
@@ -193,10 +234,13 @@ miden build
 ```text
    Compiling init-tx-script v0.1.0
     Finished `release` profile [optimized] target(s)
-Creating Miden package /path/to/miden-bank/target/miden/release/init_tx_script.masp
 ```
 
 </details>
+
+:::note Cosmetic build errors
+The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
+:::
 
 ## Account Deployment Pattern
 
@@ -243,7 +287,7 @@ The `_arg` parameter can pass data to the script:
 
 ```rust title="Example: Parameterized script"
 #[tx_script]
-fn run(arg: Word, account: &mut Account) {
+fn run(arg: Word, account: &mut Wallet) {
     // Use arg as configuration
     let config_value = arg[0];
     account.configure(config_value);
@@ -267,18 +311,24 @@ Let's test that the initialization transaction script correctly flips the initia
 
 ```rust title="integration/tests/init_test.rs"
 use integration::helpers::{
-    build_project_in_dir, create_testing_account_from_package, AccountCreationConfig,
+    build_project_in_dir, build_tx_script_from_package, create_testing_account_from_package,
+    AccountCreationConfig,
 };
 
 use miden_client::{
     account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
     auth::AuthSchemeId,
-    transaction::TransactionScript,
     Word,
 };
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
+/// Companion test for Part 6 of the miden-bank tutorial. Verifies that running
+/// the init transaction script flips the bank's `initialized` flag from 0 to 1.
+///
+/// The earlier tutorial parts rely on the bank deferring `require_initialized()`
+/// enforcement, so this test exists to prove that once the guard is re-enabled
+/// the init flow still works end-to-end before any deposits are accepted.
 #[tokio::test]
 async fn init_test() -> anyhow::Result<()> {
     // Build the bank-account and init-tx-script contracts
@@ -292,21 +342,21 @@ async fn init_test() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create bank account storage slots
-    let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
-            .expect("Valid slot name");
-    let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
-            .expect("Valid slot name");
+    // The `initialized` value slot has no schema default, so `AccountComponent::from_package`
+    // requires it to be seeded (with a zero Word = uninitialized) or it errors with
+    // `InitValueNotProvided`. The `balances` map slot defaults to empty.
+    let initialized_slot = StorageSlotName::new("bank_account::bank::initialized")
+        .expect("Valid slot name");
 
-    let mut init_storage_data = InitStorageData::default();
-    init_storage_data.insert_value(
-        StorageValueName::from_slot_name(&initialized_slot),
-        Word::default(),
-    )?;
     let bank_cfg = AccountCreationConfig {
-        init_storage_data,
+        init_storage_data: {
+            let mut data = InitStorageData::default();
+            data.insert_value(
+                StorageValueName::from_slot_name(&initialized_slot),
+                Word::default(),
+            )?;
+            data
+        },
         ..Default::default()
     };
 
@@ -315,25 +365,24 @@ async fn init_test() -> anyhow::Result<()> {
 
     // Verify bank starts uninitialized
     let before = bank_account.storage().get_item(&initialized_slot)?;
-    assert_eq!(
-        before[0].as_canonical_u64(),
-        0,
-        "Bank should start uninitialized"
-    );
-    println!(
-        "Before init: initialized = {}",
-        before[0].as_canonical_u64()
-    );
+    assert_eq!(before[0].as_canonical_u64(), 0, "Bank should start uninitialized");
+    println!("Before init: initialized = {}", before[0].as_canonical_u64());
 
     // Build mock chain
     let mut builder = MockChain::builder();
-    builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", 10_000_000, Some(10))?;
+    builder.add_existing_basic_faucet(
+        Auth::BasicAuth {
+            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+        },
+        "TEST",
+        10_000_000,
+        Some(10),
+    )?;
     builder.add_account(bank_account.clone())?;
     let mut mock_chain = builder.build()?;
 
     // Execute init transaction script
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new(init_program);
+    let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
@@ -352,15 +401,18 @@ async fn init_test() -> anyhow::Result<()> {
         1,
         "Bank should be initialized after running init tx script"
     );
-    println!(
-        "After init: initialized = {}",
-        after[0].as_canonical_u64()
-    );
+    println!("After init: initialized = {}", after[0].as_canonical_u64());
 
     println!("\nInit test passed!");
     Ok(())
 }
 ```
+
+A few things to note in this test:
+
+- The slot name is `bank_account::bank::initialized` (the namespace is `bank_account`, not `miden_bank_account`).
+- The `initialized` value slot has **no schema default**, so it must be seeded via `InitStorageData` or `AccountComponent::from_package` errors with `InitValueNotProvided`. Only the `balances` map slot defaults to empty.
+- A `kind = "tx-script"` contract compiles to a `TransactionScript`-kind package, **not** an `Executable`. So `unwrap_program()` / `TransactionScript::from_package` do not apply — the `build_tx_script_from_package` helper locates the entry export and builds the script via `TransactionScript::from_parts`.
 
 ## Enable the Initialization Guard
 
@@ -414,9 +466,13 @@ Your actual output may include additional trace lines from the Miden VM or MockC
 :::
 
 :::tip Troubleshooting
-**"Cannot find module bindings"**: The bank-account wasn't built. Run `miden build` in `contracts/bank-account` first.
+**"Cannot find module bindings"**: The bank-account wasn't built. Run `cargo miden build --release` in `contracts/bank-account` first — the FPI `#[account(...)]` macro reads its procedure roots from the compiled `.masp`.
 
-**"Dependency not found"**: Check that both dependency sections are in Cargo.toml with correct paths.
+**"Dependency not found"**: Check that the `bank-account` path dependency and the `[package.metadata.miden.dependencies]` WIT entry are both present in `miden-project.toml` with correct paths.
+:::
+
+:::note Live network bin
+The MockChain test above is the source of truth for verifying this flow. The live-network bin (`cargo run --bin initialize`) also runs against a testnet node.
 :::
 
 ## What We've Built So Far
@@ -440,8 +496,9 @@ Your actual output may include additional trace lines from the Miden VM or MockC
 
 use miden::*;
 
-// Import the Account binding which wraps the bank-account component methods
-use crate::bindings::Account;
+/// Native (active) account this tx-script runs against: the bank-account `Bank` component.
+#[account(bank_account::Bank)]
+pub struct Wallet;
 
 /// Initialize Transaction Script
 ///
@@ -453,8 +510,12 @@ use crate::bindings::Account;
 /// 2. Script executes in the context of the bank account
 /// 3. Calls `account.initialize()` to enable deposits
 /// 4. Bank account is now "deployed" and visible on chain
+///
+/// # Arguments
+/// * `_arg` - Transaction script argument (unused in this script)
+/// * `account` - Mutable reference to the bank account (`Bank` component)
 #[tx_script]
-fn run(_arg: Word, account: &mut Account) {
+fn run(_arg: Word, account: &mut Wallet) {
     account.initialize();
 }
 ```
@@ -469,30 +530,45 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.12" }
+miden = "0.13"
+```
 
-[package.metadata.component]
-package = "miden:init-tx-script"
+```toml title="contracts/init-tx-script/miden-project.toml"
+[package]
+name = "init-tx-script"
+version = "0.1.0"
 
-[package.metadata.miden]
-project-kind = "transaction-script"
+[lib]
+kind = "tx-script"
+namespace = "miden:base/transaction-script@1.0.0"
+
+[dependencies]
+miden-core = "*"
+miden-protocol = "*"
+bank-account = { path = "../bank-account" }
 
 [package.metadata.miden.dependencies]
-"miden:bank-account" = { path = "../bank-account" }
+bank-account = { wit = "../bank-account/target/generated-wit/" }
+```
 
-[package.metadata.component.target.dependencies]
-"miden:bank-account" = { path = "../bank-account/target/generated-wit/" }
+```toml title="contracts/init-tx-script/.cargo/config.toml"
+[build]
+target = "wasm32-wasip2"
+
+[target.wasm32-wasip2]
+rustflags = ["--cfg", "miden"]
 ```
 
 </details>
 
 ## Key Takeaways
 
-1. **`#[tx_script]`** marks the entry point with signature `fn run(_arg: Word, account: &mut Account)`
-2. **Direct account access** - Methods called on the `account` parameter, not via module imports
-3. **Owner-initiated** - Only the account owner can execute transaction scripts
-4. **Deployment pattern** - First state change makes account visible on-chain
-5. **Dependencies** - Same Cargo.toml configuration as note scripts
+1. **`#[tx_script]`** marks the entry point with signature `fn run(_arg: Word, account: &mut Wallet)`
+2. **`#[account(...)]`** binds a `Wallet` wrapper to the native account's component, enabling direct method calls
+3. **Direct account access** - Methods called on the `account` parameter, not via module imports
+4. **Owner-initiated** - Only the account owner can execute transaction scripts
+5. **Deployment pattern** - First state change makes account visible on-chain
+6. **TransactionScript-kind package** - Unlike an executable, the compiled tx-script is extracted with `build_tx_script_from_package`
 
 :::tip View Complete Source
 See the complete transaction script implementation in [contracts/init-tx-script/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/init-tx-script/src/lib.rs).

@@ -1,7 +1,7 @@
 /**
  * Mint 100 MIDEN tokens on testnet to a fixed recipient.
  */
-import { MidenClient, AccountType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function mintTestnetToAddress(): Promise<void> {
   if (typeof window === 'undefined') {
@@ -20,7 +20,7 @@ export async function mintTestnetToAddress(): Promise<void> {
   // ── Create a faucet ────────────────────────────────────────────────────────
   console.log('Creating faucet...');
   const faucet = await client.accounts.create({
-    type: AccountType.FungibleFaucet,
+    type: 0, // 0 = FungibleFaucet
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),
@@ -29,8 +29,7 @@ export async function mintTestnetToAddress(): Promise<void> {
   console.log('Faucet ID:', faucet.id().toString());
 
   // ── Mint to recipient ───────────────────────────────────────────────────────
-  const recipientAddress =
-    'mtst1apve54rq8ux0jqqqqrkh5y0r0y8cwza6';
+  const recipientAddress = 'mtst1arpsz3jlmjxl7u2jjzfsc0wyqyaas6a9';
   console.log('Recipient address:', recipientAddress);
 
   console.log('Minting 100 MIDEN tokens...');

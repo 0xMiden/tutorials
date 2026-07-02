@@ -19,6 +19,10 @@ You'll create a **banking system** consisting of:
 
 The tutorial includes runnable tests where appropriate — some parts are setup-only or conceptual, with the first runnable test in Part 4.
 
+:::note Verification runs on MockChain
+This tutorial targets protocol **v0.15** and the v0.15-aligned Rust compiler. The contracts depend on the published `miden = "0.13"` SDK, and the integration harness builds them with the published `cargo-miden = "0.9"` release. The flow is verified end-to-end by the MockChain integration tests (`tests/{init,deposit,withdraw}_test.rs`), which all pass. The live-network binaries (`cargo run --bin initialize` / `--bin deposit`) also run against testnet.
+:::
+
 ## Tutorial Structure
 
 This tutorial is designed for hands-on learning. Each part builds on the previous one, and every part includes:
@@ -63,7 +67,7 @@ import DocCard from '@theme/DocCard';
         type: 'link',
         href: 'miden-bank/account-components',
         label: 'Part 1: Account Components',
-        description: 'Learn #[component], Value storage, and StorageMap for managing state.',
+        description: 'Learn #[component], StorageValue storage, and StorageMap for managing state.',
       }}
     />
   </div>
@@ -167,17 +171,17 @@ This tutorial assumes no prior experience with the Miden Rust compiler. We'll ex
 
 This tutorial covers the following Miden Rust compiler features:
 
-| Concept                      | Description                                                | Part |
-| ---------------------------- | ---------------------------------------------------------- | ---- |
-| `#[component]`               | Define account components with storage                     | 1    |
-| Storage Types                | `Value` for single values, `StorageMap` for key-value data | 1    |
-| Constants                    | Define compile-time business rules                         | 2    |
-| Assertions                   | Validate conditions and handle errors                      | 2    |
-| Asset Handling               | Add and remove assets from account vaults                  | 3    |
-| `#[note]` + `#[note_script]` | Note struct/impl pattern for scripts consumed by accounts  | 4    |
-| Cross-Component Calls        | Call account methods from note scripts                     | 5    |
-| `#[tx_script]`               | Transaction scripts for account operations                 | 6    |
-| Output Notes                 | Create notes programmatically                              | 7    |
+| Concept                      | Description                                                       | Part |
+| ---------------------------- | ----------------------------------------------------------------- | ---- |
+| `#[component]`               | Define account components with storage                            | 1    |
+| Storage Types                | `StorageValue` for single values, `StorageMap` for key-value data | 1    |
+| Constants                    | Define compile-time business rules                                | 2    |
+| Assertions                   | Validate conditions and handle errors                             | 2    |
+| Asset Handling               | Add and remove assets from account vaults                         | 3    |
+| `#[note]` + `#[note_script]` | Note struct/impl pattern for scripts consumed by accounts         | 4    |
+| Cross-Component Calls        | Call account methods from note scripts                            | 5    |
+| `#[tx_script]`               | Transaction scripts for account operations                        | 6    |
+| Output Notes                 | Create notes programmatically                                     | 7    |
 
 ## Source Code
 

@@ -12,7 +12,7 @@ In this section, you'll learn how to define business rules using constants and e
 
 By the end of this section, you will have:
 
-- Defined constants for business rules
+- Defined constants for business rules (`MAX_DEPOSIT_AMOUNT`, `MAX_BALANCE`)
 - Used `assert!()` for transaction validation
 - Learned safe Felt comparison with `.as_canonical_u64()`
 - Added a deposit method skeleton with validation
@@ -24,14 +24,15 @@ In Part 1, we set up the Bank's storage structure. Now we'll add business rules:
 
 ```text
 Part 1:                          Part 2:
-┌──────────────────┐             ┌──────────────────┐
-│ Bank             │             │ Bank             │
-│ ─────────────────│    ──►      │ ─────────────────│
-│ + initialize()   │             │ + initialize()   │
-│ + get_balance()  │             │ + get_balance()  │
-│                  │             │ + deposit()      │ ◄── NEW (skeleton)
-│                  │             │ + MAX_DEPOSIT    │ ◄── NEW constant
-└──────────────────┘             └──────────────────┘
+┌─────────────────────────┐      ┌─────────────────────────┐
+│ Bank                    │      │ Bank                    │
+│ ────────────────────────│ ──►  │ ────────────────────────│
+│ + initialize()          │      │ + initialize()          │
+│ + get_depositor_balance()│     │ + get_depositor_balance()│
+│                         │      │ + deposit()             │ ◄── NEW (skeleton)
+│                         │      │ + MAX_DEPOSIT_AMOUNT    │ ◄── NEW constant
+│                         │      │ + MAX_BALANCE           │ ◄── NEW constant
+└─────────────────────────┘      └─────────────────────────┘
 ```
 
 ## Defining Constants
@@ -41,8 +42,18 @@ Constants in Miden Rust contracts work just like regular Rust constants:
 ```rust title="contracts/bank-account/src/lib.rs"
 /// Maximum allowed deposit amount per transaction.
 ///
+/// This limit provides a safety constraint for the banking system.
+///
 /// Value: 1,000,000 tokens (arbitrary limit for demonstration)
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
+
+/// Maximum allowed balance per depositor per asset.
+///
+/// This matches `FungibleAsset::MAX_AMOUNT` (2^63 - 2^31) from the Miden protocol.
+/// Felt arithmetic is modular (wraps at the Goldilocks prime), so without this guard
+/// a cumulative balance could silently wrap around to zero. Validating the u64 result
+/// of the addition against this bound prevents that overflow.
+const MAX_BALANCE: u64 = 9_223_372_034_707_292_160; // 2^63 - 2^31
 ```
 
 Use constants for:
@@ -60,7 +71,7 @@ Constants are compiled into the contract code and cannot change. Use storage slo
 The `assert!()` macro validates conditions during transaction execution:
 
 ```rust title="contracts/bank-account/src/lib.rs"
-pub fn initialize(&mut self) {
+fn initialize(&mut self) {
     // Check not already initialized
     let current: Word = self.initialized.get();
     assert!(
@@ -110,18 +121,15 @@ The `.as_canonical_u64()` method extracts the underlying 64-bit integer from a F
 
 ## Step 1: Add the Constant and Deposit Method
 
-Update your `contracts/bank-account/src/lib.rs` to add the constant and a deposit method skeleton:
+Update your `contracts/bank-account/src/lib.rs` to add the constant and a deposit method skeleton. The component's public API lives in `#[component] impl Bank for BankStorage`, while private helpers like `require_initialized` and `balance_key` live in a separate plain `impl BankStorage` block (the `#[component]` macro only exports trait methods):
 
-```rust title="contracts/bank-account/src/lib.rs" {1-4,36-55}
-/// Maximum allowed deposit amount per transaction.
-///
-/// Value: 1,000,000 tokens (arbitrary limit for demonstration)
+```rust title="contracts/bank-account/src/lib.rs"
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
+const MAX_BALANCE: u64 = 9_223_372_034_707_292_160; // 2^63 - 2^31
 
 #[component]
-impl Bank {
-    /// Initialize the bank account, enabling deposits.
-    pub fn initialize(&mut self) {
+impl Bank for BankStorage {
+    fn initialize(&mut self) {
         let current: Word = self.initialized.get();
         assert!(
             current[0].as_canonical_u64() == 0,
@@ -132,29 +140,14 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor and specific asset type.
-    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
-        let key = Word::from([
-            depositor.prefix,
-            depositor.suffix,
-            asset.key[3], // faucet_prefix
-            asset.key[2], // faucet_suffix
-        ]);
-        self.balances.get(key)
-    }
-
-    /// Check that the bank is initialized.
-    fn require_initialized(&self) {
-        let current: Word = self.initialized.get();
-        assert!(
-            current[0].as_canonical_u64() == 1,
-            "Bank not initialized - deposits not enabled"
-        );
+    /// Get the bank-tracked balance for a depositor and specific asset type.
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        self.balances.get(BankStorage::balance_key(depositor, &asset))
     }
 
     /// Deposit assets into the bank.
     /// For now, this just validates constraints - we'll add asset handling in Part 3.
-    pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
+    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
         // self.require_initialized();
 
@@ -173,11 +166,38 @@ impl Bank {
         // For now, just validate the constraints
     }
 }
+
+/// Internal helpers that are not part of the component's exported WIT API.
+impl BankStorage {
+    /// Derive the `balances` map key identifying a (depositor, faucet) pair:
+    /// `[depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]`.
+    fn balance_key(depositor: AccountId, asset: &Asset) -> Word {
+        Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.key[3], // faucet id prefix
+            asset.key[2], // faucet id suffix folded with the asset metadata byte
+        ])
+    }
+
+    /// Check that the bank is initialized.
+    fn require_initialized(&self) {
+        let current: Word = self.initialized.get();
+        assert!(
+            current[0].as_canonical_u64() == 1,
+            "Bank not initialized - deposits not enabled"
+        );
+    }
+}
 ```
+
+:::warning v0.15 asset-key layout
+In v0.15 the fungible-asset vault key Word is `[asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. So `asset.key[2]` is the faucet suffix combined with a metadata byte (asset composition + a callback flag in the low 8 bits), **not** the raw faucet suffix. For the callbacks-disabled fungible assets this bank accepts the metadata byte is constant, so `(key[3], key[2])` remains a stable per-faucet identifier. The host/test side derives the same key from `FungibleAsset::new(faucet.id(), amt)?.to_key_word()` indices `[3]`/`[2]` (not `faucet.id().prefix()/suffix()`).
+:::
 
 ### The require_initialized() Guard
 
-This helper is defined here but intentionally **commented out** in the deposit method until Part 6. When enabled, it will check initialization state:
+This helper is defined in the private `impl BankStorage` block and intentionally **commented out** in the deposit method until Part 6. When enabled, it will check initialization state:
 
 ```rust
 fn require_initialized(&self) {
@@ -236,6 +256,10 @@ cd contracts/bank-account
 miden build
 ```
 
+:::note Cosmetic build output
+The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. These are cosmetic — the build still succeeds and emits the `.masp` package.
+:::
+
 ## Optional: Verify Constraints Work
 
 :::note
@@ -246,7 +270,10 @@ This is an optional self-check. If you create this test file, you can run it to 
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package, AccountCreationConfig,
 };
-use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
+use miden_client::account::{
+    component::{InitStorageData, StorageValueName},
+    StorageSlotName,
+};
 use miden_client::Word;
 use std::{path::Path, sync::Arc};
 
@@ -259,12 +286,12 @@ async fn test_constraints_are_defined() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create named storage slots
+    // The `initialized` value slot has no schema default, so
+    // `AccountComponent::from_package` requires it to be seeded (with a zero Word =
+    // uninitialized) or it errors with `InitValueNotProvided`. Only the `balances`
+    // map slot defaults to empty.
     let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
-            .expect("Valid slot name");
-    let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
+        StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
 
     // Create an uninitialized bank account
@@ -337,7 +364,7 @@ In Part 4, we'll write a real deposit-flow test. At that stage, the deposit work
 
 ```rust
 fn require_sufficient_balance(&self, depositor: AccountId, asset: Asset, amount: Felt) {
-    let balance = self.get_balance(depositor, asset);
+    let balance = self.get_depositor_balance(depositor, asset);
     assert!(
         balance.as_canonical_u64() >= amount.as_canonical_u64(),
         "Insufficient balance"
@@ -377,12 +404,17 @@ extern crate alloc;
 
 use miden::*;
 
+use miden::Felt;
+
 /// Maximum allowed deposit amount per transaction.
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 
-/// Bank account component that tracks depositor balances.
-#[component]
-struct Bank {
+/// Maximum allowed balance per depositor per asset.
+const MAX_BALANCE: u64 = 9_223_372_034_707_292_160; // 2^63 - 2^31
+
+/// Storage layout for the bank account component.
+#[component_storage]
+struct BankStorage {
     #[storage(description = "initialized")]
     initialized: StorageValue<Word>,
 
@@ -390,10 +422,22 @@ struct Bank {
     balances: StorageMap<Word, Felt>,
 }
 
+/// API of the bank account component.
 #[component]
-impl Bank {
+trait Bank {
     /// Initialize the bank account, enabling deposits.
-    pub fn initialize(&mut self) {
+    fn initialize(&mut self);
+
+    /// Get the bank-tracked balance for a depositor and specific asset type.
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
+
+    /// Deposit an asset into the bank for a specific depositor.
+    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
+}
+
+#[component]
+impl Bank for BankStorage {
+    fn initialize(&mut self) {
         let current: Word = self.initialized.get();
         assert!(
             current[0].as_canonical_u64() == 0,
@@ -404,28 +448,11 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor and specific asset type.
-    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
-        let key = Word::from([
-            depositor.prefix,
-            depositor.suffix,
-            asset.key[3], // faucet_prefix
-            asset.key[2], // faucet_suffix
-        ]);
-        self.balances.get(key)
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        self.balances.get(BankStorage::balance_key(depositor, &asset))
     }
 
-    /// Check that the bank is initialized.
-    fn require_initialized(&self) {
-        let current: Word = self.initialized.get();
-        assert!(
-            current[0].as_canonical_u64() == 1,
-            "Bank not initialized - deposits not enabled"
-        );
-    }
-
-    /// Deposit assets into the bank.
-    pub fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
+    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
         // self.require_initialized();
 
@@ -438,6 +465,32 @@ impl Bank {
         );
 
         // Balance tracking and asset handling added in Part 3
+    }
+}
+
+/// Internal helpers that are not part of the component's exported WIT API.
+///
+/// The `#[component]` macro exports only the methods of the `Bank` trait, so these
+/// inherent methods stay private to the contract.
+impl BankStorage {
+    /// Derive the `balances` map key identifying a (depositor, faucet) pair:
+    /// `[depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]`.
+    fn balance_key(depositor: AccountId, asset: &Asset) -> Word {
+        Word::from([
+            depositor.prefix,
+            depositor.suffix,
+            asset.key[3],
+            asset.key[2],
+        ])
+    }
+
+    /// Check that the bank is initialized.
+    fn require_initialized(&self) {
+        let current: Word = self.initialized.get();
+        assert!(
+            current[0].as_canonical_u64() == 1,
+            "Bank not initialized - deposits not enabled"
+        );
     }
 }
 ```

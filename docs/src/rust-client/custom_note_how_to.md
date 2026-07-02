@@ -49,7 +49,7 @@ Now, combine the minted asset and the secret hash to build the custom note. The 
 2. **Miden Assembly Code:**
    - The Miden assembly note script ensures that the note can only be consumed if the provided secret, when hashed, matches the hash stored in the note input.
 
-Below is the Miden Assembly code for the note. Note scripts in v0.14.5+ are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
+Below is the Miden Assembly code for the note. Note scripts are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
 
 ```masm
 use miden::protocol::active_note
@@ -77,8 +77,10 @@ pub proc main
     hash
     # => [DIGEST]
 
-    # Writing the note storage to memory
-    push.EXPECTED_DIGEST_PTR exec.active_note::get_storage drop drop
+    # Writing the note storage to memory.
+    # get_storage leaves only [num_storage_items], so drop a single element
+    # here, not two, to keep the computed DIGEST intact.
+    push.EXPECTED_DIGEST_PTR exec.active_note::get_storage drop
 
     # Pad stack and load expected digest from memory (LE: mem[addr] ends up on top)
     padw push.EXPECTED_DIGEST_PTR mem_loadw_le
@@ -123,34 +125,31 @@ With the note created, Bob can now consume it—but only if he provides the corr
 The following Rust code demonstrates how to implement the steps outlined above using the Miden client library:
 
 ```rust no_run
-use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
 use tokio::time::{sleep, Duration};
 
 use miden_client::{
     account::{
-        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
-        Account,
+        component::{
+            BasicWallet, BurnPolicyConfig, FungibleFaucet, MintPolicyConfig, PolicyRegistration,
+            TokenName, TokenPolicyManager,
+        },
+        Account, AccountBuilder, AccountType,
     },
     address::NetworkId,
-    auth::AuthSecretKey,
+    asset::{AssetAmount, FungibleAsset, TokenSymbol},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
-    note::{
-        Note, NoteAssets, NoteMetadata, NoteRecipient, NoteStorage, NoteTag, NoteType,
-    },
+    note::{Note, NoteAssets, NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata},
     rpc::{Endpoint, GrpcClient},
     store::TransactionFilter,
     transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_client::{
-    account::{AccountBuilder, AccountStorageMode, AccountType},
-    asset::{FungibleAsset, TokenSymbol},
-};
 use miden_protocol::Hasher;
 
 // Helper to create a basic account
@@ -164,8 +163,7 @@ async fn create_basic_account(
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -187,14 +185,27 @@ async fn create_basic_faucet(
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
-    let max_supply = Felt::new(1_000_000);
+    let max_supply = AssetAmount::new(1_000_000).unwrap();
 
     let account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::FungibleFaucet)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
-        .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
-        .with_component(AuthControlled::allow_all())
+        .with_component(
+            FungibleFaucet::builder()
+                .name(TokenName::new("MID").unwrap())
+                .symbol(symbol)
+                .decimals(decimals)
+                .max_supply(max_supply)
+                .build()
+                .unwrap(),
+        )
+        .with_components(
+            TokenPolicyManager::new()
+                .with_mint_policy(MintPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap()
+                .with_burn_policy(BurnPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap(),
+        )
         .build()
         .unwrap();
 
@@ -331,7 +342,7 @@ async fn main() -> Result<(), ClientError> {
     // STEP 3: Create custom note
     // -------------------------------------------------------------------------
     println!("\n[STEP 3] Create custom note");
-    let secret_vals = vec![Felt::new(1), Felt::new(2), Felt::new(3), Felt::new(4)];
+    let secret_vals = vec![Felt::new_unchecked(1), Felt::new_unchecked(2), Felt::new_unchecked(3), Felt::new_unchecked(4)];
     let digest = Hasher::hash_elements(&secret_vals);
     println!("digest: {:?}", digest);
 
@@ -344,7 +355,7 @@ async fn main() -> Result<(), ClientError> {
     let note_storage = NoteStorage::new(digest.to_vec()).unwrap();
     let recipient = NoteRecipient::new(serial_num, note_script, note_storage);
     let tag = NoteTag::new(0);
-    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
+    let metadata = PartialNoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
     let vault = NoteAssets::new(vec![mint_amount.into()])?;
     let custom_note = Note::new(vault, metadata, recipient);
     println!("note hash: {:?}", custom_note.id().to_hex());
@@ -369,7 +380,7 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 4] Bob consumes the Custom Note with Correct Secret");
 
-    let secret = [Felt::new(1), Felt::new(2), Felt::new(3), Felt::new(4)];
+    let secret = [Felt::new_unchecked(1), Felt::new_unchecked(2), Felt::new_unchecked(3), Felt::new_unchecked(4)];
     let consume_custom_request = TransactionRequestBuilder::new()
         .input_notes([(custom_note, Some(secret.into()))])
         .build()

@@ -14,7 +14,7 @@ By the end of this section, you will have:
 
 - Understood the `#[component]` attribute and what it generates
 - Explored how `StorageMap` works for tracking depositor balances
-- Implemented a `get_balance()` query method
+- Implemented a `get_depositor_balance()` query method
 - **Verified it works** with an integration test
 
 ## Building on Part 0
@@ -29,26 +29,34 @@ Part 0:                                       Part 1:
 │ initialized (StorageValue<Word>) │         │ initialized (StorageValue<Word>) │
 │ balances (StorageMap<Word, Felt>)│         │ balances (StorageMap<Word, Felt>)│
 └──────────────────────────────────┘         │ + initialize()                   │
-                                             │ + get_balance()                  │ ◄── NEW
+                                             │ + get_depositor_balance()        │ ◄── NEW
                                              │ + require_initialized()          │
                                              └──────────────────────────────────┘
 ```
 
-## The #[component] Attribute
+## The #[component] Attributes
 
-The `#[component]` attribute marks a struct as a Miden account component. When you compile with `miden build`, it generates:
+A bank component is described with three attributes that work together:
+
+- **`#[component_storage]`** marks the struct that declares the persistent storage fields
+- **`#[component]`** on a `trait` declares the component's exported API
+- **`#[component]`** on the `impl Trait for Storage` block implements that API
+
+When you compile with `miden build`, the macros generate:
 
 - **WIT (WebAssembly Interface Types)** bindings for cross-component calls
 - **MASM (Miden Assembly)** code for the account logic
 - **Storage slot management** code
 
+Only the methods declared in the `#[component]` trait are exported. Private helpers live in a separate plain `impl BankStorage` block (covered later in this tutorial).
+
 Let's expand our Bank component:
 
 ## Step 1: Understand the Storage Layout
 
-In Part 0, we created the Bank struct with two storage fields. Let's examine what they do. Here is `contracts/bank-account/src/lib.rs`:
+In Part 0, we created the Bank struct with two storage fields. Let's examine what they do. The storage struct is marked with `#[component_storage]`. Here is `contracts/bank-account/src/lib.rs`:
 
-```rust title="contracts/bank-account/src/lib.rs" {17-20}
+```rust title="contracts/bank-account/src/lib.rs"
 #![no_std]
 #![feature(alloc_error_handler)]
 
@@ -57,22 +65,24 @@ extern crate alloc;
 
 use miden::*;
 
-/// Bank account component that tracks depositor balances.
-#[component]
-struct Bank {
+use miden::Felt;
+
+/// Storage layout for the bank account component.
+#[component_storage]
+struct BankStorage {
     /// Tracks whether the bank has been initialized (deposits enabled).
     /// Word layout: [is_initialized (0 or 1), 0, 0, 0]
     #[storage(description = "initialized")]
     initialized: StorageValue<Word>,
 
-    /// Maps depositor AccountId -> balance (as Felt)
-    /// Key: [prefix, suffix, asset_prefix, asset_suffix]
+    /// Maps (depositor AccountId, faucet ID) -> balance (as Felt).
+    /// Key: [depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]
     #[storage(description = "balances")]
     balances: StorageMap<Word, Felt>,
 }
 ```
 
-The `balances` field is a `StorageMap` that tracks each depositor's balance. The compiler derives slot IDs by hashing slot names (not by field declaration order). Slot names follow the pattern `miden::component::{component_name}::{field_name}`.
+The `balances` field is a `StorageMap` that tracks each depositor's balance. The compiler derives slot IDs by hashing slot names (not by field declaration order). Slot names follow the pattern `{package_name}::{component_struct}::{field_name}` — here `bank_account::bank::initialized` and `bank_account::bank::balances`.
 
 ## Storage Types Explained
 
@@ -123,20 +133,22 @@ Use `StorageMap` when you need to store multiple values indexed by keys.
 **Reading and writing:**
 
 ```rust
-// Create a key (must be a Word)
+// Create a key (must be a Word).
+// The bank keys balances per (depositor, faucet): asset.key[3] is the faucet
+// id prefix and asset.key[2] is the faucet id suffix (plus a metadata byte).
 let key = Word::from([
     depositor.prefix,
     depositor.suffix,
-    felt!(0),
-    felt!(0),
+    asset.key[3],
+    asset.key[2],
 ]);
 
 // Get returns a generic type V where V: From<Word>.
 // Here we annotate the result as Felt, which works because Felt implements From<Word>.
-let balance: Felt = self.balances.get(&key);
+let balance: Felt = self.balances.get(key);
 
 // Set stores a value at the key (any type that implements Into<Word>)
-let new_balance = balance + deposit_amount;
+let new_balance = Felt::new(balance.as_canonical_u64() + deposit_amount.as_canonical_u64()).unwrap();
 self.balances.set(key, new_balance);
 ```
 
@@ -153,21 +165,28 @@ Plan your storage layout carefully:
 | `initialized` | `StorageValue<Word>`     | Initialization flag |
 | `balances`    | `StorageMap<Word, Felt>` | Depositor balances  |
 
-The `description` attribute generates named slot identifiers (e.g., `miden_bank_account::bank::initialized`) used in tests to reference specific slots. The naming convention is `{package_name}::{component_struct}::{field_name}`. The compiler derives slot IDs by hashing these names, so field declaration order does not affect slot assignment.
+The `description` attribute generates named slot identifiers (e.g., `bank_account::bank::initialized`) used in tests to reference specific slots. The naming convention is `{package_name}::{component_struct}::{field_name}`. The compiler derives slot IDs by hashing these names, so field declaration order does not affect slot assignment.
 
 ## Step 2: Implement Component Methods
 
-Now let's add methods to our Bank. The `#[component]` attribute is also used on the `impl` block:
+Now let's add methods to our Bank. The exported API is declared as a `#[component]` trait, and the `#[component]` attribute is used again on the `impl Bank for BankStorage` block that implements it:
 
 ```rust title="contracts/bank-account/src/lib.rs"
+/// API of the bank account component.
 #[component]
-impl Bank {
+trait Bank {
     /// Initialize the bank account, enabling deposits.
-    pub fn initialize(&mut self) {
-        // Get current value from storage
-        let current: Word = self.initialized.get();
+    fn initialize(&mut self);
 
+    /// Get the bank-tracked balance for a depositor and specific asset type.
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
+}
+
+#[component]
+impl Bank for BankStorage {
+    fn initialize(&mut self) {
         // Check not already initialized
+        let current: Word = self.initialized.get();
         assert!(
             current[0].as_canonical_u64() == 0,
             "Bank already initialized"
@@ -178,15 +197,28 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor and specific asset type.
-    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
-        let key = Word::from([
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        self.balances.get(BankStorage::balance_key(depositor, &asset))
+    }
+}
+```
+
+Note the method is named `get_depositor_balance`, not `get_balance`: the account wrapper generates a built-in `ActiveAccount::get_balance` vault method, so reusing that name would collide with it.
+
+The private helpers (`balance_key`, `require_initialized`, …) are not part of the exported API, so they live in a separate plain `impl BankStorage` block — the `#[component]` macro only exports the trait methods:
+
+```rust title="contracts/bank-account/src/lib.rs"
+/// Internal helpers that are not part of the component's exported WIT API.
+impl BankStorage {
+    /// Derive the `balances` map key identifying a (depositor, faucet) pair:
+    /// `[depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]`.
+    fn balance_key(depositor: AccountId, asset: &Asset) -> Word {
+        Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3], // faucet_prefix
-            asset.key[2], // faucet_suffix
-        ]);
-        self.balances.get(key)
+            asset.key[3],
+            asset.key[2],
+        ])
     }
 
     /// Check that the bank is initialized.
@@ -200,18 +232,22 @@ impl Bank {
 }
 ```
 
-We define `require_initialized()` here but leave it commented out in the deposit function until Part 6. In Part 6 (Transaction Scripts), we'll enable it so the bank requires initialization before accepting deposits.
+:::info v0.15 fungible-asset key layout
+A fungible asset's vault key Word is `[asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. So `asset.key[3]` is the faucet id prefix and `asset.key[2]` is the faucet id suffix folded together with a metadata byte (composition + callback flag) in its low 8 bits — `key[2]` is **not** the raw faucet suffix. For the callbacks-disabled fungible assets this bank accepts the metadata byte is constant, so `(key[3], key[2])` is a stable per-faucet identifier. The host-side mirror is `FungibleAsset::to_key_word()` indices `[3]`/`[2]`.
+:::
 
-### Public vs Private Methods
+The bank requires initialization before accepting deposits: `require_initialized()` is called at the top of `deposit()` and `withdraw()` (covered in later parts).
 
-- **Public methods** (`pub fn`) are exposed in the generated WIT interface and can be called by other contracts
-- **Private methods** (`fn`) are internal and cannot be called from the outside
+### Exported vs Internal Methods
+
+- **Trait methods** (declared in the `#[component] trait`) are exposed in the generated WIT interface and can be called by other contracts
+- **Inherent helpers** (in the plain `impl BankStorage`) are internal and cannot be called from the outside
 
 ```rust
-// Public: Can be called by note scripts and other contracts
-pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt { ... }
+// Exported: Can be called by note scripts and other contracts
+fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt { ... }
 
-// Private: Internal helper, not exposed
+// Internal helper, not exposed
 fn require_initialized(&self) { ... }
 ```
 
@@ -226,8 +262,12 @@ miden build
 
 This compiles the Rust code to Miden Assembly and generates:
 
-- `target/miden/release/bank_account.masp` - The compiled package
+- `target/miden/release/bank-account.masp` - The compiled package
 - `target/generated-wit/` - WIT interface files for other contracts to use
+
+:::note Cosmetic build errors
+The build prints non-fatal `MAST`-serialization `ERROR` lines on every run. These are cosmetic — the build still succeeds and produces the `.masp` package.
+:::
 
 ## Optional: Verify Your Code
 
@@ -266,12 +306,15 @@ async fn test_bank_account_storage() -> anyhow::Result<()> {
     // Create named storage slots matching the contract's storage layout
     // The naming convention is: {package_name}::{component_struct}::{field_name}
     let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
+        StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
+        StorageSlotName::new("bank_account::bank::balances")
             .expect("Valid slot name");
 
+    // The `initialized` value slot has no schema default, so it MUST be seeded
+    // here — otherwise AccountComponent::from_package fails with InitValueNotProvided.
+    // Only the `balances` map defaults to empty.
     let mut init_storage_data = InitStorageData::default();
     init_storage_data.insert_value(
         StorageValueName::from_slot_name(&initialized_slot),
@@ -373,28 +416,37 @@ extern crate alloc;
 
 use miden::*;
 
-/// Bank account component that tracks depositor balances.
-#[component]
-struct Bank {
+use miden::Felt;
+
+/// Storage layout for the bank account component.
+#[component_storage]
+struct BankStorage {
     /// Tracks whether the bank has been initialized (deposits enabled).
     /// Word layout: [is_initialized (0 or 1), 0, 0, 0]
     #[storage(description = "initialized")]
     initialized: StorageValue<Word>,
 
-    /// Maps depositor AccountId -> balance (as Felt)
-    /// Key: [prefix, suffix, asset_prefix, asset_suffix]
+    /// Maps (depositor AccountId, faucet ID) -> balance (as Felt).
+    /// Key: [depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]
     #[storage(description = "balances")]
     balances: StorageMap<Word, Felt>,
 }
 
+/// API of the bank account component.
 #[component]
-impl Bank {
+trait Bank {
     /// Initialize the bank account, enabling deposits.
-    pub fn initialize(&mut self) {
-        // Get current value from storage
-        let current: Word = self.initialized.get();
+    fn initialize(&mut self);
 
+    /// Get the bank-tracked balance for a depositor and specific asset type.
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
+}
+
+#[component]
+impl Bank for BankStorage {
+    fn initialize(&mut self) {
         // Check not already initialized
+        let current: Word = self.initialized.get();
         assert!(
             current[0].as_canonical_u64() == 0,
             "Bank already initialized"
@@ -405,15 +457,25 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor and specific asset type.
-    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
-        let key = Word::from([
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+        self.balances.get(BankStorage::balance_key(depositor, &asset))
+    }
+}
+
+/// Internal helpers that are not part of the component's exported WIT API.
+///
+/// The `#[component]` macro exports only the methods of the `Bank` trait, so these
+/// inherent methods stay private to the contract.
+impl BankStorage {
+    /// Derive the `balances` map key identifying a (depositor, faucet) pair:
+    /// `[depositor.prefix, depositor.suffix, faucet_prefix, faucet_suffix(+metadata)]`.
+    fn balance_key(depositor: AccountId, asset: &Asset) -> Word {
+        Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3], // faucet_prefix
-            asset.key[2], // faucet_suffix
-        ]);
-        self.balances.get(key)
+            asset.key[3],
+            asset.key[2],
+        ])
     }
 
     /// Check that the bank is initialized.
@@ -435,7 +497,7 @@ impl Bank {
 2. **`StorageValue<Word>`** stores a single Word, read with `.get()`, write with `.set()`
 3. **`StorageMap<Word, Felt>`** stores key-value pairs, access with `.get()` and `.set()`
 4. **Storage slots** are identified by name (IDs derived from hashed slot names), each holds 4 Felts (32 bytes)
-5. **Public methods** are callable by other contracts via generated bindings
+5. **Trait methods** (declared in the `#[component] trait`) are callable by other contracts via generated bindings; private helpers live in a plain `impl` block
 
 :::tip View Complete Source
 See the complete bank account implementation in [contracts/bank-account/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/bank-account/src/lib.rs).

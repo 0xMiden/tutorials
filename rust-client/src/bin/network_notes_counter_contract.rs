@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use miden_client::{
     account::{
         component::{AccountComponentMetadata, BasicWallet}, AccountBuilder, AccountComponent,
-        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
+        AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
     auth::{self, AuthSchemeId, AuthSecretKey, AuthSingleSig},
@@ -11,8 +11,8 @@ use miden_client::{
     crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
-        NetworkAccountTarget, Note, NoteAssets, NoteError, NoteExecutionHint, NoteMetadata,
-        NoteRecipient, NoteStorage, NoteTag, NoteType,
+        NetworkAccountTarget, Note, NoteAssets, NoteAttachments, NoteError, NoteExecutionHint,
+        NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata,
     },
     rpc::{Endpoint, GrpcClient},
     store::TransactionFilter,
@@ -94,8 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the account
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -132,9 +131,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         component_code,
         vec![StorageSlot::with_value(
             counter_slot_name.clone(),
-            [Felt::new(0); 4].into(),
+            [Felt::new_unchecked(0); 4].into(),
         )],
-        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+        AccountComponentMetadata::new("external_contract::counter_contract"),
     )?;
 
     // Generate a random seed for the account
@@ -143,8 +142,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the immutable network account with no authentication
     let counter_contract = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode) // Immutable code
-        .storage_mode(AccountStorageMode::Network) // Stored on network
+        .account_type(AccountType::Public) // Public, network-executable account
         .with_auth_component(auth::NoAuth) // No authentication required
         .with_component(counter_component)
         .build()
@@ -217,11 +215,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let attachment = NetworkAccountTarget::new(counter_contract.id(), NoteExecutionHint::Always)
         .map_err(|e| NoteError::other(e.to_string()))?
         .into();
-    let metadata =
-        NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag).with_attachment(attachment);
+    let metadata = PartialNoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
+    let attachments = NoteAttachments::new(vec![attachment]).unwrap();
 
     // Create the complete note
-    let increment_note = Note::new(NoteAssets::default(), metadata, recipient);
+    let increment_note =
+        Note::with_attachments(NoteAssets::default(), metadata, recipient, attachments);
 
     // Build and submit the transaction containing the note
     let note_req = TransactionRequestBuilder::new()
@@ -272,14 +271,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sleep(Duration::from_secs(6)).await;
     }
 
+    // The network note was submitted, but it is executed asynchronously by the
+    // network transaction builder. If the counter has not reached 2 within the
+    // polling window, the tutorial's final state is unconfirmed, so fail rather
+    // than claim success.
     if let Some(val) = last_val {
-        println!(
-            "Counter value did not reach 2 yet (last observed value: {}).",
+        Err(format!(
+            "Counter did not reach the expected value 2 within the timeout (last observed {}). \
+             The network note was submitted but its execution is still pending on the network \
+             transaction builder; re-run or check Midenscan.",
             val
-        );
+        )
+        .into())
     } else {
-        println!("Counter value not available yet.");
+        Err("Counter state was not available within the timeout; the network note execution is still pending."
+            .into())
     }
-
-    Ok(())
 }

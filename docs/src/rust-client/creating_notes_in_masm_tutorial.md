@@ -51,9 +51,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
 ```
@@ -77,7 +77,7 @@ masm/
 └── notes/
 ```
 
-Inside the `masm/notes/` directory, create the file `iterative_output_note.masm`. Note scripts in v0.14.5+ are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
+Inside the `masm/notes/` directory, create the file `iterative_output_note.masm`. Note scripts are compiled as libraries; the `@note_script` attribute marks the entrypoint procedure.
 
 ```masm
 use miden::protocol::active_note
@@ -103,14 +103,15 @@ pub proc main
     # => []
 
     # Get asset contained in note into memory (ASSET_KEY at 0, ASSET_VALUE at 4)
-    push.ASSET_KEY_PTR exec.active_note::get_assets drop drop
+    # get_assets leaves [num_assets] on the stack in v0.15; drop it.
+    push.ASSET_KEY_PTR exec.active_note::get_assets drop
     # => []
 
     # Load ASSET_VALUE and compute half amount
     padw push.ASSET_VALUE_PTR mem_loadw_le
     # => [av0, av1, av2, av3]  (av0 = amount for fungible asset, av1/av2/av3 = 0)
 
-    # Halve the amount (av0 is amount for fungible assets in v0.14)
+    # Halve the amount (av0 is the amount for fungible assets)
     push.2 div
     # => [av0/2, av1, av2, av3]
 
@@ -135,15 +136,19 @@ pub proc main
     swap.3 push.1 add swap.3
     # => [SERIAL_NUM+1, SCRIPT_HASH]
 
-    # Load note storage into memory for recipient construction
+    # Load note storage into memory for recipient construction.
+    # get_storage consumes dest_ptr and leaves only [num_storage_items],
+    # so re-push the storage_ptr for the recipient call rather than swapping.
     push.ACCOUNT_ID_PREFIX
     exec.active_note::get_storage
-    # => [num_storage_items, dest_ptr, SERIAL_NUM+1, SCRIPT_HASH]
+    # => [num_storage_items, SERIAL_NUM+1, SCRIPT_HASH]
 
-    swap
-    # => [dest_ptr, num_storage_items, SERIAL_NUM+1, SCRIPT_HASH]
+    push.ACCOUNT_ID_PREFIX
+    # => [storage_ptr, num_storage_items, SERIAL_NUM+1, SCRIPT_HASH]
 
-    exec.note::build_recipient
+    # v0.15 renamed note::build_recipient -> note::compute_and_store_recipient
+    # (arg shape [storage_ptr, num_storage_items, SERIAL_NUM, SCRIPT_ROOT]).
+    exec.note::compute_and_store_recipient
     # => [RECIPIENT]
 
     # Push note type to stack (public note = 1)
@@ -186,7 +191,7 @@ end
 2. **Getting the script hash and serial number:**  
    The note script calls `active_note::get_script_root` to fetch the script hash and `active_note::get_serial_number` to fetch the current serial number, then increments element 3 (the last element) by 1 to avoid duplicate recipients.
 3. **Building the `RECIPIENT`:**  
-   The script loads the note storage into memory with `active_note::get_storage`, then calls `note::build_recipient`. This computes the storage commitment and stores the preimage in the advice map, which is required for public notes.
+   The script loads the note storage into memory with `active_note::get_storage`, then calls `note::compute_and_store_recipient`. This computes the storage commitment and stores the preimage in the advice map, which is required for public notes.
 4. **Creating the note:**  
    To create the note, the script pushes the note type and tag onto the stack, then calls the `output_note::create` procedure, which returns the note index.
 5. **Moving assets to the note:**  
@@ -201,34 +206,33 @@ With the Miden assembly note script written, we can move on to writing the Rust 
 Copy and paste the following code into your `src/main.rs` file.
 
 ```rust no_run
-use miden_client::auth::{AuthSchemeId, AuthSingleSig};
 use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
 use tokio::time::{sleep, Duration};
 
 use miden_client::{
     account::{
-        component::{AuthControlled, BasicFungibleFaucet, BasicWallet},
-        Account,
+        component::{
+            BasicWallet, BurnPolicyConfig, FungibleFaucet, MintPolicyConfig, PolicyRegistration,
+            TokenName, TokenPolicyManager,
+        },
+        Account, AccountBuilder, AccountType,
     },
     address::NetworkId,
-    asset::{FungibleAsset, TokenSymbol},
-    auth::AuthSecretKey,
+    asset::{AssetAmount, FungibleAsset, TokenSymbol},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
-        Note, NoteAssets, NoteMetadata, NoteRecipient, NoteStorage, NoteTag, NoteType,
+        Note, NoteAssets, NoteDetails, NoteRecipient, NoteStorage, NoteTag, NoteType,
+        PartialNoteMetadata,
     },
     rpc::{Endpoint, GrpcClient},
     transaction::TransactionRequestBuilder,
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_client::{
-    account::{AccountBuilder, AccountStorageMode, AccountType},
-    note::NoteDetails,
-};
 
 // Helper to create a basic account
 async fn create_basic_account(
@@ -241,8 +245,7 @@ async fn create_basic_account(
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
@@ -264,14 +267,27 @@ async fn create_basic_faucet(
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
     let symbol = TokenSymbol::new("MID").unwrap();
     let decimals = 8;
-    let max_supply = Felt::new(1_000_000);
+    let max_supply = AssetAmount::new(1_000_000).unwrap();
 
     let account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::FungibleFaucet)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
-        .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
-        .with_component(AuthControlled::allow_all())
+        .with_component(
+            FungibleFaucet::builder()
+                .name(TokenName::new("MID").unwrap())
+                .symbol(symbol)
+                .decimals(decimals)
+                .max_supply(max_supply)
+                .build()
+                .unwrap(),
+        )
+        .with_components(
+            TokenPolicyManager::new()
+                .with_mint_policy(MintPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap()
+                .with_burn_policy(BurnPolicyConfig::AllowAll, PolicyRegistration::Active)
+                .unwrap(),
+        )
         .build()
         .unwrap();
 
@@ -401,13 +417,13 @@ async fn main() -> Result<(), ClientError> {
 
     // Create note metadata and tag
     let tag = NoteTag::new(0);
-    let metadata = NoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
+    let metadata = PartialNoteMetadata::new(alice_account.id(), NoteType::Public).with_tag(tag);
     let note_script = client.code_builder().compile_note_script(code).unwrap();
     let note_storage = NoteStorage::new(vec![
         alice_account.id().prefix().as_felt(),
         alice_account.id().suffix(),
         tag.into(),
-        Felt::new(0),
+        Felt::new_unchecked(0),
     ])
     .unwrap();
 
@@ -440,7 +456,7 @@ async fn main() -> Result<(), ClientError> {
         serial_num[0],
         serial_num[1],
         serial_num[2],
-        Felt::new(serial_num[3].as_canonical_u64() + 1),
+        serial_num[3] + Felt::new_unchecked(1),
     ]
     .into();
 
@@ -448,7 +464,7 @@ async fn main() -> Result<(), ClientError> {
     let recipient = NoteRecipient::new(serial_num_1, note_script, note_storage);
 
     // Note: Change metadata to include Bob's account as the creator
-    let metadata = NoteMetadata::new(bob_account.id(), NoteType::Public).with_tag(tag);
+    let metadata = PartialNoteMetadata::new(bob_account.id(), NoteType::Public).with_tag(tag);
 
     let asset_amount_1 = FungibleAsset::new(faucet_id, 50).unwrap();
     let vault = NoteAssets::new(vec![asset_amount_1.into()])?;

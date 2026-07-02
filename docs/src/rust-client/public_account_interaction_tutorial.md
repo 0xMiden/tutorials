@@ -37,9 +37,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
 ```
@@ -162,7 +162,7 @@ async fn main() -> Result<(), ClientError> {
 
 To read the public storage state of a smart contract on Miden we either instantiate the `TonicRpcClient` by itself, or use the `test_rpc_api()` method on the `Client` instance. In this example, we will be using the `test_rpc_api()` method.
 
-We will be reading the public storage state of the counter contract deployed on the testnet at address `0x303dd027d27adc0000012b07dbf1b4`.
+We will be reading the public storage state of the counter contract deployed on the testnet at address `mtst1apcqs7aj3a2cf5t6pnsfy0p4ns7wl7sp`.
 
 Add the following code snippet to the end of your `src/main.rs` function:
 
@@ -174,7 +174,7 @@ println!("\n[STEP 1] Reading data from public state");
 
 // Define the Counter Contract account id from counter contract deploy
 let (_, counter_contract_id) =
-    AccountId::from_bech32("mtst1apsd609q5966cqra992t4a00tgstrkfk").unwrap();
+    AccountId::from_bech32("mtst1apcqs7aj3a2cf5t6pnsfy0p4ns7wl7sp").unwrap();
 
 client
     .import_account_by_id(counter_contract_id)
@@ -311,7 +311,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Define the Counter Contract account id from counter contract deploy
     let (_, counter_contract_id) =
-        AccountId::from_bech32("mtst1apsd609q5966cqra992t4a00tgstrkfk").unwrap();
+        AccountId::from_bech32("mtst1apcqs7aj3a2cf5t6pnsfy0p4ns7wl7sp").unwrap();
 
     client
         .import_account_by_id(counter_contract_id)

@@ -52,9 +52,9 @@ function MultiSendInner() {
       from: alice,
       assetId: faucet,
       recipients: [
-        { to: 'mtst1aqezqc90x7dkzypr9m5fmlpp85w6cl04', amount: BigInt(100) },
-        { to: 'mtst1apjg2ul76wrkxyr5qlcnczaskypa4ljn', amount: BigInt(100) },
-        { to: 'mtst1arpee6y9cm8t7ypn33pc8fzj6gkzz7kd', amount: BigInt(100) },
+        { to: 'mtst1arqeemdpnzu4k52wlpd3xekl5uklfjl5', amount: BigInt(100) },
+        { to: 'mtst1arqk5qt3kms0cut9rdtqdaz8y5xmj245', amount: BigInt(100) },
+        { to: 'mtst1aq6kyfrh23n9gvt6jkg0z7fyts99hdqr', amount: BigInt(100) },
       ],
       noteType: NoteVisibility.Public,
     });

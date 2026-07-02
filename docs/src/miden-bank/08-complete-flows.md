@@ -128,7 +128,7 @@ Now let's trace the withdrawal process:
 │  3. WITHDRAW METHOD RUNS                                            │
 │     ┌──────────────────────────────────────────────────────┐        │
 │     │ require_initialized()                 ✓ Passes       │        │
-│     │ current_balance = get_balance(User)   → 1000         │        │
+│     │ current_balance = get_depositor_balance(User) → 1000 │        │
 │     │ VALIDATE: 1000 >= 400                 ✓ Passes       │  ◀ CRITICAL
 │     │ balances[User] = 1000 - 400           → 600          │        │
 │     │ create_p2id_note(...)                 → Output note  │        │
@@ -206,6 +206,10 @@ test result: ok. 1 passed; 0 failed; 0 ignored
 ```
 
 </details>
+
+:::note Live network bins
+The repository also ships `cargo run --bin initialize` and `cargo run --bin deposit` (under `examples/miden-bank/integration/src/bin/`) for exercising the same flow against a live testnet node. The MockChain integration tests above verify the deposit, init, and withdraw flows end-to-end.
+:::
 
 ## Summary: All Components
 

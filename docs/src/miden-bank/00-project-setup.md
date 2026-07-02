@@ -86,7 +86,9 @@ We'll replace the example `counter-account` with our `bank-account`. First, rena
 mv contracts/counter-account contracts/bank-account
 ```
 
-Now update the `Cargo.toml` inside `contracts/bank-account/`:
+A contract is configured by three files: a minimal Cargo manifest, a Miden project manifest, and a Cargo build config.
+
+First, update the `Cargo.toml` inside `contracts/bank-account/`. It only needs the `miden` guest dependency and the `cdylib` crate type:
 
 ```toml title="contracts/bank-account/Cargo.toml"
 [package]
@@ -98,27 +100,55 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = { version = "0.12" }
+miden = "0.13"
+```
 
-[package.metadata.component]
-package = "miden:bank-account"
+Next, create `contracts/bank-account/miden-project.toml`. This is the Miden-specific project manifest that tells the compiler what kind of artifact to build and which package namespace to export:
+
+```toml title="contracts/bank-account/miden-project.toml"
+[package]
+name = "bank-account"
+version = "0.1.0"
+
+[lib]
+kind = "account-component"
+namespace = "miden:bank-account/bank@0.1.0"
+
+[dependencies]
+miden-core = "*"
+miden-protocol = "*"
 
 [package.metadata.miden]
-project-kind = "account"
 supported-types = ["RegularAccountImmutableCode"]
+```
+
+Finally, create `contracts/bank-account/.cargo/config.toml` so the contract always builds for the WebAssembly target with the `miden` cfg enabled (this also makes editor/LSP workflows resolve the right code):
+
+```toml title="contracts/bank-account/.cargo/config.toml"
+[build]
+target = "wasm32-wasip2"
+
+[target.wasm32-wasip2]
+# Force-enable `cfg(miden)` for Miden-VM-targeted builds (including editor/LSP workflows).
+rustflags = ["--cfg", "miden"]
 ```
 
 ### Key Configuration Options
 
-| Field                            | Description                                          |
-| -------------------------------- | ---------------------------------------------------- |
-| `crate-type = ["cdylib"]`        | Required for WebAssembly compilation                 |
-| `project-kind = "account"`       | Tells the compiler this is an account component      |
-| `supported-types`                | Account types this component supports                |
-| `package = "miden:bank-account"` | The component package name for cross-component calls |
+| Field                                       | File                 | Description                                          |
+| ------------------------------------------- | -------------------- | ---------------------------------------------------- |
+| `crate-type = ["cdylib"]`                   | `Cargo.toml`         | Required for WebAssembly compilation                 |
+| `kind = "account-component"`                | `miden-project.toml` | Tells the compiler this is an account component      |
+| `namespace = "miden:bank-account/bank@..."` | `miden-project.toml` | The package namespace used for cross-component calls |
+| `supported-types`                           | `miden-project.toml` | Account types this component supports                |
+| `target = "wasm32-wasip2"`                  | `.cargo/config.toml` | Compile target for the Miden VM                      |
 
 :::info Supported Account Types
 `RegularAccountImmutableCode` means the account code cannot be changed after deployment. This is appropriate for our bank since we want the logic to be fixed.
+:::
+
+:::note Toolchain
+This tutorial targets protocol v0.15. The contracts depend on the published `miden = "0.13"` SDK (the cross-component / sibling-call line of the v0.15 compiler), and the integration harness builds them with the published `cargo-miden = "0.9"` release. The pinned `rust-toolchain.toml` is `nightly-2026-04-30` with the `wasm32-wasip2` target.
 :::
 
 ## Step 3: Create a Minimal Bank Component
@@ -135,28 +165,41 @@ extern crate alloc;
 
 use miden::*;
 
-/// Bank account component - we'll build this up throughout the tutorial.
-#[component]
-struct Bank {
+/// Storage layout for the bank account component.
+///
+/// We'll build this up throughout the tutorial. The `#[component_storage]`
+/// attribute marks the struct that defines the component's named storage slots.
+#[component_storage]
+struct BankStorage {
     /// Tracks whether the bank has been initialized (deposits enabled).
     /// Word layout: [is_initialized (0 or 1), 0, 0, 0]
     #[storage(description = "initialized")]
     initialized: StorageValue<Word>,
 
-    /// Maps depositor AccountId -> balance (as Felt).
+    /// Maps (depositor AccountId, faucet ID) -> balance (as Felt).
     /// We'll use this to track user balances in Part 1.
     #[storage(description = "balances")]
     balances: StorageMap<Word, Felt>,
 }
 
+/// API of the bank account component.
+///
+/// The `#[component]` trait declares the methods the compiler exports as the
+/// component's public WIT interface.
 #[component]
-impl Bank {
+trait Bank {
     /// Initialize the bank account, enabling deposits.
-    pub fn initialize(&mut self) {
-        // Get current value from storage
-        let current: Word = self.initialized.get();
+    fn initialize(&mut self);
 
+    /// Get the bank-tracked balance for a depositor and specific asset type.
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
+}
+
+#[component]
+impl Bank for BankStorage {
+    fn initialize(&mut self) {
         // Check not already initialized
+        let current: Word = self.initialized.get();
         assert!(
             current[0].as_canonical_u64() == 0,
             "Bank already initialized"
@@ -167,17 +210,12 @@ impl Bank {
         self.initialized.set(initialized_word);
     }
 
-    /// Get the balance for a depositor and specific asset type.
-    ///
-    /// This method is also required for the component to compile correctly -
-    /// account components must use WIT binding types (like AccountId, Asset)
-    /// in at least one public method.
-    pub fn get_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3], // faucet_prefix
-            asset.key[2], // faucet_suffix
+            asset.key[3], // faucet id prefix
+            asset.key[2], // faucet id suffix (folds in the asset metadata byte)
         ]);
         self.balances.get(key)
     }
@@ -189,12 +227,16 @@ This is our starting point with two storage slots:
 - `initialized`: A `StorageValue<Word>` slot to track whether the bank is ready
 - `balances`: A `StorageMap<Word, Felt>` to track user balances (we'll use this starting in Part 1)
 
-:::note Compiler Requirement
-Account components must use WIT binding types (like `AccountId`, `Asset`, etc.) in at least one public method signature for the compiler to generate the required bindings correctly. The `get_balance` method serves this purpose with both `AccountId` and `Asset`.
+:::note Component Structure
+The `#[component_storage]` struct declares the storage layout, the `#[component] trait` declares the exported API, and `#[component] impl Bank for BankStorage` implements it. Any private helper methods you add later live in a separate plain `impl BankStorage` block — the `#[component]` macro only exports trait methods.
+:::
+
+:::note get_depositor_balance, not get_balance
+The balance accessor is named `get_depositor_balance` rather than `get_balance` so it does not collide with the built-in `ActiveAccount::get_balance` vault method that the account wrapper generates. It also exercises the WIT binding types (`AccountId`, `Asset`), which the compiler needs in at least one exported method.
 :::
 
 :::info Contracts Are Excluded
-In v0.14, contracts are excluded from the Cargo workspace and built independently by `cargo miden`. Each contract specifies its own `miden` dependency directly. Only the `integration` crate remains a workspace member.
+Contracts are excluded from the Cargo workspace and built independently by the Miden toolchain. Each contract carries its own `miden` guest dependency plus a `miden-project.toml`. Only the `integration` crate remains a workspace member.
 
 Because contracts are excluded, your IDE (rust-analyzer) may not provide completions or diagnostics for contract code. This is expected — contracts are built independently using `miden build`.
 :::
@@ -214,15 +256,22 @@ miden build --release
 ```text
    Compiling bank-account v0.1.0 (/path/to/miden-bank/contracts/bank-account)
     Finished `release` profile [optimized] target(s)
-Creating Miden package /path/to/miden-bank/target/miden/release/bank_account.masp
 ```
 
 </details>
 
-The compiled output is stored in `target/miden/release/bank_account.masp`.
+The compiled output is stored in `target/miden/release/bank-account.masp`.
+
+:::note Cosmetic MAST ERROR lines
+Every contract build prints one or more non-fatal `MAST`-serialization lines starting with `ERROR`. These are cosmetic — the build still succeeds and produces the `.masp` package. You can ignore them.
+:::
 
 :::tip What's a .masp File?
 A `.masp` file is a Miden Assembly Package. It contains the compiled MASM (Miden Assembly) code and metadata needed to deploy and interact with your contract.
+:::
+
+:::info Build Order Matters
+The bank account is the base contract. The deposit/withdraw notes and the init transaction script call into it, and their build relies on the bank account's already-compiled package (the FPI `#[account(...)]` macro reads the bank's procedure roots from its `.masp` at compile time). So always build `bank-account` first, then the notes and transaction script. The integration test harness handles this ordering for you.
 :::
 
 ## Optional: Verify Your Setup
@@ -237,7 +286,10 @@ Create a new test file:
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package, AccountCreationConfig,
 };
-use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
+use miden_client::account::{
+    component::{InitStorageData, StorageValueName},
+    StorageSlotName,
+};
 use miden_client::Word;
 use std::{path::Path, sync::Arc};
 
@@ -249,12 +301,11 @@ async fn test_bank_account_builds_and_loads() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create named storage slots matching the contract's storage layout
+    // The `initialized` value slot has no schema default, so it must be seeded
+    // (with a zero Word = uninitialized) or `AccountComponent::from_package`
+    // errors with `InitValueNotProvided`. The `balances` map slot defaults to empty.
     let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
-            .expect("Valid slot name");
-    let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
+        StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
 
     let mut init_storage_data = InitStorageData::default();
@@ -306,12 +357,12 @@ test result: ok. 1 passed; 0 failed; 0 ignored
 
 At this point, you have:
 
-| Component        | Status      | Description                           |
-| ---------------- | ----------- | ------------------------------------- |
-| `bank-account`   | Minimal     | Initialization flag + balance storage |
-| `deposit-note`   | Not started | Coming in Part 4                      |
-| `withdraw-note`  | Not started | Coming in Part 7                      |
-| `init-tx-script` | Not started | Coming in Part 6                      |
+| Component               | Status      | Description                           |
+| ----------------------- | ----------- | ------------------------------------- |
+| `bank-account`          | Minimal     | Initialization flag + balance storage |
+| `deposit-note`          | Not started | Coming in Part 4                      |
+| `withdraw-request-note` | Not started | Coming in Part 7                      |
+| `init-tx-script`        | Not started | Coming in Part 6                      |
 
 Your bank can be created, but doesn't do anything useful yet. In the next parts, we'll add:
 
@@ -323,7 +374,7 @@ Your bank can be created, but doesn't do anything useful yet. In the next parts,
 ## Key Takeaways
 
 1. **`miden new`** creates a complete project workspace with contracts and integration folders
-2. **Account components** are defined with `#[component]` on a struct
+2. **Account components** are defined with a `#[component_storage]` struct plus a `#[component]` trait and impl
 3. **Storage slots** are declared with `#[storage(description = "...")]` attributes
 4. **`miden build`** compiles Rust to Miden Assembly (.masp package)
 5. **Tests verify** that your code works before moving on

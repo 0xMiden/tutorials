@@ -1,0 +1,16 @@
+[package]
+name = "deposit-note"
+version = "0.1.0"
+
+[lib]
+kind = "note"
+namespace = "miden:deposit-note/miden-deposit-note@0.1.0"
+
+[dependencies]
+miden-core = "*"
+miden-protocol = "*"
+bank-account = { path = "../bank-account" }
+
+# WIT for the account component this note calls, produced by building bank-account.
+[package.metadata.miden.dependencies]
+bank-account = { wit = "../bank-account/target/generated-wit/" }

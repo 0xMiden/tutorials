@@ -131,7 +131,7 @@ use tokio::time::sleep;
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
-        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
+        AccountType, StorageSlot, StorageSlotName,
     },
     auth::NoAuth,
     builder::ClientBuilder,
@@ -186,7 +186,7 @@ async fn main() -> Result<(), ClientError> {
             count_reader_slot_name.clone(),
             Word::default(),
         )],
-        AccountComponentMetadata::new("external_contract::count_reader_contract", AccountType::all()),
+        AccountComponentMetadata::new("external_contract::count_reader_contract"),
     )
     .unwrap();
 
@@ -194,8 +194,7 @@ async fn main() -> Result<(), ClientError> {
     client.rng().fill_bytes(&mut init_seed);
 
     let count_reader_contract = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_component(count_reader_component.clone())
         .with_auth_component(NoAuth)
         .build()
@@ -244,7 +243,7 @@ println!("\n[STEP 2] Building counter contract from public state");
 
 // Define the Counter Contract account id from counter contract deploy
 let (_, counter_contract_id) =
-    AccountId::from_bech32("mtst1apsd609q5966cqra992t4a00tgstrkfk").unwrap();
+    AccountId::from_bech32("mtst1apcqs7aj3a2cf5t6pnsfy0p4ns7wl7sp").unwrap();
 
 println!("counter contract id: {:?}", counter_contract_id);
 
@@ -286,7 +285,7 @@ let counter_component_code = client
 let counter_component = AccountComponent::new(
     counter_component_code,
     vec![],
-    AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+    AccountComponentMetadata::new("external_contract::counter_contract"),
 )
 .unwrap();
 
@@ -384,7 +383,7 @@ use tokio::time::sleep;
 use miden_client::{
     account::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
-        AccountStorageMode, AccountType, StorageSlot, StorageSlotName,
+        AccountType, StorageSlot, StorageSlotName,
     },
     auth::NoAuth,
     builder::ClientBuilder,
@@ -442,10 +441,7 @@ async fn main() -> Result<(), ClientError> {
             count_reader_slot_name.clone(),
             Word::default(),
         )],
-        AccountComponentMetadata::new(
-            "external_contract::count_reader_contract",
-            AccountType::all(),
-        ),
+        AccountComponentMetadata::new("external_contract::count_reader_contract"),
     )
     .unwrap();
 
@@ -453,8 +449,7 @@ async fn main() -> Result<(), ClientError> {
     client.rng().fill_bytes(&mut init_seed);
 
     let count_reader_contract = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Public)
+        .account_type(AccountType::Public)
         .with_component(count_reader_component.clone())
         .with_auth_component(NoAuth)
         .build()
@@ -478,7 +473,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Define the Counter Contract account id from counter contract deploy
     let (_, counter_contract_id) =
-        AccountId::from_bech32("mtst1apsd609q5966cqra992t4a00tgstrkfk").unwrap();
+        AccountId::from_bech32("mtst1apcqs7aj3a2cf5t6pnsfy0p4ns7wl7sp").unwrap();
 
     println!("counter contract id: {:?}", counter_contract_id);
 
@@ -513,7 +508,7 @@ async fn main() -> Result<(), ClientError> {
     let counter_component = AccountComponent::new(
         counter_component_code,
         vec![],
-        AccountComponentMetadata::new("external_contract::counter_contract", AccountType::all()),
+        AccountComponentMetadata::new("external_contract::counter_contract"),
     )
     .unwrap();
 

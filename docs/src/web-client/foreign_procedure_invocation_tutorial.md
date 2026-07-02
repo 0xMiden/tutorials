@@ -57,7 +57,7 @@ This tutorial assumes you have a basic understanding of Miden assembly and compl
 
 3. Install the Miden SDK:
    ```bash
-   yarn add @miden-sdk/miden-sdk@0.14.4
+   yarn add @miden-sdk/miden-sdk@0.15.2
    ```
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -244,10 +244,10 @@ Copy and paste the following code into the `lib/foreignProcedureInvocation.ts` f
 import counterContractCode from './masm/counter_contract.masm';
 import countReaderCode from './masm/count_reader.masm';
 import {
-  AccountType,
   AuthSecretKey,
   StorageMode,
   StorageSlot,
+  StorageResult,
   MidenClient,
 } from '@miden-sdk/miden-sdk/lazy';
 
@@ -283,7 +283,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
   const counterAuth = AuthSecretKey.rpoFalconWithRNG(counterSeed);
 
   const counterAccount = await client.accounts.create({
-    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: counterSeed,
     auth: counterAuth,
@@ -330,7 +329,6 @@ export async function foreignProcedureInvocation(): Promise<void> {
   const readerAuth = AuthSecretKey.rpoFalconWithRNG(readerSeed);
 
   const countReaderAccount = await client.accounts.create({
-    type: AccountType.RegularAccountImmutableCode,
     storage: StorageMode.Public,
     seed: readerSeed,
     auth: readerAuth,
@@ -391,15 +389,15 @@ export async function foreignProcedureInvocation(): Promise<void> {
   });
 
   const updatedCountReader = await client.accounts.get(countReaderAccount);
+  // `getItem()` is typed to return a low-level `Word`, but at runtime the SDK
+  // wraps the slot in a `StorageResult` whose `toBigInt()` reads the first
+  // felt — the count. The cast reflects that runtime type.
   const countReaderStorage = updatedCountReader
     ?.storage()
-    .getItem(countReaderSlotName);
+    .getItem(countReaderSlotName) as unknown as StorageResult | undefined;
 
   if (countReaderStorage) {
-    // The reader contract stores the copied count as a Felt widened to
-    // Word [count, 0, 0, 0]; toU64s() preserves native order so the
-    // value lives at index 0.
-    const countValue = Number(countReaderStorage.toU64s()[0]);
+    const countValue = Number(countReaderStorage.toBigInt());
     console.log('Count copied via Foreign Procedure Invocation:', countValue);
   }
 

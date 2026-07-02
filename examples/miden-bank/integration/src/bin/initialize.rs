@@ -13,14 +13,14 @@
 //! Prints the bank account ID that should be used for subsequent deposits.
 
 use integration::helpers::{
-    build_project_in_dir, create_account_from_package, create_basic_wallet_account,
-    setup_client, AccountCreationConfig, ClientSetup,
+    build_project_in_dir, build_tx_script_from_package, create_account_from_package,
+    create_basic_wallet_account, setup_client, AccountCreationConfig, ClientSetup,
 };
 
 use anyhow::{Context, Result};
 use miden_client::{
     account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
-    transaction::{TransactionRequestBuilder, TransactionScript},
+    transaction::TransactionRequestBuilder,
     Word,
 };
 use std::{path::Path, sync::Arc};
@@ -52,10 +52,11 @@ async fn main() -> Result<()> {
     );
     println!("  ✓ Init transaction script built");
 
-    // Create the bank account. Seed the component's `initialized` value slot with
-    // Word::default() (uninitialized); the `balances` map starts empty by default.
+    // Create the bank account. The `initialized` value slot has no schema default, so it must
+    // be seeded (here with a zero Word = uninitialized) or `from_package` errors with
+    // `InitValueNotProvided`; the `balances` map defaults to empty.
     println!("\nCreating bank account...");
-    let initialized_slot = StorageSlotName::new("miden_bank_account::bank::initialized")
+    let initialized_slot = StorageSlotName::new("bank_account::bank::initialized")
         .context("Valid slot name")?;
     let mut init_storage_data = InitStorageData::default();
     init_storage_data.insert_value(
@@ -86,8 +87,7 @@ async fn main() -> Result<()> {
     // Build and execute the initialization transaction
     println!("\nInitializing bank account...");
 
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new(init_program);
+    let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     // Build transaction request with the init script
     // The script will call bank_account.initialize()

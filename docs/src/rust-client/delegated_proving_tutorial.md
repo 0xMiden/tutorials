@@ -48,9 +48,9 @@ Add the following dependencies to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-miden-client = { version = "0.14", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.14", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "0.14" }
+miden-client = { version = "0.15", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.46", features = ["rt-multi-thread", "net", "macros", "fs"] }
 ```
@@ -80,7 +80,7 @@ use miden_client::{
     ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_client::account::{AccountBuilder, AccountStorageMode, AccountType};
+use miden_client::account::{AccountBuilder, AccountType};
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -113,8 +113,7 @@ async fn main() -> Result<(), ClientError> {
     let key_pair = AuthSecretKey::new_falcon512_poseidon2_with_rng(client.rng());
 
     let alice_account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(AccountStorageMode::Private)
+        .account_type(AccountType::Private)
         .with_auth_component(AuthSingleSig::new(key_pair.public_key().to_commitment(), AuthSchemeId::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()

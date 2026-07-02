@@ -1,26 +1,27 @@
 use integration::helpers::{
-    build_project_in_dir, create_testing_account_from_package, create_testing_note_from_package,
-    AccountCreationConfig, NoteCreationConfig,
+    build_project_in_dir, build_tx_script_from_package, create_testing_account_from_package,
+    create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
 
 use miden_client::{
     account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
     auth::AuthSchemeId,
-    note::{Note, NoteAssets, NoteMetadata, NoteTag, NoteType, P2idNote, P2idNoteStorage},
-    transaction::{RawOutputNote, TransactionScript},
+    note::{Note, NoteAssets, NoteTag, NoteType, P2idNote, P2idNoteStorage, PartialNoteMetadata},
+    transaction::RawOutputNote,
     Felt, Word,
 };
 use miden_client::asset::{Asset, FungibleAsset};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
-/// Storage slot names for the bank account component (schema seeds initial storage).
+/// Storage slot names for the bank account component. The `initialized` value slot must be
+/// seeded via `InitStorageData` (no schema default); the `balances` map defaults to empty.
 fn bank_storage_slots() -> (StorageSlotName, StorageSlotName) {
     let initialized_slot =
-        StorageSlotName::new("miden_bank_account::bank::initialized")
+        StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("miden_bank_account::bank::balances")
+        StorageSlotName::new("bank_account::bank::balances")
             .expect("Valid slot name");
     (initialized_slot, balances_slot)
 }
@@ -69,8 +70,9 @@ async fn withdraw_test() -> anyhow::Result<()> {
         true,
     )?);
 
-    // Create the bank account. Seed the component's `initialized` value slot with
-    // Word::default() (uninitialized); the `balances` map starts empty by default.
+    // Create the bank account. The `initialized` value slot has no schema default, so it must
+    // be seeded (here with a zero Word = uninitialized) or `from_package` errors with
+    // `InitValueNotProvided`; the `balances` map defaults to empty.
     let (initialized_slot, _balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
         init_storage_data: {
@@ -118,39 +120,44 @@ async fn withdraw_test() -> anyhow::Result<()> {
 
     // Compute proper P2ID tag for the sender (depositor) who will consume the output note
     let p2id_tag = NoteTag::with_account_target(sender.id());
-    let p2id_tag_felt = Felt::new(p2id_tag.as_u32() as u64);
+    let p2id_tag_felt = Felt::new_unchecked(p2id_tag.as_u32() as u64);
 
     println!("Computed P2ID tag for sender: 0x{:08X}", p2id_tag.as_u32());
 
     // Random serial number - MUST be unique per note
     // In production, this would be generated randomly. For testing, we use fixed values.
     let p2id_output_note_serial_num = Word::from([
-        Felt::new(0x1234567890abcdef),
-        Felt::new(0xfedcba0987654321),
-        Felt::new(0xdeadbeefcafebabe),
-        Felt::new(0x0123456789abcdef),
+        Felt::new_unchecked(0x1234567890abcdef),
+        Felt::new_unchecked(0xfedcba0987654321),
+        Felt::new_unchecked(0xdeadbeefcafebabe),
+        Felt::new_unchecked(0x0123456789abcdef),
     ]);
 
     println!("Serial num (random): {:?}", p2id_output_note_serial_num);
 
     // Note type for the P2ID output note
-    let note_type_felt = Felt::new(1); // 1 = Public note (stored on-chain)
+    let note_type_felt = Felt::new_unchecked(1); // 1 = Public note (stored on-chain)
 
-    // Get the P2ID script root (Poseidon2-hashed MAST root)
-    let p2id_script_root = P2idNote::script_root();
+    // Get the P2ID script root (Poseidon2-hashed MAST root). `script_root()` returns
+    // a `NoteScriptRoot` in v0.15; convert to a `Word` so its felts can be indexed.
+    let p2id_script_root = Word::from(P2idNote::script_root());
 
     // Note storage layout (14 Felts):
-    // [0-3]: withdraw asset encoded as [amount, 0, faucet_suffix, faucet_prefix]
+    // [0-3]: withdraw asset encoded as [amount, 0, asset.key[2] (faucet suffix + metadata byte), asset.key[3] (faucet prefix)]
     // [4-7]: serial_num (random/unique per note)
     // [8]: tag (P2ID note tag for routing)
     // [9]: note_type (1 = Public, 2 = Private)
     // [10-13]: P2ID script_root (MAST root for recipient computation)
+    // In v0.15 the fungible-asset vault key encodes the faucet suffix together with a
+    // metadata byte at index [2] (and the faucet prefix at [3]). Encode the asset from the
+    // asset's real key word so the bank reconstructs the same key it deposited under.
+    let withdraw_asset_key_word = FungibleAsset::new(faucet.id(), withdraw_amount)?.to_key_word();
     let withdraw_request_note_storage = vec![
         // WITHDRAW ASSET ENCODING
-        Felt::new(withdraw_amount),
-        Felt::new(0),
-        faucet.id().suffix(),
-        faucet.id().prefix().as_felt(),
+        Felt::new_unchecked(withdraw_amount),
+        Felt::new_unchecked(0),
+        withdraw_asset_key_word[2],
+        withdraw_asset_key_word[3],
         // P2ID OUTPUT NOTE SERIAL NUMBER (random, unique per note)
         p2id_output_note_serial_num[0],
         p2id_output_note_serial_num[1],
@@ -191,8 +198,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
     // Build the mock chain
     let mut mock_chain = builder.build()?;
 
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new(init_program);
+    let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
@@ -235,7 +241,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
     let recipient = P2idNoteStorage::new(sender.id()).into_recipient(p2id_output_note_serial_num);
     let p2id_output_note_asset = FungibleAsset::new(faucet.id(), withdraw_amount)?;
     let p2id_output_note_assets = NoteAssets::new(vec![p2id_output_note_asset.into()])?;
-    let p2id_output_note_metadata = NoteMetadata::new(bank_account.id(), NoteType::Public)
+    let p2id_output_note_metadata = PartialNoteMetadata::new(bank_account.id(), NoteType::Public)
         .with_tag(p2id_tag);
 
     println!("Recipient digest: {:?}", recipient.digest().to_hex());

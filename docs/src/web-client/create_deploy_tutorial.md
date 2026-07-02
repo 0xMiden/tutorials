@@ -56,8 +56,8 @@ It is useful to think of notes on Miden as "cryptographic cashier's checks" that
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.14.4` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.14.4` },
+  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.15.2` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.15.2` },
 }} reactFilename="" tsFilename="" />
 
 **NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
@@ -117,7 +117,7 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
-import { MidenClient, AccountType, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
@@ -242,7 +242,6 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.RegularAccountUpdatableCode, // Mutable: account code can be upgraded later
 ..storage: StorageMode.Public, // Public: account state is visible on-chain
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -271,7 +270,7 @@ console.log('Setup complete.');`},
 // A faucet is an account that can mint new tokens
 console.log('Creating faucet…');
 const faucetAccount = await client.accounts.create({
-.type: AccountType.FungibleFaucet, // Fungible faucet: can mint divisible tokens
+.type: 0, // 0 = FungibleFaucet: can mint divisible tokens
 .symbol: 'MID', // Token symbol (like ETH, BTC, etc.)
 .decimals: 8, // Decimals (8 means 1 MID = 100,000,000 base units)
 .maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
@@ -284,8 +283,8 @@ console.log('Setup complete.');` },
 
 ### Understanding Faucet Parameters:
 
-- **Storage Mode**: We use `public()` so anyone can verify the faucet's minting operations
-- **Mutability**: Set to `false` to ensure the faucet rules can't be changed after deployment
+- **Storage**: We use `StorageMode.Public` so anyone can verify the faucet's minting operations
+- **Faucet selection**: In the TypeScript facade a fungible faucet is selected with `type: 0`; the React SDK exposes this directly via `createFaucet`
 - **Token Symbol**: A short identifier for your token (e.g., "MID", "USDC", "DAI")
 - **Decimals**: Determines the smallest unit of your token. With 8 decimals, 1 MID = 10^8 base units
 - **Max Supply**: The maximum number of tokens that can ever exist
@@ -350,7 +349,7 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
-import { MidenClient, AccountType, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
@@ -373,7 +372,6 @@ export async function createMintConsume(): Promise<void> {
 .// 2. Create Alice's account
 .console.log('Creating account for Alice…');
 .const alice = await client.accounts.create({
-..type: AccountType.RegularAccountUpdatableCode,
 ..storage: StorageMode.Public,
 .});
 .console.log('Alice ID:', alice.id().toString());
@@ -381,7 +379,7 @@ export async function createMintConsume(): Promise<void> {
 .// 3. Deploy a fungible faucet
 .console.log('Creating faucet…');
 .const faucet = await client.accounts.create({
-..type: AccountType.FungibleFaucet,
+..type: 0, // 0 = FungibleFaucet
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

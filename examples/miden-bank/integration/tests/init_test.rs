@@ -1,11 +1,11 @@
 use integration::helpers::{
-    build_project_in_dir, create_testing_account_from_package, AccountCreationConfig,
+    build_project_in_dir, build_tx_script_from_package, create_testing_account_from_package,
+    AccountCreationConfig,
 };
 
 use miden_client::{
     account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
     auth::AuthSchemeId,
-    transaction::TransactionScript,
     Word,
 };
 use miden_testing::{Auth, MockChain};
@@ -30,10 +30,10 @@ async fn init_test() -> anyhow::Result<()> {
         true,
     )?);
 
-    // The component's initial storage (initialized = 0, empty balances map) is seeded
-    // automatically by `AccountComponent::from_package` using the component's schema;
-    // we only need to explicitly seed the `initialized` value slot with a zero Word.
-    let initialized_slot = StorageSlotName::new("miden_bank_account::bank::initialized")
+    // The `initialized` value slot has no schema default, so `AccountComponent::from_package`
+    // requires it to be seeded (with a zero Word = uninitialized) or it errors with
+    // `InitValueNotProvided`. The `balances` map slot defaults to empty.
+    let initialized_slot = StorageSlotName::new("bank_account::bank::initialized")
         .expect("Valid slot name");
 
     let bank_cfg = AccountCreationConfig {
@@ -70,8 +70,7 @@ async fn init_test() -> anyhow::Result<()> {
     let mut mock_chain = builder.build()?;
 
     // Execute init transaction script
-    let init_program = init_tx_script_package.unwrap_program();
-    let init_tx_script = TransactionScript::new(init_program);
+    let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
         .build_tx_context(bank_account.id(), &[], &[])?
