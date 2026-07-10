@@ -229,7 +229,8 @@ use miden_client::{
         PartialNoteMetadata,
     },
     rpc::{Endpoint, GrpcClient},
-    transaction::TransactionRequestBuilder,
+    store::TransactionFilter,
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -315,6 +316,38 @@ async fn wait_for_notes(
             account_id.id().to_bech32(NetworkId::Testnet)
         );
         sleep(Duration::from_secs(3)).await;
+    }
+    Ok(())
+}
+
+/// Waits for a specific transaction to be committed.
+async fn wait_for_tx(
+    client: &mut Client<FilesystemKeyStore>,
+    tx_id: TransactionId,
+) -> Result<(), ClientError> {
+    loop {
+        client.sync_state().await?;
+
+        // Check transaction status
+        let txs = client
+            .get_transactions(TransactionFilter::Ids(vec![tx_id]))
+            .await?;
+        let tx_committed = if !txs.is_empty() {
+            matches!(txs[0].status, TransactionStatus::Committed { .. })
+        } else {
+            false
+        };
+
+        if tx_committed {
+            println!("✅ transaction {} committed", tx_id.to_hex());
+            break;
+        }
+
+        println!(
+            "Transaction {} not yet committed. Waiting...",
+            tx_id.to_hex()
+        );
+        sleep(Duration::from_secs(2)).await;
     }
     Ok(())
 }
@@ -489,6 +522,8 @@ async fn main() -> Result<(), ClientError> {
         tx_id
     );
 
+    wait_for_tx(&mut client, tx_id).await?;
+
     Ok(())
 }
 ```
@@ -502,26 +537,27 @@ cargo run --release
 The output will look something like this:
 
 ```text
-Latest block: 4186
+Latest block: 488715
 
 [STEP 1] Creating new accounts
-Alice's account ID: "mtst1aqnztxg76d5exyr7ja05pzhvegx3jc84"
-Bob's account ID: "mtst1az0mfyzm3xqe2yrezucvmc24dv5gset0"
+Alice's account ID: "mtst1azvwquwfvh0jyytq0dk9xya9tvhvu935"
+Bob's account ID: "mtst1ap9hwvau7sy9tvtka6smn0ev7cxtgt03"
 
 Deploying a new fungible faucet.
-Faucet account ID: "mtst1ary7kplxvatxkgpes4llcc53yu8px433"
+Faucet account ID: "mtst1apj3jthkj4mweyf7qt254h5m5gdemp9u"
 
 [STEP 2] Mint tokens with P2ID
-Minted tokens. TX: 0x8577213057226b7d0545d73f6e1bc416354a324089450cb859f5784c133d4cc0
-0 consumable notes found for account mtst1aqnztxg76d5exyr7ja05pzhvegx3jc84. Waiting...
-Consumed minted note. TX: 0xd93e791d3283192df121de4cf938a4f9cfaed48f4e593e1b82d147e2d642b7bd
+Minted tokens. TX: 0xf3c8f183aeefb086ca4a63f2a6f34535ea4217849e8e870033f892503302fb7d
+0 consumable notes found for account mtst1azvwquwfvh0jyytq0dk9xya9tvhvu935. Waiting...
+Consumed minted note. TX: 0x2d31ce827549d8bf35d1c3613610f8388d6c2369dbd1aa34f4f3406f86fdff55
 
 [STEP 3] Create iterative output note
-View transaction on MidenScan: https://testnet.midenscan.com/tx/0xcd71a1d87c60ab7632a7836723fff4014b02992ef7ea5d3fe2030a971e795a8a
+View transaction on MidenScan: https://testnet.midenscan.com/tx/0xadabf7a920ee27bf1fabd3b02e8e6f3d80f84ece31a23d73f27b0b56bbc2fdc3
 
 [STEP 4] Bob consumes the note and creates a copy
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x4d91519c180874c931480fa58620f864fd7c7aada35ada2d40082291298084bb
-Account delta: AccountVaultDelta { fungible: FungibleAssetDelta({V0(Accoun
+Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xa003d298db5e7de263a8b98930b6e75336c3cca7cd4a090c707edb6a7f061ad5
+Transaction 0xa003d298db5e7de263a8b98930b6e75336c3cca7cd4a090c707edb6a7f061ad5 not yet committed. Waiting...
+✅ transaction 0xa003d298db5e7de263a8b98930b6e75336c3cca7cd4a090c707edb6a7f061ad5 committed
 ```
 
 ---

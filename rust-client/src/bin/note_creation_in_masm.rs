@@ -21,7 +21,8 @@ use miden_client::{
         PartialNoteMetadata,
     },
     rpc::{Endpoint, GrpcClient},
-    transaction::TransactionRequestBuilder,
+    store::TransactionFilter,
+    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -107,6 +108,38 @@ async fn wait_for_notes(
             account_id.id().to_bech32(NetworkId::Testnet)
         );
         sleep(Duration::from_secs(3)).await;
+    }
+    Ok(())
+}
+
+/// Waits for a specific transaction to be committed.
+async fn wait_for_tx(
+    client: &mut Client<FilesystemKeyStore>,
+    tx_id: TransactionId,
+) -> Result<(), ClientError> {
+    loop {
+        client.sync_state().await?;
+
+        // Check transaction status
+        let txs = client
+            .get_transactions(TransactionFilter::Ids(vec![tx_id]))
+            .await?;
+        let tx_committed = if !txs.is_empty() {
+            matches!(txs[0].status, TransactionStatus::Committed { .. })
+        } else {
+            false
+        };
+
+        if tx_committed {
+            println!("✅ transaction {} committed", tx_id.to_hex());
+            break;
+        }
+
+        println!(
+            "Transaction {} not yet committed. Waiting...",
+            tx_id.to_hex()
+        );
+        sleep(Duration::from_secs(2)).await;
     }
     Ok(())
 }
@@ -280,6 +313,8 @@ async fn main() -> Result<(), ClientError> {
         "Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/{:?}",
         tx_id
     );
+
+    wait_for_tx(&mut client, tx_id).await?;
 
     Ok(())
 }

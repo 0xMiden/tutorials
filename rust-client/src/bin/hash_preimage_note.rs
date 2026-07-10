@@ -265,5 +265,7 @@ async fn main() -> Result<(), ClientError> {
         tx_id
     );
 
+    wait_for_tx(&mut client, tx_id).await?;
+
     Ok(())
 }

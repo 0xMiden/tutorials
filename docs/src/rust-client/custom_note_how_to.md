@@ -394,6 +394,8 @@ async fn main() -> Result<(), ClientError> {
         tx_id
     );
 
+    wait_for_tx(&mut client, tx_id).await?;
+
     Ok(())
 }
 ```
@@ -401,7 +403,7 @@ async fn main() -> Result<(), ClientError> {
 The output of our program will look something like this:
 
 ```text
-Latest block: 226943
+Latest block: 488704
 
 [STEP 1] Creating new accounts
 Alice's account ID: "<testnet_account_id>"
@@ -411,19 +413,21 @@ Deploying a new fungible faucet.
 Faucet account ID: "<testnet_account_id>"
 
 [STEP 2] Mint tokens with P2ID
-Note 0x88d8c4a50c0e6342e58026b051fb6038867de21d3bd3963aec67fd6c45861faf not found. Waiting...
-Note 0x88d8c4a50c0e6342e58026b051fb6038867de21d3bd3963aec67fd6c45861faf not found. Waiting...
-✅ note found 0x88d8c4a50c0e6342e58026b051fb6038867de21d3bd3963aec67fd6c45861faf
+Minted tokens. TX: 0x970265408eb22068b22ec677f6ad09a2524913ab11b3dbf010e4cae73587e2e3
+Transaction 0x970265408eb22068b22ec677f6ad09a2524913ab11b3dbf010e4cae73587e2e3 not yet committed. Waiting...
+✅ transaction 0x970265408eb22068b22ec677f6ad09a2524913ab11b3dbf010e4cae73587e2e3 committed
+Consumed minted note. TX: 0x47850a0c44d9e147b8866285c24ba05a0d4bed0a99c1f25a13f32e57feecfe1b
 
 [STEP 3] Create custom note
-digest: RpoDigest([14371582251229115050, 1386930022051078873, 17689831064175867466, 9632123050519021080])
-note hash: "0x14c66143377223e090e5b4da0d1e5ce6c6521622ad5b92161a704a25c915769b"
-View transaction on MidenScan: https://testnet.midenscan.com/tx/0xffbee228a2c6283efe958c6b3cd31af88018c029221b413b0f23fcfacb2cb611
+digest: Word([14206540680072267069, 9571949196318390099, 5950603493574130513, 3457190364553631046])
+note hash: "0xf48f362f1817bbc5575e0bb8b77c496dd67e4b85d8ff45d21dff5743de2b174d"
+View transaction on MidenScan: https://testnet.midenscan.com/tx/0x9911ef1b9d2b066e017de187b7c1f8d95012748366358474b11adc91e49971b5
 
 [STEP 4] Bob consumes the Custom Note with Correct Secret
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xe6c8bb7b469e03dcacd8f1f400011a781e96ad4266ede11af8e711379e85b929
+Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x2a7a192b692984ae649dd1a13d15e4b79178e9e554615ffec7426e25e75193fa
 
-account delta: AccountVaultDelta { fungible: FungibleAssetDelta({V0(AccountIdV0 { prefix: 6702563556733766432, suffix: 1016103534633728 }): 100}), non_fungible: NonFungibleAssetDelta({}) }
+Transaction 0x2a7a192b692984ae649dd1a13d15e4b79178e9e554615ffec7426e25e75193fa not yet committed. Waiting...
+✅ transaction 0x2a7a192b692984ae649dd1a13d15e4b79178e9e554615ffec7426e25e75193fa committed
 ```
 
 ## Conclusion
