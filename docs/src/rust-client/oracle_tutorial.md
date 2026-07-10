@@ -111,6 +111,7 @@ pub async fn get_oracle_foreign_accounts(
             let publisher_word = storage
                 .get_map_item(&publishers_slot, key)
                 .expect("publisher entry missing from oracle storage");
+            // The publisher id word is laid out as [prefix, suffix, 0, 0].
             AccountId::new_unchecked([publisher_word[0], publisher_word[1]])
         })
         .collect();
@@ -190,9 +191,13 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Get all foreign accounts for oracle data
     // -------------------------------------------------------------------------
+    // Defaults to Pragma's current Miden v0.15 testnet oracle; pass a different
+    // bech32 id as the first CLI argument to point at another deployment. Pragma's
+    // addresses change between testnet iterations, so check their README
+    // (https://github.com/astraly-labs/pragma-miden) if this feed stops resolving.
     let oracle_bech32 = std::env::args()
         .nth(1)
-        .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
+        .unwrap_or_else(|| "mtst1apadf2szkxqkcyt7x2znuggv9qkhccam".to_string());
     let (_, oracle_account_id) = AccountId::from_bech32(&oracle_bech32).unwrap();
 
     // BTC/USD is identified by the faucet ID pair `1:0` (prefix 1, suffix 0).
@@ -322,7 +327,7 @@ The import `miden::tx` contains the `tx::execute_foreign_procedure` which we wil
 #### Here's a breakdown of what the `get_price` procedure does:
 
 1. Pushes the 16 foreign procedure inputs that `tx::execute_foreign_procedure` requires. The first four are the arguments to `get_median` — the BTC/USD faucet ID prefix `1`, suffix `0`, an `amount` of `0`, and a trailing `0` — and the remaining twelve are zero padding.
-2. Pushes `0xd1aa2a8b38ccf58f37bb7aa490a8154c1cf89c537144ab23bd1111f13e5a28e8` onto the stack, which is the procedure root of the `get_median` procedure in the oracle.
+2. Pushes `0xaa3a12d4e9de2dad37c50dba93809b9c17226d512e642d3d620c77088a85da71` onto the stack, which is the procedure root of the `get_median` procedure in the oracle.
 3. Pushes the Pragma oracle account ID prefix and suffix.
 4. Calls `tx::execute_foreign_procedure`, which invokes the `get_median` procedure via foreign procedure invocation. `get_median` returns `[is_tracked, median_price, amount]` on the stack.
 
@@ -330,8 +335,11 @@ Inside of the `masm/accounts/` directory, create the `oracle_reader.masm` file:
 
 ```masm
 # The oracle account ID, procedure hash, and pair ID below reference
-# Pragma's testnet deployment (https://github.com/astraly-labs/pragma-miden).
-# If Pragma redeploys their oracle, these values must be updated.
+# Pragma's Miden v0.15 testnet deployment (https://github.com/astraly-labs/pragma-miden).
+# Pragma's addresses change between testnet iterations (their README is the
+# source of truth), so if the oracle is redeployed these values must be updated:
+# the oracle account id, the `get_median` procedure root, and (if a different
+# feed) the faucet pair id.
 
 use miden::protocol::tx
 
@@ -349,11 +357,11 @@ pub proc get_price
     # => [pair_prefix, pair_suffix, amount, 0, PAD(12)]
 
     # This is the procedure root of the `get_median` procedure
-    push.0xd1aa2a8b38ccf58f37bb7aa490a8154c1cf89c537144ab23bd1111f13e5a28e8
+    push.0xaa3a12d4e9de2dad37c50dba93809b9c17226d512e642d3d620c77088a85da71
     # => [GET_MEDIAN_HASH, FOREIGN_INPUTS(16)]
 
     # The Pragma oracle account id: prefix then suffix, leaving suffix on top
-    push.17041133956008732928.1562038061251555584
+    push.8850886096234572817.9093477099503364096
     # => [oracle_id_suffix, oracle_id_prefix, GET_MEDIAN_HASH, FOREIGN_INPUTS(16)]
 
     exec.tx::execute_foreign_procedure
@@ -393,11 +401,11 @@ cargo run --release
 The output of our program will look something like this:
 
 ```text
-Latest block: 806773
-Oracle accountId prefix: V0(AccountIdPrefixV0 { prefix: 17041133956008732928 }) suffix: 1562038061251555584
-Stack state before step 11449:
+Latest block: 489876
+Oracle accountId prefix: V1(AccountIdPrefixV1 { prefix: 8850886096234572817 }) suffix: 9093477099503364096
+Stack state before step 6324:
 ├──  0: 1
-├──  1: 76307450000
+├──  1: 6439689500000
 ├──  2: 0
 ├──  3: 0
 ├──  4: 0
@@ -429,10 +437,10 @@ Stack state before step 11449:
 ├── 30: 0
 └── 31: 0
 
-View transaction on MidenScan: https://testnet.midenscan.com/tx/0x28dbb2ea1270884701e8f4875032db675ab9dfff13c3caaa5e53adfcf56e383b
+View transaction on MidenScan: https://testnet.midenscan.com/tx/0xbf6048faa60c72c43ab5645d937d02d0d768ee4fdad3c64b736789fdf0ef6a44
 ```
 
-The `get_median` procedure leaves three values on the stack. Index `0` holds `is_tracked` — `1` when Pragma tracks the requested pair. Index `1` holds the median price; in the output above it is `76307450000`, which is `$76307.45` once the 6 decimal places are applied. Index `2` holds the `amount` value that was passed into the call. Pragma publishes several price feeds on testnet; this tutorial reads the `BTC/USD` feed.
+The `get_median` procedure leaves three values on the stack. Index `0` holds `is_tracked` — `1` when Pragma tracks the requested pair. Index `1` holds the median price as a raw fixed-point integer; in the output above it is `6439689500000`. The number of decimal places is defined by Pragma's feed (BTC/USD is published with 8 decimals), so this reading is about `$64,396.89`. Index `2` holds the `amount` value that was passed into the call. Pragma publishes several price feeds on testnet; this tutorial reads the `BTC/USD` feed.
 
 ### Running the tutorial
 
@@ -440,10 +448,10 @@ To run this tutorial end-to-end, navigate to the `rust-client` directory in the 
 
 ```bash
 cd rust-client
-cargo run --release --bin oracle_data_query -- <ORACLE_BECH32_ID>
+cargo run --release --bin oracle_data_query
 ```
 
-where `<ORACLE_BECH32_ID>` is Pragma's deployed oracle account ID on testnet.
+This defaults to Pragma's current testnet oracle. To read from a different deployment, pass its bech32 account ID as an argument: `cargo run --release --bin oracle_data_query -- <ORACLE_BECH32_ID>`.
 
 ### Continue learning
 

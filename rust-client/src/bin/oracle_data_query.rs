@@ -57,6 +57,7 @@ pub async fn get_oracle_foreign_accounts(
             let publisher_word = storage
                 .get_map_item(&publishers_slot, key)
                 .expect("publisher entry missing from oracle storage");
+            // The publisher id word is laid out as [prefix, suffix, 0, 0].
             AccountId::new_unchecked([publisher_word[0], publisher_word[1]])
         })
         .collect();
@@ -136,9 +137,13 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Get all foreign accounts for oracle data
     // -------------------------------------------------------------------------
+    // Defaults to Pragma's current Miden v0.15 testnet oracle; pass a different
+    // bech32 id as the first CLI argument to point at another deployment. Pragma's
+    // addresses change between testnet iterations, so check their README
+    // (https://github.com/astraly-labs/pragma-miden) if this feed stops resolving.
     let oracle_bech32 = std::env::args()
         .nth(1)
-        .expect("Usage: oracle_data_query <ORACLE_BECH32_ID>");
+        .unwrap_or_else(|| "mtst1apadf2szkxqkcyt7x2znuggv9qkhccam".to_string());
     let (_, oracle_account_id) = AccountId::from_bech32(&oracle_bech32).unwrap();
 
     // BTC/USD is identified by the faucet ID pair `1:0` (prefix 1, suffix 0).

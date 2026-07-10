@@ -1,6 +1,9 @@
 # The oracle account ID, procedure hash, and pair ID below reference
-# Pragma's testnet deployment (https://github.com/astraly-labs/pragma-miden).
-# If Pragma redeploys their oracle, these values must be updated.
+# Pragma's Miden v0.15 testnet deployment (https://github.com/astraly-labs/pragma-miden).
+# Pragma's addresses change between testnet iterations (their README is the
+# source of truth), so if the oracle is redeployed these values must be updated:
+# the oracle account id, the `get_median` procedure root, and (if a different
+# feed) the faucet pair id.
 
 use miden::protocol::tx
 
@@ -18,11 +21,11 @@ pub proc get_price
     # => [pair_prefix, pair_suffix, amount, 0, PAD(12)]
 
     # This is the procedure root of the `get_median` procedure
-    push.0xd1aa2a8b38ccf58f37bb7aa490a8154c1cf89c537144ab23bd1111f13e5a28e8
+    push.0xaa3a12d4e9de2dad37c50dba93809b9c17226d512e642d3d620c77088a85da71
     # => [GET_MEDIAN_HASH, FOREIGN_INPUTS(16)]
 
     # The Pragma oracle account id: prefix then suffix, leaving suffix on top
-    push.17041133956008732928.1562038061251555584
+    push.8850886096234572817.9093477099503364096
     # => [oracle_id_suffix, oracle_id_prefix, GET_MEDIAN_HASH, FOREIGN_INPUTS(16)]
 
     exec.tx::execute_foreign_procedure
