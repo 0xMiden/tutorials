@@ -1,12 +1,12 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::BTreeSet, path::PathBuf, sync::Arc};
 
 use miden_client::{
     account::{
-        component::{AccountComponentMetadata, BasicWallet}, AccountBuilder, AccountComponent,
+        component::{AccountComponentMetadata, AuthNetworkAccount, BasicWallet}, AccountBuilder, AccountComponent,
         AccountType, StorageSlot, StorageSlotName,
     },
     address::NetworkId,
-    auth::{self, AuthSchemeId, AuthSecretKey, AuthSingleSig},
+    auth::{AuthSchemeId, AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
@@ -119,9 +119,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `include_str!` resolves at compile time relative to this source file,
     // so the binary is independent of the working directory it is run from.
     let counter_code = include_str!("../../../masm/accounts/counter.masm");
+    let script_code = include_str!("../../../masm/scripts/counter_script.masm");
+    let network_note_code = include_str!("../../../masm/notes/network_increment_note.masm");
 
-    // Create the network counter smart contract account
-    // First, compile the MASM code into an account component
+    // In protocol v0.15 an account is a *network account* (one the network
+    // transaction builder executes on a user's behalf) if and only if it is
+    // public AND carries the `AuthNetworkAccount` auth component. That component
+    // holds two allowlists, both fixed at account creation:
+    //   * the note-script allowlist: its presence is what marks the account as a
+    //     network account, and the builder only executes notes whose script root
+    //     is listed here;
+    //   * the tx-script allowlist: the network auth procedure rejects any custom
+    //     tx script whose root is not listed, so the STEP 3 deploy script must be
+    //     in it.
+    // We therefore compile the note script and the deploy tx script now and feed
+    // their MAST roots into the allowlists below. Both compiled scripts are reused
+    // as-is in STEP 3 (tx script) and STEP 4 (note script) — nothing is compiled
+    // twice.
+    let note_script = client
+        .code_builder()
+        .with_linked_module("external_contract::counter_contract", counter_code)?
+        .compile_note_script(network_note_code)?;
+    let note_script_root = note_script.root();
+
+    let tx_script = client
+        .code_builder()
+        .with_linked_module("external_contract::counter_contract", counter_code)?
+        .compile_tx_script(script_code)?;
+    let tx_script_root = tx_script.root();
+
+    // Compile the counter MASM into an account component
     let counter_slot_name =
         StorageSlotName::new("miden::tutorials::counter").expect("valid slot name");
     let component_code = client
@@ -140,10 +167,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut init_seed = [0_u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    // Build the immutable network account with no authentication
+    // Build the network account: public + `AuthNetworkAccount` with the note-script
+    // root allowlisted (this is what makes it a network account) and the deploy
+    // tx-script root allowlisted (so the auth procedure accepts the STEP 3 deploy).
+    let network_auth = AuthNetworkAccount::with_allowed_notes(BTreeSet::from([note_script_root]))?
+        .with_allowed_tx_scripts(BTreeSet::from([tx_script_root]));
     let counter_contract = AccountBuilder::new(init_seed)
-        .account_type(AccountType::Public) // Public, network-executable account
-        .with_auth_component(auth::NoAuth) // No authentication required
+        .account_type(AccountType::Public)
+        .with_auth_component(network_auth)
         .with_component(counter_component)
         .build()
         .unwrap();
@@ -160,15 +191,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 3] Deploy network counter smart contract");
 
-    let script_code = include_str!("../../../masm/scripts/counter_script.masm");
-
-    // Link the counter contract code into the same `CodeBuilder` chain that
-    // compiles the script.
-    let tx_script = client
-        .code_builder()
-        .with_linked_module("external_contract::counter_contract", counter_code)?
-        .compile_tx_script(script_code)?;
-
+    // Reuse the `tx_script` compiled in STEP 2 (its root is allowlisted on the
+    // account, so the network auth procedure accepts this deploy transaction).
     let tx_increment_request = TransactionRequestBuilder::new()
         .custom_script(tx_script)
         .build()
@@ -192,20 +216,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 4] Creating a network note for network counter contract");
 
-    let network_note_code = include_str!("../../../masm/notes/network_increment_note.masm");
-
     // Create and submit the network note that will increment the counter
     // Generate a random serial number for the note
     let serial_num = client.rng().draw_word();
 
-    // Compile the note script with the counter contract code linked as a
-    // module on the same `CodeBuilder` chain.
-    let note_script = client
-        .code_builder()
-        .with_linked_module("external_contract::counter_contract", counter_code)?
-        .compile_note_script(network_note_code)?;
-
-    // Create note recipient with empty inputs
+    // Reuse the `note_script` compiled in STEP 2 (its root is allowlisted on the
+    // account, so the network transaction builder will execute this note).
     let note_storage = NoteStorage::new([].to_vec())?;
     let recipient = NoteRecipient::new(serial_num, note_script, note_storage);
 

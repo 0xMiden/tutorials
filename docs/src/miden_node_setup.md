@@ -5,96 +5,24 @@ sidebar_position: 2
 
 # Miden Node Setup Tutorial
 
-To run the Miden tutorial examples, you will need to set up a test environment and connect to a Miden node.
-
-There are two ways to connect to a Miden node:
-
-1. Run the Miden node locally
-2. Connect to the Miden testnet
-
-## Running the Miden node locally
-
-:::tip[Prerequisites]
-Building the node from source requires a C/C++ toolchain (for compiling RocksDB). On **macOS**, make sure you have the Xcode Command Line Tools installed:
-
-```bash
-xcode-select --install
-```
-
-On **Ubuntu**, see the [node installation page](https://docs.miden.xyz/miden-node/operator/installation#install-using-cargo) for the required packages. If you run into `'cstdint' file not found` errors on macOS, see the [troubleshooting section](https://docs.miden.xyz/miden-node/operator/installation#install-using-cargo) on the installation page.
-:::
-
-### Step 1: Install the Miden node
-
-Install the miden-node crate using this command:
-
-```bash
-# Installs from GitHub (crates.io publication was not verified):
-cargo install --locked --git https://github.com/0xMiden/miden-node --tag v0.15.0 miden-node
-```
-
-Check the [miden-node releases](https://github.com/0xMiden/miden-node/releases) for the latest version compatible with your target network.
-
-### Step 2: Initializing the node
-
-To start the node, we first need to generate the genesis file. Create the genesis file using this command:
-
-```bash
-mkdir data
-mkdir accounts
-
-miden-node bundled bootstrap \
-  --data-directory data \
-  --accounts-directory accounts
-```
-
-Expected output:
-
-```
-2025-04-16T18:05:30.049129Z  INFO miden_node::commands::store: bin/node/src/commands/store.rs:145: Generating account, index: 0, total: 1
-```
-
-### Step 3: Starting the node
-
-To start the node run this command:
-
-```bash
-miden-node bundled start \
-  --data-directory data \
-  --rpc.url http://0.0.0.0:57291
-```
-
-Expected output:
-
-```
-2025-01-17T12:14:55.432445Z  INFO try_build_batches: miden-block-producer: /Users/username/.cargo/registry/src/index.crates.io-6f17d22bba15001f/miden-node-block-producer-0.6.0/src/txqueue/mod.rs:85: close, time.busy: 8.88µs, time.idle: 103µs
-2025-01-17T12:14:57.433162Z  INFO try_build_batches: miden-block-producer: /Users/username/.cargo/registry/src/index.crates.io-6f17d22bba15001f/miden-node-block-producer-0.6.0/src/txqueue/mod.rs:85: new
-2025-01-17T12:14:57.433256Z  INFO try_build_batches: miden-block-producer: /Users/username/.cargo/registry/src/index.crates.io-6f17d22bba15001f/miden-node-block-producer-0.6.0/src/txqueue/mod.rs:85: close, time.busy: 6.46µs, time.idle: 94.0µs
-```
-
-Congratulations, you now have a Miden node running locally. Now we can start creating a testing environment for building applications on Miden!
-
-The endpoint of the Miden node running locally is:
-
-```
-http://localhost:57291
-```
-
-### Resetting the node
-
-_If you need to reset the local state of the node run this command:_
-
-```bash
-rm -r data
-rm -r accounts
-```
-
-After resetting the state of the node, follow steps 2 and 4 again.
+To run the Miden tutorial examples, you connect to a Miden node. By default, **every tutorial in this book targets the public Miden testnet** — no local setup is required. If you would rather run against your own node, you can start a local network instead.
 
 ## Connecting to the Miden testnet
 
-To run the tutorial examples using the Miden testnet, use this endpoint:
+The tutorials use the public testnet by default. Its RPC endpoint is:
 
 ```bash
 https://rpc.testnet.miden.io:443
 ```
+
+This is the endpoint the examples pass to the client (`Endpoint::testnet()` in the Rust client), so they work out of the box with no additional setup.
+
+## Running a local network
+
+Running against a local network is optional and only needed for a fully self-hosted setup. The Miden node's own documentation covers standing up a local network end to end — installing the node, bootstrapping genesis, and starting the services:
+
+- [Local network development](https://docs.miden.xyz/reference/node/local-network-development)
+
+Network transactions additionally require the **network transaction builder** (`miden-ntx-builder`), the component that executes network notes on an account's behalf. The local-network setup linked above provisions it; a node without the builder will commit network notes but never execute them.
+
+Once your local network is running, point the tutorials at its RPC endpoint instead of `Endpoint::testnet()`.
