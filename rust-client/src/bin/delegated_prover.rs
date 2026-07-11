@@ -7,10 +7,8 @@ use miden_client::{
     builder::ClientBuilder,
     keystore::{FilesystemKeyStore, Keystore},
     rpc::{Endpoint, GrpcClient},
-    transaction::{
-        LocalTransactionProver, ProvingOptions, TransactionProver, TransactionRequestBuilder,
-    },
-    ClientError,
+    transaction::{TransactionProver, TransactionRequestBuilder},
+    ClientError, RemoteTransactionProver,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 
@@ -55,10 +53,15 @@ async fn main() -> Result<(), ClientError> {
     keystore.add_key(&key_pair, alice_account.id()).await.unwrap();
 
     // -------------------------------------------------------------------------
-    // Setup the local tx prover
+    // Set up the delegated (remote) tx prover
     // -------------------------------------------------------------------------
-    let local_tx_prover = LocalTransactionProver::new(ProvingOptions::default());
-    let tx_prover: Arc<dyn TransactionProver> = Arc::new(local_tx_prover);
+    // Delegated proving outsources ZK proof generation to a remote service. This is
+    // the public Miden testnet prover; run your own
+    // (https://crates.io/crates/miden-remote-prover) and swap the URL to use it.
+    // The constant `miden_client::grpc_support::TESTNET_PROVER_ENDPOINT` holds this
+    // same URL.
+    let remote_tx_prover = RemoteTransactionProver::new("https://tx-prover.testnet.miden.io");
+    let tx_prover: Arc<dyn TransactionProver> = Arc::new(remote_tx_prover);
 
     // We use a dummy transaction request to showcase delegated proving.
     // The only effect of this tx should be increasing Alice's nonce.
@@ -80,8 +83,8 @@ async fn main() -> Result<(), ClientError> {
         .execute_transaction(alice_account.id(), transaction_request)
         .await?;
 
-    // Step 2: Prove the transaction using the local prover
-    println!("Proving transaction with local prover...");
+    // Step 2: Prove the transaction using the delegated (remote) prover
+    println!("Proving transaction with the delegated prover...");
     let proven_transaction = client.prove_transaction_with(&tx_result, tx_prover).await?;
 
     // Step 3: Submit the proven transaction
@@ -95,7 +98,7 @@ async fn main() -> Result<(), ClientError> {
         .apply_transaction(&tx_result, submission_height)
         .await?;
 
-    println!("Transaction submitted successfully using local prover!");
+    println!("Transaction submitted successfully using the delegated prover!");
 
     client.sync_state().await.unwrap();
 
