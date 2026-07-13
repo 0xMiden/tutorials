@@ -20,7 +20,7 @@ In this tutorial, we will create a Miden account for _Alice_ and deploy a fungib
 
 ## Prerequisites
 
-Before you begin, ensure that a Miden node is running locally in a separate terminal window. To get the Miden node running locally, you can follow the instructions on the [Miden Node Setup](../miden_node_setup.md) page.
+Before you begin, ensure that a Miden node is running locally in a separate terminal window. To get the Miden node running locally, you can follow the instructions on the [Miden Node Setup](../miden_node_setup) page.
 
 ## Public vs. private accounts & notes
 
