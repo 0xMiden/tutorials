@@ -196,7 +196,7 @@ async fn main() -> Result<(), ClientError> {
     println!("\n[STEP 2] Creating new accounts");
 
     let mut accounts = vec![];
-    let number_of_accounts = 2;
+    let number_of_accounts = 10;
 
     for i in 0..number_of_accounts {
         let mut init_seed = [0_u8; 32];
