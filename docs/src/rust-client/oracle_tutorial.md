@@ -40,7 +40,7 @@ the publisher ID layout and index range, and the return values against that depl
 
 This tutorial assumes you have a basic understanding of Miden assembly, have completed the previous tutorials on using the Rust client, and have completed the tutorial on foreign procedure invocation.
 
-To quickly get up to speed with Miden assembly (MASM), please play around with running Miden programs in the [Miden playground](https://0xMiden.github.io/examples/).
+To quickly get up to speed with Miden assembly (MASM), please play around with running Miden programs in the [Miden playground](https://playground.miden.xyz).
 
 ## Step 1: Initialize your repository
 
