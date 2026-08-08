@@ -107,9 +107,8 @@ loop {
 
     if notes.len() == 5 {
         println!("Found 5 consumable notes for Alice. Consuming them now...");
-        let transaction_request = TransactionRequestBuilder::new()
-            .build_consume_notes(notes)
-            .unwrap();
+        let transaction_request =
+            TransactionRequestBuilder::new().build_consume_notes(notes)?;
 
         let tx_id = client
             .submit_new_transaction(alice_account.id(), transaction_request)
