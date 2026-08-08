@@ -143,7 +143,7 @@ For the sake of the example, the first four P2ID transfers are handled in a sing
 
 To output multiple notes in a single transaction we need to create a list of our expected output notes. The expected output notes are the notes that we expect to create in our transaction request.
 
-In the snippet below, we create an empty vector to store five P2ID output notes, loop over five iterations `(using 0..=4)` to create five unique dummy account IDs, build a P2ID note for each one, and push each note onto the vector. Finally, we build a transaction request using `.own_output_notes()`—passing in all five notes—and submit it to the node.
+In the snippet below, we create an empty vector to store four P2ID output notes, loop over four iterations `(using 1..=4)` to create four unique dummy account IDs, build a P2ID note for each one, and push each note onto the vector. Finally, we build a transaction request using `.own_output_notes()`—passing in all four notes—and submit it to the node.
 
 Add this snippet to the end of your file in the `main()` function:
 
