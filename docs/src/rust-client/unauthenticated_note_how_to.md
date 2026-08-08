@@ -196,7 +196,7 @@ async fn main() -> Result<(), ClientError> {
     println!("\n[STEP 2] Creating new accounts");
 
     let mut accounts = vec![];
-    let number_of_accounts = 2;
+    let number_of_accounts = 5;
 
     for i in 0..number_of_accounts {
         let mut init_seed = [0_u8; 32];
@@ -384,11 +384,6 @@ account id 1: <account_1_id>
 account id 2: <account_2_id>
 account id 3: <account_3_id>
 account id 4: <account_4_id>
-account id 5: <account_5_id>
-account id 6: <account_6_id>
-account id 7: <account_7_id>
-account id 8: <account_8_id>
-account id 9: <account_9_id>
 
 [STEP 3] Mint tokens
 Minting tokens for Alice...
@@ -399,68 +394,32 @@ unauthenticated tx 1
 sender: <account_0_id>
 target: <account_1_id>
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x31f48117c645c5b4ccff78ef356bad764798d4f207925e492ebbae1b86ef4f55
-Total time for loop iteration 0: 1.952243542s
+Total time for loop iteration 0: <duration>
 
 unauthenticated tx 2
 sender: <account_1_id>
 target: <account_2_id>
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x45b4c62c6e8e79a1c7200d1c84dc6304a88debd37b20b069dd739498827354c1
-Total time for loop iteration 1: 2.091625458s
+Total time for loop iteration 1: <duration>
 
 unauthenticated tx 3
 sender: <account_2_id>
 target: <account_3_id>
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xb2241e10df8f6f891b910975a3b4f4fd47657c47de164138300d683cfca5dd61
-Total time for loop iteration 2: 1.846021291s
+Total time for loop iteration 2: <duration>
 
 unauthenticated tx 4
 sender: <account_3_id>
 target: <account_4_id>
 Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xd3ea6fa1da6c317f055ac4b069388d93b88d526039e01531879e75598e0f8cff
-Total time for loop iteration 3: 1.877627958s
+Total time for loop iteration 3: <duration>
 
-unauthenticated tx 5
-sender: <account_4_id>
-target: <account_5_id>
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x6098638ec0ff7331432c037331ee7372977abe20af5c56315985fd314e21548d
-Total time for loop iteration 4: 1.884586875s
-
-unauthenticated tx 6
-sender: <account_5_id>
-target: <account_6_id>
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x8258292e49e0cfdd96603450c2de6738afecb1e7482ede0fb68ea375e884e1d8
-Total time for loop iteration 5: 1.886505875s
-
-unauthenticated tx 7
-sender: <account_6_id>
-target: <account_7_id>
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0x9e0f84e00a9393bf6e5f224d55ccdf8bd0ef32ee20c3299e2dfccf1771001dfd
-Total time for loop iteration 6: 2.095149458s
-
-unauthenticated tx 8
-sender: <account_7_id>
-target: <account_8_id>
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xa9db6445dfaa44ccf9dd52bf4cd8d9057946571ccb5299a7a56c59faf2ed2093
-Total time for loop iteration 7: 1.935587291s
-
-unauthenticated tx 9
-sender: <account_8_id>
-target: <account_9_id>
-Consumed Note Tx on MidenScan: https://testnet.midenscan.com/tx/0xba4bb4ae3c7aaf949cdd3be8c9ea52169f958e7dca8e9d4541fd5ac939393e41
-Total time for loop iteration 8: 1.964682833s
-
-Total execution time for unauthenticated note txs: 17.534611542s
-blocks: [BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047), BlockNumber(227047)]
+Total execution time for unauthenticated note txs: <duration>
 Account: <account_0_id> balance: 80
 Account: <account_1_id> balance: 0
 Account: <account_2_id> balance: 0
 Account: <account_3_id> balance: 0
-Account: <account_4_id> balance: 0
-Account: <account_5_id> balance: 0
-Account: <account_6_id> balance: 0
-Account: <account_7_id> balance: 0
-Account: <account_8_id> balance: 0
-Account: <account_9_id> balance: 20
+Account: <account_4_id> balance: 20
 ```
 
 ## Conclusion
