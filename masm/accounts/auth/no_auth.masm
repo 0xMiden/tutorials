@@ -1,5 +1,11 @@
 use miden::protocol::native_account
 
+#! Authorizes a transaction without signature checks and increments the account nonce.
+#!
+#! Inputs:  []
+#! Outputs: []
+#!
+#! Invocation: auth script
 @auth_script
 pub proc auth__basic
     exec.native_account::incr_nonce drop
