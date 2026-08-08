@@ -326,9 +326,7 @@ async fn main() -> Result<(), ClientError> {
 
     if let Some((note_record, _)) = consumable_notes.first() {
         let note: Note = note_record.clone().try_into()?;
-        let consume_request = TransactionRequestBuilder::new()
-            .build_consume_notes(vec![note])
-            .unwrap();
+        let consume_request = TransactionRequestBuilder::new().build_consume_notes(vec![note])?;
 
         let tx_id = client
             .submit_new_transaction(alice_account.id(), consume_request)
