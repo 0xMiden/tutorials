@@ -1,5 +1,9 @@
 # miden-tutorials
 
+[![GitHub](https://img.shields.io/badge/GitHub-View%20Source-181717?logo=github)](https://github.com/0xMiden/miden-tutorials)
+
+> Each tutorial links to its final working code on GitHub at the top of the page for easy access.
+
 The goal of this repository is to provide clear and practical examples for interacting with the **Miden Rollup**. These examples are designed to ensure a smooth onboarding experience for developers exploring Miden's capabilities.
 
 This repository is organized into several parts:
