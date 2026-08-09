@@ -444,7 +444,7 @@ The `get_median` procedure leaves three values on the stack. Index `0` holds `is
 
 ### Running the tutorial
 
-To run this tutorial end-to-end, navigate to the `rust-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run:
+To run this tutorial end-to-end, navigate to the `rust-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run:
 
 ```bash
 cd rust-client

@@ -822,7 +822,7 @@ impl WithdrawRequestNote {
 7. **Always validate before subtraction** to prevent underflow exploits
 
 :::tip View Complete Source
-See the complete implementation in the [examples/miden-bank](https://github.com/0xMiden/miden-tutorials/tree/main/examples/miden-bank) directory.
+See the complete implementation in the [examples/miden-bank](https://github.com/0xMiden/tutorials/tree/main/examples/miden-bank) directory.
 :::
 
 ## Next Steps

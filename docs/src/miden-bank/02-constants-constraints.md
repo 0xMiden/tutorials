@@ -506,7 +506,7 @@ impl BankStorage {
 5. **Failed assertions** mean no valid proof can be generated
 
 :::tip View Complete Source
-See the complete constraint implementation in [contracts/bank-account/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/bank-account/src/lib.rs).
+See the complete constraint implementation in [contracts/bank-account/src/lib.rs](https://github.com/0xMiden/tutorials/blob/main/examples/miden-bank/contracts/bank-account/src/lib.rs).
 :::
 
 ## Next Steps

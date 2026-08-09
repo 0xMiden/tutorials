@@ -538,7 +538,7 @@ To increment the count of the counter contract all you need is to know the accou
 
 ### Running the example
 
-To run the full example, navigate to the `rust-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run this command:
+To run the full example, navigate to the `rust-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run this command:
 
 ```bash
 cd rust-client

@@ -200,7 +200,7 @@ Alice nonce has increased: 1
 
 ### Running the example
 
-To run a full working example navigate to the `rust-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run this command:
+To run a full working example navigate to the `rust-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run this command:
 
 ```bash
 cd rust-client

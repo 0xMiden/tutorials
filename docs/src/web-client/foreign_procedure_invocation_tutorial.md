@@ -570,7 +570,7 @@ The key steps were:
 
 ### Running the example
 
-To run a full working example navigate to the `web-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run the web application example:
+To run a full working example navigate to the `web-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run the web application example:
 
 ```bash
 cd web-client

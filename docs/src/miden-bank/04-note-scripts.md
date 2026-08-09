@@ -567,8 +567,8 @@ impl DepositNote {
 :::tip View Complete Source
 See the complete note script implementations:
 
-- [Deposit Note](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/deposit-note/src/lib.rs)
-- [Withdraw Request Note](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/withdraw-request-note/src/lib.rs)
+- [Deposit Note](https://github.com/0xMiden/tutorials/blob/main/examples/miden-bank/contracts/deposit-note/src/lib.rs)
+- [Withdraw Request Note](https://github.com/0xMiden/tutorials/blob/main/examples/miden-bank/contracts/withdraw-request-note/src/lib.rs)
   :::
 
 ## Next Steps
