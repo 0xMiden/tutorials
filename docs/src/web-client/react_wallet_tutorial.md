@@ -633,13 +633,20 @@ function Wallet({ accountId }: { accountId: string }) {
 
 ## Running the Example
 
-To run a full working example, navigate to the `packages/react-sdk/examples/wallet` directory in the [miden-client](https://github.com/0xMiden/miden-client/) repository:
+To run a full working example, navigate to the `packages/react-sdk/examples/wallet` directory in the [web-sdk](https://github.com/0xMiden/web-sdk/) repository:
 
 ```bash
-git clone https://github.com/0xMiden/miden-client.git
-cd miden-client/packages/react-sdk/examples/wallet
-yarn install
-yarn dev
+git clone https://github.com/0xMiden/web-sdk.git
+cd web-sdk
+
+# Install the workspace and build the React SDK.
+pnpm install
+pnpm --filter @miden-sdk/react run build
+
+# The example lives outside the pnpm workspace, so it needs its own install.
+cd packages/react-sdk/examples/wallet
+pnpm install --ignore-workspace
+pnpm dev
 ```
 
 ### Resetting the MidenClientDB
@@ -934,5 +941,5 @@ The `SignerContextValue` interface requires:
 Now that you've built a React wallet, explore these related topics:
 
 - [Creating Multiple Notes in a Single Transaction](./creating_multiple_notes_tutorial.md) - Learn about batch operations
-- [Miden React SDK Reference](https://github.com/0xMiden/miden-client/tree/main/packages/react-sdk) - Full API documentation
+- [Miden React SDK Reference](https://github.com/0xMiden/web-sdk/tree/main/packages/react-sdk) - Full API documentation
 - [Miden Documentation](https://docs.miden.io/) - Core Miden concepts

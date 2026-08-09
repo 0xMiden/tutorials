@@ -571,7 +571,7 @@ rustflags = ["--cfg", "miden"]
 6. **TransactionScript-kind package** - Unlike an executable, the compiled tx-script is extracted with `build_tx_script_from_package`
 
 :::tip View Complete Source
-See the complete transaction script implementation in [contracts/init-tx-script/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/init-tx-script/src/lib.rs).
+See the complete transaction script implementation in [contracts/init-tx-script/src/lib.rs](https://github.com/0xMiden/tutorials/blob/main/examples/miden-bank/contracts/init-tx-script/src/lib.rs).
 :::
 
 ## Next Steps

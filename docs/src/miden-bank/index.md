@@ -185,11 +185,11 @@ This tutorial covers the following Miden Rust compiler features:
 
 ## Source Code
 
-The complete source code for this tutorial is available in the [examples/miden-bank](https://github.com/0xMiden/miden-tutorials/tree/main/examples/miden-bank) directory of this repository:
+The complete source code for this tutorial is available in the [examples/miden-bank](https://github.com/0xMiden/tutorials/tree/main/examples/miden-bank) directory of this repository:
 
 ```bash title=">_ Terminal"
-git clone https://github.com/0xMiden/miden-tutorials.git
-cd miden-tutorials/examples/miden-bank
+git clone https://github.com/0xMiden/tutorials.git
+cd tutorials/examples/miden-bank
 ```
 
 ## Supplementary Guides
@@ -206,6 +206,6 @@ If you get stuck during this tutorial:
 
 - Check the [Miden Docs](https://docs.miden.xyz) for detailed technical references
 - Join the [Build On Miden](https://t.me/BuildOnMiden) Telegram community for support
-- Review the complete code in the [examples/miden-bank](https://github.com/0xMiden/miden-tutorials/tree/main/examples/miden-bank) directory
+- Review the complete code in the [examples/miden-bank](https://github.com/0xMiden/tutorials/tree/main/examples/miden-bank) directory
 
 Ready to build your first Miden banking application? Let's get started with [Part 0: Project Setup](./00-project-setup.md)!

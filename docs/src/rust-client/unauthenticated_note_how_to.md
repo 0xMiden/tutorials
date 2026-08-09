@@ -474,7 +474,7 @@ By following this guide, you should now have a clear understanding of how to bui
 
 ### Running the example
 
-To run the unauthenticated note transfer example, navigate to the `rust-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run this command:
+To run the unauthenticated note transfer example, navigate to the `rust-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run this command:
 
 ```bash
 cd rust-client

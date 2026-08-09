@@ -564,7 +564,7 @@ Transaction 0xa003d298db5e7de263a8b98930b6e75336c3cca7cd4a090c707edb6a7f061ad5 n
 
 ### Running the example
 
-To run the full example, navigate to the `rust-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run this command:
+To run the full example, navigate to the `rust-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run this command:
 
 ```bash
 cd rust-client

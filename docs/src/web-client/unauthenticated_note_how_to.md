@@ -449,7 +449,7 @@ The Miden webclient stores account and note data in the browser. If you get erro
 
 ### Running the Full Example
 
-To run a full working example navigate to the `web-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run the web application example:
+To run a full working example navigate to the `web-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run the web application example:
 
 ```bash
 cd web-client

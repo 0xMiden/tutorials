@@ -598,7 +598,7 @@ The output will show the count reader contract being created, the counter contra
 
 ### Running the example
 
-To run the full example, navigate to the `rust-client` directory in the [miden-tutorials](https://github.com/0xMiden/miden-tutorials/) repository and run this command:
+To run the full example, navigate to the `rust-client` directory in the [tutorials](https://github.com/0xMiden/tutorials/) repository and run this command:
 
 ```bash
 cd rust-client
