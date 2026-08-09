@@ -154,6 +154,7 @@ export default function Home() {
 Create the library file and add the following code:
 
 ```bash
+cd src
 mkdir -p lib
 ```
 

@@ -118,6 +118,7 @@ export default function Home() {
 The MASM (Miden Assembly) code for our smart contracts lives in separate `.masm` files. Create a `lib/masm/` directory and add the two contract files:
 
 ```bash
+cd src
 mkdir -p lib/masm
 ```
 
@@ -234,6 +235,7 @@ webpack: (config, { isServer }) => {
 Create the file `lib/foreignProcedureInvocation.ts` and add the following code.
 
 ```bash
+cd src
 touch lib/foreignProcedureInvocation.ts
 ```
 

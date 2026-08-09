@@ -103,6 +103,7 @@ export default function Home() {
 The counter contract code lives in a separate `.masm` file. Create a `lib/masm/` directory and add the contract file:
 
 ```bash
+cd src
 mkdir -p lib/masm
 ```
 
@@ -183,6 +184,7 @@ webpack: (config, { isServer }) => {
 Create the file `lib/incrementCounterContract.ts`:
 
 ```bash
+cd src
 touch lib/incrementCounterContract.ts
 ```
 

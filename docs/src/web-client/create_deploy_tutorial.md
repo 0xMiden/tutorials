@@ -77,9 +77,10 @@ The Miden client is your gateway to interact with the Miden blockchain. It handl
 
 ### Create the library file
 
-First, we'll create a separate file for our blockchain logic. In the project root, create a folder `lib/` and inside it `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript):
+First, we'll create a separate file for our blockchain logic. Inside `src/`, create a folder `lib/` and inside it `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript):
 
 ```bash
+cd src
 mkdir -p lib
 ```
 

@@ -138,6 +138,7 @@ export default function Home() {
 Create `lib/react/multiSendWithDelegatedProver.tsx` (React) or `lib/multiSendWithDelegatedProver.ts` (TypeScript) and add the following code. This snippet initializes the Miden client.
 
 ```
+cd src
 mkdir -p lib
 ```
 
