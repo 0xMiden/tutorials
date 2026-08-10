@@ -238,7 +238,7 @@ The balance accessor is named `get_depositor_balance` rather than `get_balance` 
 :::info Contracts Are Excluded
 Contracts are excluded from the Cargo workspace and built independently by the Miden toolchain. Each contract carries its own `miden` guest dependency plus a `miden-project.toml`. Only the `integration` crate remains a workspace member.
 
-Because contracts are excluded, your IDE (rust-analyzer) may not provide completions or diagnostics for contract code. This is expected — contracts are built independently using `miden build`.
+Because contracts are excluded, your IDE (rust-analyzer) may not provide completions or diagnostics for contract code. This is expected — contracts are built independently using `miden build` with their project manifest.
 :::
 
 ## Step 4: Build and Verify
@@ -247,8 +247,10 @@ Let's verify everything compiles correctly:
 
 ```bash title=">_ Terminal"
 cd contracts/bank-account
-miden build --release
+miden build --release miden-project.toml
 ```
+
+Passing `miden-project.toml` explicitly avoids the `expected input file` error on toolchains where `miden build` invokes `midenc` directly.
 
 <details>
 <summary>Expected output</summary>
@@ -376,7 +378,7 @@ Your bank can be created, but doesn't do anything useful yet. In the next parts,
 1. **`miden new`** creates a complete project workspace with contracts and integration folders
 2. **Account components** are defined with a `#[component_storage]` struct plus a `#[component]` trait and impl
 3. **Storage slots** are declared with `#[storage(description = "...")]` attributes
-4. **`miden build`** compiles Rust to Miden Assembly (.masp package)
+4. **`miden build miden-project.toml`** compiles Rust to Miden Assembly (.masp package)
 5. **Tests verify** that your code works before moving on
 
 ## Next Steps
