@@ -30,9 +30,7 @@ Alice ➡ Wallet 1 ➡ Wallet 2 ➡ Wallet 3 ➡ Wallet 4 ➡ Wallet 5
 
 ## Prerequisites
 
-- Node `v20` or greater
-- Familiarity with TypeScript
-- `yarn`
+Complete the [Web Client Setup Guide](./setup_guide.md) before starting. It covers the Node.js version, package manager, SDK install, and Next.js configuration used by this tutorial.
 
 This tutorial assumes you have a basic understanding of Miden assembly. To quickly get up to speed with Miden assembly (MASM), please play around with running basic Miden assembly programs in the [Miden playground](https://0xmiden.github.io/examples/).
 
@@ -60,37 +58,7 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 
 ## Step 1: Initialize your Next.js project
 
-1. Create a new Next.js app with TypeScript:
-
-   ```bash
-   npx create-next-app@latest miden-web-app --typescript
-   ```
-
-   Hit enter for all terminal prompts.
-
-2. Change into the project directory:
-
-   ```bash
-   cd miden-web-app
-   ```
-
-3. Install the Miden SDK:
-
-<CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react @miden-sdk/miden-sdk@0.15.2` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.15.2` },
-}} reactFilename="" tsFilename="" />
-
-**NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
-
-`package.json`
-
-```json
-  "scripts": {
-    "dev": "next dev --webpack",
-    ...
-  }
-```
+Follow the [setup guide](./setup_guide.md#create-a-tutorial-project) to create the Next.js app and install the SDK. Once the project is ready, keep your terminal in the `miden-web-app` directory for the remaining steps.
 
 ## Step 2: Edit the `app/page.tsx` file
 
