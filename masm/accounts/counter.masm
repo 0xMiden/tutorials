@@ -5,8 +5,23 @@ use miden::core::sys
 
 const COUNTER_SLOT = word("miden::tutorials::counter")
 
-#! Inputs:  []
-#! Outputs: [count]
+#! Description
+#! Reads the current counter value from the active account storage.
+#!
+#! Inputs
+#! - None.
+#!
+#! Outputs
+#! - [count]: current counter value.
+#!
+#! Where
+#! - count is the felt stored in the counter slot.
+#!
+#! Panics if
+#! - The counter storage item cannot be read from the active account.
+#!
+#! Invocation
+#! - Called with `exec` by account procedures or transaction scripts that need the current count.
 pub proc get_count
     push.COUNTER_SLOT[0..2] exec.active_account::get_item
     # => [count]
@@ -15,8 +30,23 @@ pub proc get_count
     # => [count]
 end
 
-#! Inputs:  []
-#! Outputs: []
+#! Description
+#! Increments the active account's counter value by one.
+#!
+#! Inputs
+#! - None.
+#!
+#! Outputs
+#! - None.
+#!
+#! Where
+#! - count is the felt stored in the counter slot before the increment.
+#!
+#! Panics if
+#! - The counter storage item cannot be read or updated on the active account.
+#!
+#! Invocation
+#! - Called with `exec` by account procedures or transaction scripts that need to increment the count.
 pub proc increment_count
     push.COUNTER_SLOT[0..2] exec.active_account::get_item
     # => [count]
