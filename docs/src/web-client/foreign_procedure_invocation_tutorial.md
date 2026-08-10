@@ -33,43 +33,13 @@ The diagram above depicts the "count copy" smart contract using foreign procedur
 
 ## Prerequisites
 
-- Node `v20` or greater
-- Familiarity with TypeScript
-- `yarn`
+Complete the [Web Client Setup Guide](./setup_guide.md) before starting. It covers the Node.js version, package manager, SDK install, and Next.js configuration used by this tutorial.
 
 This tutorial assumes you have a basic understanding of Miden assembly and completed the previous tutorial on incrementing the counter contract. To quickly get up to speed with Miden assembly (MASM), please play around with running basic Miden assembly programs in the [Miden playground](https://0xmiden.github.io/examples/).
 
 ## Step 1: Initialize your Next.js project
 
-1. Create a new Next.js app with TypeScript:
-
-   ```bash
-   npx create-next-app@latest miden-fpi-app --typescript
-   ```
-
-   Hit enter for all terminal prompts.
-
-2. Change into the project directory:
-
-   ```bash
-   cd miden-fpi-app
-   ```
-
-3. Install the Miden SDK:
-   ```bash
-   yarn add @miden-sdk/miden-sdk@0.15.2
-   ```
-
-**NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
-
-`package.json`
-
-```json
-  "scripts": {
-    "dev": "next dev --webpack",
-    ...
-  }
-```
+Follow the [setup guide](./setup_guide.md#create-a-tutorial-project) to create the Next.js app and install the SDK. You can use `miden-fpi-app` as the project name if you want to keep this tutorial separate from the earlier ones.
 
 ## Step 2: Edit the `app/page.tsx` file
 

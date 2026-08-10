@@ -10,8 +10,18 @@ This guide covers the configuration required to use the Miden web SDK (`@miden-s
 ## Prerequisites
 
 - Node.js 20+ (Node 22+ requires an extra `localStorage` polyfill — see below)
-- Next.js 14+ with App Router
 - yarn or npm
+
+## Create a tutorial project
+
+Most Web Client tutorials use a Next.js application with TypeScript:
+
+```bash
+npx create-next-app@latest miden-web-app --typescript
+cd miden-web-app
+```
+
+Accept the default prompts unless the tutorial asks for a different project name or framework.
 
 ## Install the SDK
 
@@ -28,6 +38,8 @@ yarn add @miden-sdk/react
 These tutorials use Next.js, so all code examples import from the SDK's `/lazy` subpath — see [Entry points: eager vs lazy](#entry-points-eager-vs-lazy) below for why that's required.
 
 ## Next.js Configuration
+
+The Next.js tutorials assume Next.js 14+ with App Router.
 
 Create or update `next.config.ts` with these required settings:
 
@@ -63,6 +75,16 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+```
+
+Then update the development script in `package.json` to use webpack:
+
+```json
+{
+  "scripts": {
+    "dev": "next dev --webpack"
+  }
+}
 ```
 
 ### Importing `.masm` files (for smart contract tutorials)
