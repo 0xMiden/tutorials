@@ -9,11 +9,13 @@ Companion code for the **Building a Bank with Miden Rust** tutorial.
 Build all contracts:
 
 ```bash
-cd contracts/bank-account && miden build
-cd ../deposit-note && miden build
-cd ../withdraw-request-note && miden build
-cd ../init-tx-script && miden build
+cd contracts/bank-account && miden build miden-project.toml
+cd ../deposit-note && miden build miden-project.toml
+cd ../withdraw-request-note && miden build miden-project.toml
+cd ../init-tx-script && miden build miden-project.toml
 ```
+
+Passing the project manifest explicitly avoids the `expected input file` error on toolchains where `miden build` invokes `midenc` directly.
 
 Run integration tests:
 
