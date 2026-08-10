@@ -1,5 +1,19 @@
 use miden::protocol::native_account
 
+#! Description
+#! Authentication script that performs no credential checks and only advances the account nonce.
+#!
+#! Inputs
+#! - None.
+#!
+#! Outputs
+#! - None.
+#!
+#! Panics if
+#! - The native account nonce cannot be incremented.
+#!
+#! Invocation
+#! - Invoked by the transaction kernel as this account's authentication procedure.
 @auth_script
 pub proc auth__basic
     exec.native_account::incr_nonce drop
