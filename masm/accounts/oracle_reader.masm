@@ -7,9 +7,20 @@
 
 use miden::protocol::tx
 
-# Fetches the current price from the `get_median`
-# procedure from the Pragma oracle
-# => []
+#! Fetches the current BTC/USD median price from the Pragma oracle via FPI.
+#!
+#! Inputs: []
+#! Outputs: []
+#!
+#! Where:
+#! - median_price is returned by Pragma's `get_median` procedure before the
+#!   foreign-procedure result is discarded by this tutorial helper.
+#!
+#! Panics if:
+#! - the foreign Pragma account or `get_median` procedure cannot be resolved.
+#! - the foreign procedure execution fails.
+#!
+#! Invocation: exec
 pub proc get_price
     # `execute_foreign_procedure` requires exactly 16 foreign procedure inputs.
     # `get_median` only reads the first four, so the rest are zero padding.
