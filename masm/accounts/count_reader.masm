@@ -7,13 +7,32 @@ use miden::core::sys
 # The storage slot where the copied count is stored.
 const COUNT_READER_SLOT = word("miden::tutorials::count_reader")
 
-# => [account_id_suffix, account_id_prefix, PROC_HASH(4), foreign_procedure_inputs(16)]
+#! Description
+#! Executes a foreign procedure to read a counter value and stores the copied count in the active account.
+#!
+#! Inputs
+#! - [account_id_suffix, account_id_prefix, PROC_HASH, foreign_procedure_inputs]
+#!
+#! Outputs
+#! - None.
+#!
+#! Where
+#! - account_id_{prefix,suffix} identify the foreign account whose procedure is executed.
+#! - PROC_HASH is the digest of the foreign procedure to invoke.
+#! - foreign_procedure_inputs are the inputs forwarded to the foreign procedure.
+#! - count is the felt returned by the foreign counter procedure.
+#!
+#! Panics if
+#! - The foreign procedure cannot be executed or the active account storage item cannot be updated.
+#!
+#! Invocation
+#! - Called with `exec` by transaction scripts that copy a foreign counter value into the active account.
 pub proc copy_count
     exec.tx::execute_foreign_procedure
     # => [count, pad(12)]
 
     push.COUNT_READER_SLOT[0..2]
-    # [slot_id_prefix, slot_id_suffix, count, pad(12)]
+    # => [slot_id_prefix, slot_id_suffix, count, pad(12)]
 
     exec.native_account::set_item
     # => [OLD_VALUE, pad(12)]
