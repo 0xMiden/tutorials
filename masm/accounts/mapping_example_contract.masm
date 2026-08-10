@@ -5,14 +5,24 @@ use miden::core::sys
 
 const MAP_SLOT = word("miden::tutorials::mapping::map")
 
-# Inputs: [KEY, VALUE]
-# Outputs: []
+#! Description: Writes a key-value pair to the account storage map used by this example.
+#!
+#! Inputs:  [KEY, VALUE]
+#! Outputs: []
+#!
+#! Where:
+#! - KEY is the map key word.
+#! - VALUE is the map value word.
+#!
+#! Panics if:
+#! - the active account does not contain the expected map storage slot.
+#!
+#! Invocation: call.mapping_example_contract::write_to_map
 pub proc write_to_map
-    # The storage map is in the mapping slot.
+    # the storage map is in the mapping slot
     push.MAP_SLOT[0..2]
     # => [slot_id_prefix, slot_id_suffix, KEY, VALUE]
 
-    # Setting the key value pair in the map
     exec.native_account::set_map_item
     # => [OLD_VALUE]
 
@@ -20,10 +30,21 @@ pub proc write_to_map
     # => []
 end
 
-# Inputs: [KEY]
-# Outputs: [VALUE]
+#! Description: Reads a value from the account storage map used by this example.
+#!
+#! Inputs:  [KEY]
+#! Outputs: [VALUE]
+#!
+#! Where:
+#! - KEY is the map key word.
+#! - VALUE is the value currently stored for KEY.
+#!
+#! Panics if:
+#! - the active account does not contain the expected map storage slot.
+#!
+#! Invocation: call.mapping_example_contract::get_value_in_map
 pub proc get_value_in_map
-    # The storage map is in the mapping slot.
+    # the storage map is in the mapping slot
     push.MAP_SLOT[0..2]
     # => [slot_id_prefix, slot_id_suffix, KEY]
 
@@ -31,10 +52,20 @@ pub proc get_value_in_map
     # => [VALUE]
 end
 
-# Inputs: []
-# Outputs: [CURRENT_ROOT]
+#! Description: Returns the current root of the example storage map.
+#!
+#! Inputs:  []
+#! Outputs: [CURRENT_ROOT]
+#!
+#! Where:
+#! - CURRENT_ROOT is the map's current SMT root word.
+#!
+#! Panics if:
+#! - the active account does not contain the expected map storage slot.
+#!
+#! Invocation: call.mapping_example_contract::get_current_map_root
 pub proc get_current_map_root
-    # Getting the current root from the mapping slot.
+    # get the current root from the mapping slot
     push.MAP_SLOT[0..2] exec.active_account::get_item
     # => [CURRENT_ROOT]
 
