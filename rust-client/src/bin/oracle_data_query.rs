@@ -3,9 +3,7 @@ use miden_client::{
         component::AccountComponentMetadata, AccountBuilder, AccountComponent, AccountId,
         AccountType, StorageMapKey, StorageSlot, StorageSlotName,
     },
-    assembly::{
-        CodeBuilder, DefaultSourceManager, Module, ModuleKind, Path as AssemblyPath,
-    },
+    assembly::CodeBuilder,
     auth::NoAuth,
     builder::ClientBuilder,
     keystore::FilesystemKeyStore,
@@ -13,7 +11,7 @@ use miden_client::{
         domain::account::AccountStorageRequirements,
         Endpoint, GrpcClient,
     },
-    transaction::{ForeignAccount, TransactionKernel, TransactionRequestBuilder},
+    transaction::{ForeignAccount, TransactionRequestBuilder},
     Client, ClientError, Felt, Word, ZERO,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -93,21 +91,6 @@ pub async fn get_oracle_foreign_accounts(
     client.sync_state().await?;
 
     Ok(foreign_accounts)
-}
-
-fn create_library(
-    library_path: &str,
-    source_code: &str,
-) -> Result<Arc<miden_client::assembly::Library>, Box<dyn std::error::Error>> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let assembler = TransactionKernel::assembler_with_source_manager(source_manager.clone());
-    let module = Module::parser(ModuleKind::Library).parse_str(
-        AssemblyPath::new(library_path),
-        source_code,
-        source_manager,
-    )?;
-    let library = assembler.assemble_library([module])?;
-    Ok(library)
 }
 
 #[tokio::main]
@@ -203,13 +186,9 @@ async fn main() -> Result<(), ClientError> {
     let script_path = Path::new("../masm/scripts/oracle_reader_script.masm");
     let script_code = fs::read_to_string(script_path).unwrap();
 
-    let library_path = "external_contract::oracle_reader";
-    let account_component_lib =
-        create_library(library_path, &contract_code).unwrap();
-
     let tx_script = client
         .code_builder()
-        .with_dynamically_linked_library(&account_component_lib)
+        .with_linked_module("external_contract::oracle_reader", &contract_code)
         .unwrap()
         .compile_tx_script(&script_code)
         .unwrap();
