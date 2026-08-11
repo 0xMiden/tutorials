@@ -11,37 +11,40 @@ const EXPECTED_DIGEST_PTR=0
 
 const ERROR_DIGEST_MISMATCH="Expected digest does not match computed digest"
 
-#! Inputs (arguments):  [HASH_PREIMAGE_SECRET]
+#! Description:
+#!   Consumes the note only when the provided preimage hashes to the digest stored in the note.
+#!
+#! Inputs: [HASH_PREIMAGE_SECRET]
 #! Outputs: []
 #!
-#! Note storage is assumed to be as follows:
-#!  => EXPECTED_DIGEST
+#! Where:
+#!   HASH_PREIMAGE_SECRET is the secret word supplied as the note argument.
+#!   Note storage contains EXPECTED_DIGEST, the digest the secret must hash to.
+#!
+#! Panics if:
+#!   The computed digest does not match EXPECTED_DIGEST.
+#!
+#! Invocation:
+#!   Executed as the note script when consuming a hash-preimage note.
 @note_script
 pub proc main
-    # => HASH_PREIMAGE_SECRET
-    # Hashing the secret number
+    # => [HASH_PREIMAGE_SECRET]
+    # hash the secret word
     hash
     # => [DIGEST]
 
-    # Writing the note storage to memory.
-    # get_storage leaves only [num_storage_items], so drop a single element
-    # here, not two, to keep the computed DIGEST intact.
+    # write note storage to memory; get_storage leaves num_storage_items on the stack
     push.EXPECTED_DIGEST_PTR exec.active_note::get_storage drop
 
-    # Pad stack and load expected digest from memory (LE: mem[addr] ends up on top)
+    # load the expected digest from memory
     padw push.EXPECTED_DIGEST_PTR mem_loadw_le
     # => [EXPECTED_DIGEST, DIGEST]
 
-    # Assert that the note input matches the digest
-    # Will fail if the two hashes do not match
+    # require the supplied secret to match the stored digest
     assert_eqw.err=ERROR_DIGEST_MISMATCH
     # => []
 
-    # ---------------------------------------------------------------------------------------------
-    # If the check is successful, we allow for the asset to be consumed
-    # ---------------------------------------------------------------------------------------------
-
-    # Add all assets from the note to the account
+    # add all note assets to the executing account
     exec.wallet::add_assets_to_account
     # => []
 end
