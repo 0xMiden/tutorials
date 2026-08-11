@@ -91,6 +91,9 @@ trait Bank {
 
     /// Deposit an asset into the bank for a specific depositor.
     ///
+    /// Named `bank_deposit` (not `deposit`) to avoid colliding with the built-in
+    /// `BasicWallet::deposit` method when FPI bindings are generated.
+    ///
     /// The asset is added to the bank's vault and the depositor's
     /// balance is updated in the mapping.
     ///
@@ -103,7 +106,7 @@ trait Bank {
     /// Panics if the deposit amount exceeds `MAX_DEPOSIT_AMOUNT`.
     /// Panics if the resulting balance would exceed `MAX_BALANCE` (u64 overflow).
     /// Panics if the bank has not been initialized.
-    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
+    fn bank_deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
 
     /// Withdraw assets back to the depositor.
     ///
@@ -130,64 +133,48 @@ trait Bank {
 #[component]
 impl Bank for BankStorage {
     fn initialize(&mut self) {
-        // Check not already initialized
         let current: Word = self.initialized.get();
         assert!(
             current[0].as_canonical_u64() == 0,
             "Bank already initialized"
         );
 
-        // Set initialized flag to 1
         let initialized_word = Word::from([felt!(1), felt!(0), felt!(0), felt!(0)]);
         self.initialized.set(initialized_word);
     }
 
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt {
-        // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3], // faucet_prefix
-            asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+            asset.key[3],
+            asset.key[2],
         ]);
         self.balances.get(key)
     }
 
-    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
-        // Ensure the bank is initialized before accepting deposits
+    fn bank_deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         self.require_initialized();
 
-        // Verify this is a fungible asset.
-        // For fungible assets, value = [amount, 0, 0, 0]; value[1] is always 0.
-        // Non-fungible assets encode payload data into value[1..3], so any non-zero
-        // cell there means this branch can't safely treat the asset as a fungible amount.
         assert!(
             deposit_asset.value[1].as_canonical_u64() == 0,
             "Only fungible assets are supported"
         );
 
-        // Extract the fungible amount from the asset value word
-        // Asset value layout for fungible: [amount, 0, 0, 0]
         let deposit_amount = deposit_asset.value[0];
 
-        // Validate deposit amount does not exceed maximum
         assert!(
             deposit_amount.as_canonical_u64() <= MAX_DEPOSIT_AMOUNT,
             "Deposit amount exceeds maximum allowed"
         );
 
-        // Create key from depositor's AccountId and asset faucet ID.
-        // This allows tracking balances per depositor per asset type.
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            deposit_asset.key[3], // faucet_prefix
-            deposit_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+            deposit_asset.key[3],
+            deposit_asset.key[2],
         ]);
 
-        // Update balance in integer space to avoid modular Felt wraparound.
-        // Felt arithmetic is modular (wraps at the Goldilocks prime), so we
-        // validate entirely in u64 before storing the result as a Felt.
         let current_balance: Felt = self.balances.get(key);
         let current_u64 = current_balance.as_canonical_u64();
         let deposit_u64 = deposit_amount.as_canonical_u64();
@@ -201,8 +188,6 @@ impl Bank for BankStorage {
         );
 
         self.balances.set(key, Felt::new(new_balance_u64).unwrap());
-
-        // Add asset to the bank's vault
         native_account::add_asset(deposit_asset);
     }
 
@@ -213,66 +198,41 @@ impl Bank for BankStorage {
         tag: Felt,
         note_type: Felt,
     ) {
-        // Ensure the bank is initialized before processing withdrawals
         self.require_initialized();
 
-        // Identify the depositor from the note's sender — this is cryptographically
-        // bound to the note metadata, so it cannot be spoofed by a malicious caller.
         let depositor = active_note::get_sender();
 
-        // Verify this is a fungible asset — see `deposit()` for the rationale.
         assert!(
             withdraw_asset.value[1].as_canonical_u64() == 0,
             "Only fungible assets are supported"
         );
 
-        // Extract the fungible amount from the asset value word
         let withdraw_amount = withdraw_asset.value[0];
 
-        // Create key from depositor's AccountId and asset faucet ID
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            withdraw_asset.key[3], // faucet_prefix
-            withdraw_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+            withdraw_asset.key[3],
+            withdraw_asset.key[2],
         ]);
 
-        // Get current balance and validate sufficient funds exist.
-        // This check is critical: Felt arithmetic is modular, so subtracting
-        // more than the balance would silently wrap to a large positive number.
         let current_balance: Felt = self.balances.get(key);
         assert!(
             current_balance.as_canonical_u64() >= withdraw_amount.as_canonical_u64(),
             "Withdrawal amount exceeds available balance"
         );
 
-        // Update balance: current - withdraw_amount
         let new_balance = current_balance - withdraw_amount;
         self.balances.set(key, new_balance);
 
-        // Read the P2ID script root from the withdraw-request note's storage (items 10-13).
-        // This avoids hardcoding a version-specific MAST root constant and keeps the
-        // withdraw function parameter count within the WIT flat-params limit (<= 16).
         let storage = active_note::get_storage();
         let script_root = Word::from([storage[10], storage[11], storage[12], storage[13]]);
 
-        // Create a P2ID note to send the requested asset back to the depositor
         self.create_p2id_note(serial_num, &withdraw_asset, depositor, tag, note_type, script_root);
     }
 }
 
-/// Internal helpers that are not part of the component's exported WIT API.
-///
-/// The `#[component]` macro exports only the methods of the `Bank` trait, so these
-/// inherent methods stay private to the contract.
 impl BankStorage {
-    /// Check that the bank is initialized.
-    ///
-    /// This internal function is called at the start of operations that require
-    /// the bank to be initialized (e.g., deposits).
-    ///
-    /// # Panics
-    /// Panics if the bank has not been initialized.
     fn require_initialized(&self) {
         let current: Word = self.initialized.get();
         assert!(
@@ -281,15 +241,6 @@ impl BankStorage {
         );
     }
 
-    /// Create a P2ID (Pay-to-ID) note to send assets to a recipient.
-    ///
-    /// # Arguments
-    /// * `serial_num` - Unique serial number for the note
-    /// * `asset` - The asset to include in the note
-    /// * `recipient_id` - The AccountId that can consume this note
-    /// * `tag` - The note tag (passed by caller to allow proper P2ID routing)
-    /// * `note_type` - Note type as Felt: 1 = Public, 2 = Private
-    /// * `script_root` - The P2ID note script MAST root (Poseidon2-hashed)
     fn create_p2id_note(
         &mut self,
         serial_num: Word,
@@ -299,21 +250,9 @@ impl BankStorage {
         note_type: Felt,
         script_root: Word,
     ) {
-        // Convert the passed tag Felt to a Tag
-        // The caller is responsible for computing the proper P2ID tag
-        // (typically with_account_target for the recipient)
         let tag = Tag::from(tag);
-
-        // Convert note_type Felt to NoteType
-        // 1 = Public (stored on-chain), 2 = Private (off-chain)
         let note_type = NoteType::from(note_type);
 
-        // Compute the recipient hash from:
-        // - serial_num: unique identifier for this note instance
-        // - script_root: the P2ID note script's MAST root
-        // - the target account ID [suffix, prefix]
-        //
-        // This matches the standard P2ID recipient format used by miden-standards.
         let recipient = note::build_recipient(
             serial_num,
             script_root,
@@ -323,13 +262,8 @@ impl BankStorage {
             ],
         );
 
-        // Create the output note
         let note_idx = output_note::create(tag, note_type, recipient);
-
-        // Remove the asset from the bank's vault
         native_account::remove_asset(*asset);
-
-        // Add the asset to the output note
         output_note::add_asset(*asset, note_idx);
     }
 }
