@@ -240,11 +240,11 @@ The bank requires initialization before accepting deposits: `require_initialized
 
 ### Exported vs Internal Methods
 
-- **Trait methods** (declared in the `#[component] trait`) are exposed in the generated WIT interface and can be called by other contracts
+- **Trait methods** (declared in the `#[component] trait`) are exposed in the generated WIT interface and can be called by other components
 - **Inherent helpers** (in the plain `impl BankStorage`) are internal and cannot be called from the outside
 
 ```rust
-// Exported: Can be called by note scripts and other contracts
+// Exported: Can be called by note scripts and other components
 fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt { ... }
 
 // Internal helper, not exposed
@@ -497,7 +497,7 @@ impl BankStorage {
 2. **`StorageValue<Word>`** stores a single Word, read with `.get()`, write with `.set()`
 3. **`StorageMap<Word, Felt>`** stores key-value pairs, access with `.get()` and `.set()`
 4. **Storage slots** are identified by name (IDs derived from hashed slot names), each holds 4 Felts (32 bytes)
-5. **Trait methods** (declared in the `#[component] trait`) are callable by other contracts via generated bindings; private helpers live in a plain `impl` block
+5. **Trait methods** (declared in the `#[component] trait`) are callable by other components via generated bindings; private helpers live in a plain `impl` block
 
 :::tip View Complete Source
 See the complete bank account implementation in [contracts/bank-account/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/bank-account/src/lib.rs).
