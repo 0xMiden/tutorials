@@ -28,7 +28,7 @@ Part 3:                          Part 4:
 ┌──────────────────┐             ┌──────────────────┐
 │ Bank (complete)  │             │ Bank (complete)  │
 │ ─────────────────│             │ ─────────────────│
-│ + deposit()      │             │ + deposit()      │
+│ + bank_deposit() │             │ + bank_deposit() │
 │ + withdraw()     │             │ + withdraw()     │
 └──────────────────┘             └──────────────────┘
                                           ▲
@@ -154,14 +154,14 @@ impl DepositNote {
 
         // Deposit each asset into the bank
         for asset in assets {
-            account.deposit(depositor, asset);
+            account.bank_deposit(depositor, asset);
         }
     }
 }
 ```
 
 :::info Cross-Component Calls
-The `#[account(bank_account::Bank)] pub struct Wallet;` declaration and the `account.deposit(...)` call use Miden's cross-component binding system. The `#[account(...)]` macro wraps the consuming account so the note can call the bank's `Bank` methods directly. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). For now, just know that building `bank-account` first generates the WIT files that `deposit-note` binds against.
+The `#[account(bank_account::Bank)] pub struct Wallet;` declaration and the `account.bank_deposit(...)` call use Miden's cross-component binding system. The `#[account(...)]` macro wraps the consuming account so the note can call the bank's `Bank` methods directly. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). For now, just know that building `bank-account` first generates the WIT files that `deposit-note` binds against.
 :::
 
 ### The #[note] and #[note_script] Attributes
@@ -258,9 +258,9 @@ The Miden compiler prints non-fatal `ERROR` lines about `MAST` serialization on 
 3. Note script runs
    depositor = get_sender()  → User's AccountId
    assets = get_assets()     → [100 tokens]
-   account.deposit(depositor, 100 tokens)
+   account.bank_deposit(depositor, 100 tokens)
 
-4. Bank's deposit() method executes
+4. Bank's bank_deposit() method executes
    - Validates initialization and amount
    - Updates balance: balances[User] += 100
    - Adds asset to vault
@@ -546,7 +546,7 @@ impl DepositNote {
 
         // Deposit each asset into the bank
         for asset in assets {
-            account.deposit(depositor, asset);
+            account.bank_deposit(depositor, asset);
         }
     }
 }
@@ -557,7 +557,7 @@ impl DepositNote {
 ## Key Takeaways
 
 1. **`#[note]`** marks the struct and impl block, with **`#[note_script]`** on the entry point method `fn run(self, _arg: Word, account: &mut Wallet)`
-2. **`#[account(bank_account::Bank)] pub struct Wallet;`** wraps the consuming account so the note can call the bank's methods via `account.deposit(...)`
+2. **`#[account(bank_account::Bank)] pub struct Wallet;`** wraps the consuming account so the note can call the bank's methods via `account.bank_deposit(...)`
 3. **`active_note::get_sender()`** returns who created the note
 4. **`active_note::get_assets()`** returns assets attached to the note
 5. **`active_note::get_storage()`** returns parameterized data
