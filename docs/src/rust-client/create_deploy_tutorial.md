@@ -7,6 +7,8 @@ sidebar_position: 2
 
 _Using the Miden client in Rust to create accounts and deploy faucets_
 
+**[View the complete runnable example on GitHub](https://github.com/0xMiden/tutorials/blob/main/rust-client/src/bin/create_mint_consume_send.rs)**
+
 ## Overview
 
 In this tutorial, we will create a Miden account for _Alice_ and deploy a fungible faucet. In the next section, we will mint tokens from the faucet to fund her account and transfer tokens from Alice's account to other Miden accounts.
