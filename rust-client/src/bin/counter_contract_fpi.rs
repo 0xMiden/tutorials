@@ -120,34 +120,14 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     println!("\n[STEP 3] Call counter contract with FPI from count reader contract");
 
+    // Link the local counter module so the MASM script can resolve
+    // `procref.counter_contract::get_count` directly.
     let counter_contract_code = include_str!("../../../masm/accounts/counter.masm");
 
-    // Compile the counter as a component (same path as the deploy binary) to get
-    // the correct procedure root that matches the on-chain MAST.
-    let counter_component_code = client
-        .code_builder()
-        .compile_component_code("external_contract::counter_contract", counter_contract_code)
-        .unwrap();
-    let counter_component = AccountComponent::new(
-        counter_component_code,
-        vec![],
-        AccountComponentMetadata::new("external_contract::counter_contract"),
-    )
-    .unwrap();
-
-    let get_count_root = counter_component
-        .component_code()
-        .as_library()
-        .get_procedure_root_by_path("external_contract::counter_contract::get_count")
-        .expect("get_count export not found");
-    let get_count_hash = format!("{}", get_count_root);
-
-    println!("get_count hash: {:?}", get_count_hash);
     println!("counter id prefix: {:?}", counter_contract_id.prefix());
     println!("counter id suffix: {:?}", counter_contract_id.suffix());
 
     let script_code = include_str!("../../../masm/scripts/reader_script.masm")
-        .replace("{get_count_proc_hash}", &get_count_hash)
         .replace(
             "{account_id_suffix}",
             &counter_contract_id.suffix().as_canonical_u64().to_string(),
@@ -157,11 +137,14 @@ async fn main() -> Result<(), ClientError> {
             &u64::from(counter_contract_id.prefix()).to_string(),
         );
 
-    // Link the count reader contract code into the same `CodeBuilder` chain
-    // that compiles the script.
+    // Link both modules into the same `CodeBuilder` chain that compiles the
+    // script. This lets MASM resolve the `procref` without formatting a
+    // procedure digest into the source string at runtime.
     let tx_script = client
         .code_builder()
         .with_linked_module("external_contract::count_reader_contract", count_reader_code)
+        .unwrap()
+        .with_linked_module("external_contract::counter_contract", counter_contract_code)
         .unwrap()
         .compile_tx_script(script_code.as_str())
         .unwrap();
