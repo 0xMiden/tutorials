@@ -1,6 +1,5 @@
 use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
-use tokio::time::{sleep, Duration};
 
 use miden_client::{
     account::{
@@ -18,12 +17,12 @@ use miden_client::{
     keystore::{FilesystemKeyStore, Keystore},
     note::{Note, NoteAssets, NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata},
     rpc::{Endpoint, GrpcClient},
-    store::TransactionFilter,
-    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
+    transaction::TransactionRequestBuilder,
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_protocol::Hasher;
+use rust_client::wait_for_tx;
 
 // Helper to create a basic account
 async fn create_basic_account(
@@ -86,38 +85,6 @@ async fn create_basic_faucet(
     keystore.add_key(&key_pair, account.id()).await.unwrap();
 
     Ok(account)
-}
-
-/// Waits for a specific transaction to be committed.
-async fn wait_for_tx(
-    client: &mut Client<FilesystemKeyStore>,
-    tx_id: TransactionId,
-) -> Result<(), ClientError> {
-    loop {
-        client.sync_state().await?;
-
-        // Check transaction status
-        let txs = client
-            .get_transactions(TransactionFilter::Ids(vec![tx_id]))
-            .await?;
-        let tx_committed = if !txs.is_empty() {
-            matches!(txs[0].status, TransactionStatus::Committed { .. })
-        } else {
-            false
-        };
-
-        if tx_committed {
-            println!("✅ transaction {} committed", tx_id.to_hex());
-            break;
-        }
-
-        println!(
-            "Transaction {} not yet committed. Waiting...",
-            tx_id.to_hex()
-        );
-        sleep(Duration::from_secs(2)).await;
-    }
-    Ok(())
 }
 
 #[tokio::main]
