@@ -7,6 +7,8 @@ sidebar_position: 5
 
 _Using the Miden client in Rust to interact with public smart contracts on Miden_
 
+**[View the complete runnable example on GitHub](https://github.com/0xMiden/tutorials/blob/main/rust-client/src/bin/counter_contract_increment.rs)**
+
 ## Overview
 
 In the previous tutorial, we built a simple counter contract and deployed it to the Miden testnet. However, we only covered how the contract’s deployer could interact with it. Now, let’s explore how anyone can interact with a public smart contract on Miden.
