@@ -16,7 +16,7 @@ By the end of this section, you will have:
 - Used `assert!()` for transaction validation
 - Learned safe Felt comparison with `.as_canonical_u64()`
 - Added a deposit method skeleton with validation
-- **Verified constraints work** by testing that invalid operations fail
+- **Verified the constraint setup compiles** and the bank starts from the expected storage state
 
 ## Building on Part 1
 
@@ -260,7 +260,7 @@ miden build
 The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. These are cosmetic — the build still succeeds and emits the `.masp` package.
 :::
 
-## Optional: Verify Constraints Work
+## Optional: Verify Constraint Setup
 
 :::note
 This is an optional self-check. If you create this test file, you can run it to verify the contract compiles with the constraint logic. The main runnable tests begin in Part 4.
