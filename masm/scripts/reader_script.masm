@@ -1,18 +1,19 @@
 use external_contract::count_reader_contract
+use external_contract::counter_contract
 use miden::core::sys
 
 begin
     padw padw padw padw
     # => [pad(16)]
 
-    push.{get_count_proc_hash}
-    # => [GET_COUNT_HASH, pad(16)]
+    procref.counter_contract::get_count
+    # => [GET_COUNT_ROOT, pad(16)]
 
     push.{account_id_prefix}
-    # => [account_id_prefix, GET_COUNT_HASH, pad(16)]
+    # => [account_id_prefix, GET_COUNT_ROOT, pad(16)]
 
     push.{account_id_suffix}
-    # => [account_id_suffix, account_id_prefix, GET_COUNT_HASH, pad(16)]
+    # => [account_id_suffix, account_id_prefix, GET_COUNT_ROOT, pad(16)]
 
     call.count_reader_contract::copy_count
     # => []
