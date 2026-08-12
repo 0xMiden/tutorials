@@ -7,6 +7,8 @@ sidebar_position: 12
 
 _Using delegated proving to minimize transaction proving times on computationally constrained devices_
 
+**[View the complete runnable example on GitHub](https://github.com/0xMiden/tutorials/blob/main/rust-client/src/bin/delegated_prover.rs)**
+
 ## Overview
 
 In this tutorial we will cover how to use delegated proving with the Miden Rust client to minimize the time it takes to generate a valid transaction proof. In the code below, we will create an account, mint tokens from a faucet, then send the tokens to another account using delegated proving.

@@ -7,6 +7,8 @@ sidebar_position: 10
 
 _Using mappings in Miden assembly for storing key value pairs_
 
+[View the complete runnable Rust example](https://github.com/0xMiden/tutorials/blob/main/rust-client/src/bin/mapping_example.rs)
+
 ## Overview
 
 In this example, we will explore how to use mappings in Miden Assembly. Mappings are essential data structures that store key-value pairs. We will demonstrate how to create an account that contains a mapping and then call a procedure in that account to update the mapping.
