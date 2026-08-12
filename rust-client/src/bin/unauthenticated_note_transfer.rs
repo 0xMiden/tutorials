@@ -1,6 +1,6 @@
 use rand::RngCore;
 use std::{path::PathBuf, sync::Arc};
-use tokio::time::{sleep, Duration, Instant};
+use tokio::time::{Duration, Instant};
 
 use miden_client::{
     account::{
@@ -17,44 +17,12 @@ use miden_client::{
     keystore::{FilesystemKeyStore, Keystore},
     note::{Note, NoteAttachments, NoteType, P2idNote},
     rpc::{Endpoint, GrpcClient},
-    store::TransactionFilter,
-    transaction::{TransactionId, TransactionRequestBuilder, TransactionStatus},
+    transaction::TransactionRequestBuilder,
     utils::{Deserializable, Serializable},
-    Client, ClientError,
+    ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-
-/// Waits for a specific transaction to be committed.
-async fn wait_for_tx(
-    client: &mut Client<FilesystemKeyStore>,
-    tx_id: TransactionId,
-) -> Result<(), ClientError> {
-    loop {
-        client.sync_state().await?;
-
-        // Check transaction status
-        let txs = client
-            .get_transactions(TransactionFilter::Ids(vec![tx_id]))
-            .await?;
-        let tx_committed = if !txs.is_empty() {
-            matches!(txs[0].status, TransactionStatus::Committed { .. })
-        } else {
-            false
-        };
-
-        if tx_committed {
-            println!("✅ transaction {} committed", tx_id.to_hex());
-            break;
-        }
-
-        println!(
-            "Transaction {} not yet committed. Waiting...",
-            tx_id.to_hex()
-        );
-        sleep(Duration::from_secs(2)).await;
-    }
-    Ok(())
-}
+use rust_client::wait_for_tx;
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
