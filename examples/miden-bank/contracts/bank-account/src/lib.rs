@@ -91,6 +91,9 @@ trait Bank {
 
     /// Deposit an asset into the bank for a specific depositor.
     ///
+    /// Named `bank_deposit` to avoid colliding with the built-in wallet `deposit`
+    /// method when FPI bindings are generated.
+    ///
     /// The asset is added to the bank's vault and the depositor's
     /// balance is updated in the mapping.
     ///
@@ -103,7 +106,7 @@ trait Bank {
     /// Panics if the deposit amount exceeds `MAX_DEPOSIT_AMOUNT`.
     /// Panics if the resulting balance would exceed `MAX_BALANCE` (u64 overflow).
     /// Panics if the bank has not been initialized.
-    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
+    fn bank_deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
 
     /// Withdraw assets back to the depositor.
     ///
@@ -153,7 +156,7 @@ impl Bank for BankStorage {
         self.balances.get(key)
     }
 
-    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
+    fn bank_deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         // Ensure the bank is initialized before accepting deposits
         self.require_initialized();
 
@@ -220,7 +223,7 @@ impl Bank for BankStorage {
         // bound to the note metadata, so it cannot be spoofed by a malicious caller.
         let depositor = active_note::get_sender();
 
-        // Verify this is a fungible asset — see `deposit()` for the rationale.
+        // Verify this is a fungible asset — see `bank_deposit()` for the rationale.
         assert!(
             withdraw_asset.value[1].as_canonical_u64() == 0,
             "Only fungible assets are supported"

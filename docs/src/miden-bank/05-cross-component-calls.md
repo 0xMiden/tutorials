@@ -19,7 +19,7 @@ By the end of this section, you will have:
 
 ## Building on Part 4
 
-In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. But how does that call actually work? This part explains the binding system:
+In Part 4, you wrote `account.bank_deposit(depositor, asset)` in the deposit note. But how does that call actually work? This part explains the binding system:
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -28,7 +28,7 @@ In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. Bu
 │                                                            │
 │   bank-account/                                            │
 │   └── src/lib.rs         miden build                       │
-│       fn deposit()      ─────────────▶  generated-wit/     │
+│       fn bank_deposit() ─────────────▶  generated-wit/     │
 │       fn withdraw()                      miden-bank-account.wit
 │                                                            │
 │                              ┌───────────────────────────┐ │
@@ -37,7 +37,7 @@ In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. Bu
 │   └── src/lib.rs                                         │ │
 │       #[account(bank_account::Bank)]                     │ │
 │       pub struct Wallet;                                 │ │
-│       account.deposit(...)  ────────────▶ calls via binding│
+│       account.bank_deposit(...) ─────────▶ calls via binding│
 │                                                            │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -90,7 +90,7 @@ For our bank:
 - `bank_account` - The package name (derived from `bank-account` with underscores)
 - `Bank` - The component trait whose methods are exposed on the wrapper
 
-The macro reads the bank account's generated WIT and generates a `Wallet` type whose methods (`deposit`, `withdraw`, `initialize`, `get_depositor_balance`) call into the bank component across the component boundary.
+The macro reads the bank account's generated WIT and generates a `Wallet` type whose methods (`bank_deposit`, `withdraw`, `initialize`, `get_depositor_balance`) call into the bank component across the component boundary.
 
 ## Calling Account Methods
 
@@ -112,7 +112,7 @@ impl DepositNote {
 
         // Deposit each asset into the bank
         for asset in assets {
-            account.deposit(depositor, asset);
+            account.bank_deposit(depositor, asset);
         }
     }
 }
@@ -191,7 +191,7 @@ trait Bank {
     // EXPORTED: Available through bindings
     fn initialize(&mut self);
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
-    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
+    fn bank_deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
     fn withdraw(&mut self, withdraw_asset: Asset, serial_num: Word, tag: Felt, note_type: Felt);
 }
 ```
@@ -221,7 +221,7 @@ interface bank-account {
 
     initialize: func();
     get-depositor-balance: func(depositor: account-id, asset: asset) -> felt;
-    deposit: func(depositor: account-id, deposit-asset: asset);
+    bank-deposit: func(depositor: account-id, deposit-asset: asset);
     withdraw: func(withdraw-asset: asset, serial-num: word, tag: felt, note-type: felt);
 }
 ```
@@ -265,7 +265,7 @@ miden-bank-account.wit
 
 </details>
 
-These files enable the deposit note's `#[account(bank_account::Bank)]` wrapper to call `account.deposit()`.
+These files enable the deposit note's `#[account(bank_account::Bank)]` wrapper to call `account.bank_deposit()`.
 
 ## Common Issues
 
@@ -285,7 +285,7 @@ error: cannot find module `bindings`
 ### "Method not found" Error
 
 ```
-error: no method named `deposit` found
+error: no method named `bank_deposit` found
 ```
 
 **Cause**: The method isn't declared on the `#[component] trait Bank`. Only trait methods are exported through bindings.
