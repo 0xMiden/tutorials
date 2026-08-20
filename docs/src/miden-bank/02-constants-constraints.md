@@ -511,4 +511,4 @@ See the complete constraint implementation in [contracts/bank-account/src/lib.rs
 
 ## Next Steps
 
-Now that you can define and enforce business rules, let's learn how to handle assets in [Part 3: Asset Management](./asset-management).
+Now that you can define and enforce business rules, let's learn how to handle assets in [Part 3: Asset Management](./03-asset-management.md).

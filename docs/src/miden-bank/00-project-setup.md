@@ -381,4 +381,4 @@ Your bank can be created, but doesn't do anything useful yet. In the next parts,
 
 ## Next Steps
 
-Now that your project is set up, let's dive deeper into account components and storage in [Part 1: Account Components and Storage](./account-components).
+Now that your project is set up, let's dive deeper into account components and storage in [Part 1: Account Components and Storage](./01-account-components.md).

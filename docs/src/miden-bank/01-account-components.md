@@ -505,4 +505,4 @@ See the complete bank account implementation in [contracts/bank-account/src/lib.
 
 ## Next Steps
 
-Now that you understand account components and storage, let's learn how to define business rules with [Part 2: Constants and Constraints](./constants-constraints).
+Now that you understand account components and storage, let's learn how to define business rules with [Part 2: Constants and Constraints](./02-constants-constraints.md).

@@ -757,4 +757,4 @@ See the complete deposit and withdraw implementations in [contracts/bank-account
 
 ## Next Steps
 
-Now that you understand asset management, let's learn how to trigger these operations with [Part 4: Note Scripts](./note-scripts).
+Now that you understand asset management, let's learn how to trigger these operations with [Part 4: Note Scripts](./04-note-scripts.md).
