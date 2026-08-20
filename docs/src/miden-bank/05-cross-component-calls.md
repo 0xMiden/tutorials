@@ -319,4 +319,4 @@ See the complete `miden-project.toml` configurations:
 
 ## Next Steps
 
-Now that you understand cross-component calls, let's create the transaction script that initializes the bank in [Part 6: Transaction Scripts](./transaction-scripts).
+Now that you understand cross-component calls, let's create the transaction script that initializes the bank in [Part 6: Transaction Scripts](./06-transaction-scripts.md).

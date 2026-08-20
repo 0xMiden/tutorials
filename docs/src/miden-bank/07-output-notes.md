@@ -827,4 +827,4 @@ See the complete implementation in the [examples/miden-bank](https://github.com/
 
 ## Next Steps
 
-Now that you've built all the components, let's see how they work together in [Part 8: Complete Flows](./complete-flows).
+Now that you've built all the components, let's see how they work together in [Part 8: Complete Flows](./08-complete-flows.md).

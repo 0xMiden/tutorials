@@ -161,7 +161,7 @@ impl DepositNote {
 ```
 
 :::info Cross-Component Calls
-The `#[account(bank_account::Bank)] pub struct Wallet;` declaration and the `account.deposit(...)` call use Miden's cross-component binding system. The `#[account(...)]` macro wraps the consuming account so the note can call the bank's `Bank` methods directly. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). For now, just know that building `bank-account` first generates the WIT files that `deposit-note` binds against.
+The `#[account(bank_account::Bank)] pub struct Wallet;` declaration and the `account.deposit(...)` call use Miden's cross-component binding system. The `#[account(...)]` macro wraps the consuming account so the note can call the bank's `Bank` methods directly. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./05-cross-component-calls.md). For now, just know that building `bank-account` first generates the WIT files that `deposit-note` binds against.
 :::
 
 ### The #[note] and #[note_script] Attributes
@@ -573,4 +573,4 @@ See the complete note script implementations:
 
 ## Next Steps
 
-Now that you understand note scripts, let's learn how they call account methods in [Part 5: Cross-Component Calls](./cross-component-calls).
+Now that you understand note scripts, let's learn how they call account methods in [Part 5: Cross-Component Calls](./05-cross-component-calls.md).
