@@ -19,7 +19,7 @@ By the end of this section, you will have:
 
 ## Building on Part 4
 
-In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. But how does that call actually work? This part explains the binding system:
+In Part 4, you wrote `account.bank_deposit(depositor, asset)` in the deposit note. But how does that call actually work? This part explains the binding system:
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -28,7 +28,7 @@ In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. Bu
 │                                                            │
 │   bank-account/                                            │
 │   └── src/lib.rs         miden build                       │
-│       fn deposit()      ─────────────▶  generated-wit/     │
+│       fn bank_deposit()      ─────────────▶  generated-wit/     │
 │       fn withdraw()                      miden-bank-account.wit
 │                                                            │
 │                              ┌───────────────────────────┐ │
@@ -37,7 +37,7 @@ In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. Bu
 │   └── src/lib.rs                                         │ │
 │       #[account(bank_account::Bank)]                     │ │
 │       pub struct Wallet;                                 │ │
-│       account.deposit(...)  ────────────▶ calls via binding│
+│       account.bank_deposit(...)  ────────────▶ calls via binding│
 │                                                            │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -112,7 +112,7 @@ impl DepositNote {
 
         // Deposit each asset into the bank
         for asset in assets {
-            account.deposit(depositor, asset);
+            account.bank_deposit(depositor, asset);
         }
     }
 }
@@ -265,7 +265,7 @@ miden-bank-account.wit
 
 </details>
 
-These files enable the deposit note's `#[account(bank_account::Bank)]` wrapper to call `account.deposit()`.
+These files enable the deposit note's `#[account(bank_account::Bank)]` wrapper to call `account.bank_deposit()`.
 
 ## Common Issues
 

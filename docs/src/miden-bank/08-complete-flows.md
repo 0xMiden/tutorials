@@ -28,9 +28,9 @@ You've built all the pieces. Now let's see them work together:
 │                                                                 │
 │   Components Built:                                             │
 │   ┌─────────────────────────────────────────────────────────┐  │
-│   │ bank-account    │ Storage + deposit() + withdraw()       │  │
+│   │ bank-account    │ Storage + bank_deposit() + withdraw()       │  │
 │   ├─────────────────┼───────────────────────────────────────┤  │
-│   │ deposit-note    │ Note script → bank_account::deposit()  │  │
+│   │ deposit-note    │ Note script → bank_account::bank_deposit()  │  │
 │   ├─────────────────┼───────────────────────────────────────┤  │
 │   │ withdraw-note   │ Note script → bank_account::withdraw() │  │
 │   ├─────────────────┼───────────────────────────────────────┤  │

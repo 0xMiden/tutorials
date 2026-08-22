@@ -93,7 +93,7 @@ impl Bank for BankStorage {
         // bound to the note metadata, so it cannot be spoofed by a malicious caller.
         let depositor = active_note::get_sender();
 
-        // Verify this is a fungible asset — see `deposit()` for the rationale.
+        // Verify this is a fungible asset — see `bank_deposit()` for the rationale.
         assert!(
             withdraw_asset.value[1].as_canonical_u64() == 0,
             "Only fungible assets are supported"
@@ -131,7 +131,7 @@ impl Bank for BankStorage {
 }
 ```
 
-The withdraw method derives the balance-map key inline by packing `depositor.prefix`, `depositor.suffix`, `withdraw_asset.key[3]`, and `withdraw_asset.key[2]` into a `Word`. In the v0.15 fungible-asset vault-key layout, `asset.key[3]` is the faucet id prefix and `asset.key[2]` is the faucet id suffix with the asset's metadata byte folded into its low 8 bits — so `key[2]` is NOT the raw faucet suffix. `withdraw()` and `deposit()` derive the key the same way so a withdrawal reconstructs the exact key the deposit was recorded under.
+The withdraw method derives the balance-map key inline by packing `depositor.prefix`, `depositor.suffix`, `withdraw_asset.key[3]`, and `withdraw_asset.key[2]` into a `Word`. In the v0.15 fungible-asset vault-key layout, `asset.key[3]` is the faucet id prefix and `asset.key[2]` is the faucet id suffix with the asset's metadata byte folded into its low 8 bits — so `key[2]` is NOT the raw faucet suffix. `withdraw()` and `bank_deposit()` derive the key the same way so a withdrawal reconstructs the exact key the deposit was recorded under.
 
 :::danger Critical Security: Balance Validation
 Always validate `current_balance >= withdraw_amount` BEFORE subtraction. Miden uses modular field arithmetic - subtracting a larger value silently wraps to a massive positive number!

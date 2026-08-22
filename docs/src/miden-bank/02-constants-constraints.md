@@ -29,7 +29,7 @@ Part 1:                          Part 2:
 │ ────────────────────────│ ──►  │ ────────────────────────│
 │ + initialize()          │      │ + initialize()          │
 │ + get_depositor_balance()│     │ + get_depositor_balance()│
-│                         │      │ + deposit()             │ ◄── NEW (skeleton)
+│                         │      │ + bank_deposit()        │ ◄── NEW (skeleton)
 │                         │      │ + MAX_DEPOSIT_AMOUNT    │ ◄── NEW constant
 │                         │      │ + MAX_BALANCE           │ ◄── NEW constant
 └─────────────────────────┘      └─────────────────────────┘

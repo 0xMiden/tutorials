@@ -28,7 +28,7 @@ Part 3:                          Part 4:
 ┌──────────────────┐             ┌──────────────────┐
 │ Bank (complete)  │             │ Bank (complete)  │
 │ ─────────────────│             │ ─────────────────│
-│ + deposit()      │             │ + deposit()      │
+│ + bank_deposit() │             │ + bank_deposit() │
 │ + withdraw()     │             │ + withdraw()     │
 └──────────────────┘             └──────────────────┘
                                           ▲
@@ -258,9 +258,9 @@ The Miden compiler prints non-fatal `ERROR` lines about `MAST` serialization on 
 3. Note script runs
    depositor = get_sender()  → User's AccountId
    assets = get_assets()     → [100 tokens]
-   account.deposit(depositor, 100 tokens)
+   account.bank_deposit(depositor, 100 tokens)
 
-4. Bank's deposit() method executes
+4. Bank's bank_deposit() method executes
    - Validates initialization and amount
    - Updates balance: balances[User] += 100
    - Adds asset to vault

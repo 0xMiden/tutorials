@@ -27,7 +27,7 @@ Part 2:                          Part 3:
 ┌──────────────────┐             ┌──────────────────┐
 │ Bank             │             │ Bank             │
 │ ─────────────────│    ──►      │ ─────────────────│
-│ + deposit()      │             │ + deposit()      │ ◄── COMPLETE
+│ + bank_deposit() │             │ + bank_deposit() │ ◄── COMPLETE
 │   (skeleton)     │             │   + balance tracking
 │                  │             │   + vault operations
 │                  │             │ + withdraw()     │ ◄── NEW (skeleton)
