@@ -18,7 +18,7 @@ pub struct Wallet;
 /// 1. Note is created by a user with fungible assets attached
 /// 2. Bank account consumes this note
 /// 3. Note script reads the sender (depositor) and assets
-/// 4. For each asset, calls `account.deposit(depositor, asset)`
+/// 4. For each asset, calls `account.bank_deposit(depositor, asset)`
 /// 5. Bank receives the asset and updates the depositor's balance
 ///
 /// # Note Inputs
@@ -38,7 +38,7 @@ impl DepositNote {
 
         // Deposit each asset into the bank
         for asset in assets {
-            account.deposit(depositor, asset);
+            account.bank_deposit(depositor, asset);
         }
     }
 }
