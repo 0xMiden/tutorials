@@ -103,7 +103,7 @@ trait Bank {
     /// Panics if the deposit amount exceeds `MAX_DEPOSIT_AMOUNT`.
     /// Panics if the resulting balance would exceed `MAX_BALANCE` (u64 overflow).
     /// Panics if the bank has not been initialized.
-    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
+    fn bank_deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
 
     /// Withdraw assets back to the depositor.
     ///
@@ -153,7 +153,7 @@ impl Bank for BankStorage {
         self.balances.get(key)
     }
 
-    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
+    fn bank_deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
         // Ensure the bank is initialized before accepting deposits
         self.require_initialized();
 
