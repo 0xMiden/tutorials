@@ -33,7 +33,7 @@ In Parts 4-5, you created note scripts that execute when notes are consumed. Now
 │   • Process incoming assets         • Setup, admin operations   │
 │                                                                 │
 │   deposit-note/                     init-tx-script/             │
-│   └── calls bank_account::deposit() └── calls account.initialize()
+│   └── calls bank_account::bank_deposit() └── calls account.initialize()
 │                                                                 │
 └────────────────────────────────────────────────────────────────┘
 ```
