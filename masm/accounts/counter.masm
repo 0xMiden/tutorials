@@ -6,27 +6,27 @@ use miden::core::sys
 const COUNTER_SLOT = word("miden::tutorials::counter")
 
 #! Inputs:  []
-#! Outputs: [count]
+#! Outputs: [COUNT]
 pub proc get_count
     push.COUNTER_SLOT[0..2] exec.active_account::get_item
-    # => [count]
+    # => [COUNT]
 
     exec.sys::truncate_stack
-    # => [count]
+    # => [COUNT]
 end
 
 #! Inputs:  []
-#! Outputs: []
+#! Outputs: [OLD_COUNT]
 pub proc increment_count
     push.COUNTER_SLOT[0..2] exec.active_account::get_item
-    # => [count]
+    # => [COUNT]
 
     add.1
-    # => [count+1]
+    # => [COUNT+1]
 
     push.COUNTER_SLOT[0..2] exec.native_account::set_item
-    # => []
+    # => [OLD_COUNT]
 
     exec.sys::truncate_stack
-    # => []
+    # => [OLD_COUNT]
 end
