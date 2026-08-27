@@ -1,11 +1,14 @@
 [package]
-name = "rust-client"
+name = "miden-tutorials-rust-client"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 miden-client = { version = "0.15", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "0.15", package = "miden-client-sqlite-store" }
+miden-client-sqlite-store = { version = "0.15" }
 miden-protocol = { version = "0.15" }
 rand = { version = "0.9" }
 tokio = { version = "1.48", features = ["rt-multi-thread", "net", "macros", "fs"] }
+
+[patch.crates-io]
+miden-core-lib = { git = "https://github.com/0xMiden/miden-vm", tag = "v0.11.0" }
