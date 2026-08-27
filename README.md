@@ -1,17 +1,22 @@
-# miden-tutorials
+# Miden Tutorials & Quickstart Guides
 
-The goal of this repository is to provide clear and practical examples for interacting with the **Miden Rollup**. These examples are designed to ensure a smooth onboarding experience for developers exploring Miden's capabilities.
+Welcome to the Miden Tutorials repository! This repository contains quickstart examples, smart contract execution flows, and guides to help developers build zero-knowledge applications on the **Polygon Miden** platform.
 
-This repository is organized into several parts:
+---
 
-1. **docs**, contains the README files for the tutorials and guides.
-2. **examples**, contains complete example projects (e.g., the Miden Bank built with the Rust compiler).
-3. **masm**, contains the Miden assembly notes, accounts, and scripts used in the examples.
-4. **rust-client**, contains examples for interacting with the Miden Rollup using **Rust**.
-5. **web-client**, contains examples for interacting with the Miden Rollup in the browser.
+## 🚀 Prerequisites
 
-## Documentation
+Before running the examples, ensure you have installed the following toolchain dependencies:
 
-The documentation (tutorials) in the `docs` folder is built using Docusaurus and is automatically absorbed into the main [miden-docs](https://github.com/0xMiden/miden-docs) repository for the main documentation website. Changes to the `next` branch trigger an automated deployment workflow. The docs folder requires npm packages to be installed before building.
+- **Rust** (latest stable version): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Miden Client / CLI**: Follow the installation guide in the [Miden Client Repository](https://github.com/0xMiden/miden-client).
+- **Cargo-make** (optional, for automation): `cargo install cargo-make`
 
-The documentation folder is also a standalone Rust repository. The purpose of this is to be able to run `cargo doc test`, to test the Rust code inside of the tutorial markdowns.
+---
+
+## 🛠️ Getting Started
+
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/0xMiden/miden-tutorials.git](https://github.com/0xMiden/miden-tutorials.git)
+   cd miden-tutorials
