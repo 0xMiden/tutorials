@@ -29,6 +29,7 @@ RUST_EXAMPLES=(
   hash_preimage_note
   mapping_example
   network_notes_counter_contract
+  nft_mint_transfer
   note_creation_in_masm
   oracle_data_query
   unauthenticated_note_transfer
