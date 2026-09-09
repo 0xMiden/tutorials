@@ -1,5 +1,6 @@
 #![doc = include_str!("rust-client/create_deploy_tutorial.md")]
 #![doc = include_str!("rust-client/mint_consume_create_tutorial.md")]
+#![doc = include_str!("rust-client/nft_mint_transfer.md")]
 #![doc = include_str!("rust-client/counter_contract_tutorial.md")]
 #![doc = include_str!("rust-client/custom_note_how_to.md")]
 #![doc = include_str!("rust-client/foreign_procedure_invocation_tutorial.md")]
