@@ -266,7 +266,6 @@ This compiles the Rust code to Miden Assembly and generates:
 - `target/miden/dev/bank-account.masp` - The compiled package
 - The package embeds the WIT interface used by dependent contracts
 
-
 ## Optional: Verify Your Code
 
 :::note

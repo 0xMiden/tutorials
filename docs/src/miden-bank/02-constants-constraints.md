@@ -271,7 +271,6 @@ cd contracts/bank-account
 miden build
 ```
 
-
 ## Optional: Verify Constraints Work
 
 :::note
