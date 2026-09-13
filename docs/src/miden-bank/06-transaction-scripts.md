@@ -8,6 +8,8 @@ description: "Learn how to write transaction scripts for account initialization 
 
 In this section, you'll learn how to write transaction scripts - code that the account owner explicitly executes. We'll implement an initialization script that enables the bank to accept deposits.
 
+The companion testnet example uses `AuthSingleSig` with Falcon512Poseidon2 and saves the bank owner's key in its keystore. This authentication component enforces ownership. The `NoAuth` component in our MockChain test helper is only for isolated tests and must not be used to deploy the bank to a live network.
+
 ## What You'll Build in This Part
 
 By the end of this section, you will have:
@@ -22,30 +24,32 @@ By the end of this section, you will have:
 In Parts 4-5, you created note scripts that execute when notes are consumed. Now you'll create a transaction script - code the account owner explicitly runs:
 
 ```text
-┌────────────────────────────────────────────────────────────────┐
-│                 Script Types Comparison                         │
-├────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Note Scripts (Parts 4-5)          Transaction Scripts (Part 6)│
-│   ─────────────────────────         ────────────────────────────│
-│   • Triggered by note consumption   • Explicitly called by owner│
-│   • Import bindings via modules     • Receive account parameter │
-│   • Process incoming assets         • Setup, admin operations   │
-│                                                                 │
-│   deposit-note/                     init-tx-script/             │
-│   └── calls bank_account::deposit() └── calls account.initialize()
-│                                                                 │
-└────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Script Types Comparison                         │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│ Note Scripts (Parts 4-5)          Transaction Scripts (Part 6)         │
+│ ──────────────────────────────    ──────────────────────────────       │
+│ Triggered by note consumption     Attached to a transaction            │
+│ Receive account: &mut Wallet      Receive account: &mut Wallet         │
+│ Read active_note:: context        Run setup / owner operations         │
+│ Process incoming assets           Authorized by account auth           │
+│                                                                        │
+│ deposit-note/                     init-tx-script/                      │
+│ └── account.deposit(...)          └── account.initialize()             │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Transaction Scripts vs Note Scripts
 
-| Aspect     | Transaction Script                 | Note Script                      |
-| ---------- | ---------------------------------- | -------------------------------- |
-| Initiation | Explicitly called by account owner | Triggered when note is consumed  |
-| Access     | Direct account method access       | Must call through bindings       |
-| Use case   | Setup, owner operations            | Receiving messages/assets        |
-| Parameter  | `account: &mut Wallet`             | Note context via `active_note::` |
+| Aspect     | Transaction Script           | Note Script                        |
+| ---------- | ---------------------------- | ---------------------------------- |
+| Initiation | Selected for the transaction | Triggered when note is consumed    |
+| Access     | Account wrapper bindings     | Account wrapper bindings           |
+| Use case   | Setup, owner operations      | Receiving messages/assets          |
+| Parameter  | `account: &mut Wallet`       | `account: &mut Wallet`             |
+| Context    | Active account               | Active account and `active_note::` |
 
 **Use transaction scripts for:**
 
@@ -83,7 +87,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "0.13"
+miden = "=0.14.0"
 ```
 
 Create the `miden-project.toml`:
@@ -95,6 +99,7 @@ version = "0.1.0"
 
 [lib]
 kind = "tx-script"
+path = "src/lib.rs"
 namespace = "miden:base/transaction-script@1.0.0"
 
 [dependencies]
@@ -102,8 +107,6 @@ miden-core = "*"
 miden-protocol = "*"
 bank-account = { path = "../bank-account" }
 
-[package.metadata.miden.dependencies]
-bank-account = { wit = "../bank-account/target/generated-wit/" }
 ```
 
 Create the `.cargo/config.toml`:
@@ -120,7 +123,7 @@ Key configuration:
 
 - `kind = "tx-script"` - Marks this as a transaction script (not `account-component` or `note`)
 - `namespace = "miden:base/transaction-script@1.0.0"` - The standard transaction-script namespace
-- The `bank-account` path dependency plus the `[package.metadata.miden.dependencies]` WIT entry let the script call into the account component (same pattern as the note scripts)
+- The `bank-account` path dependency lets the script call the account component through the interface embedded in its compiled package
 
 ## Step 3: Implement the Transaction Script
 
@@ -146,7 +149,7 @@ pub struct Wallet;
 /// 1. Transaction is created with this script attached
 /// 2. Script executes in the context of the bank account
 /// 3. Calls `account.initialize()` to enable deposits
-/// 4. Bank account is now "deployed" and visible on chain
+/// 4. Bank is ready to process deposits after the transaction commits
 ///
 /// # Arguments
 /// * `_arg` - Transaction script argument (unused in this script)
@@ -191,14 +194,16 @@ The `Wallet` type is generated by the `#[account(...)]` attribute and provides a
 
 ## The Native Account Binding
 
-Both note scripts and transaction scripts bind the native account with `#[account(bank_account::Bank)]` and call its methods directly on the `&mut Wallet` parameter. The difference is the trigger and the available context:
+Both note scripts and transaction scripts bind the native account with `#[account(bank_account::Bank)]` and call its methods directly on the `&mut Wallet` parameter. The entrypoints below belong in separate note-script and transaction-script contracts; the note method goes inside an `impl` marked `#[note]`. The difference is the trigger and the available context:
 
 ```rust
 // Note script: triggered by note consumption, has access to note context.
 #[note_script]
 fn run(self, _arg: Word, account: &mut Wallet) {
     let depositor = active_note::get_sender();  // note context
-    account.deposit(depositor, asset);          // native-account method
+    for asset in active_note::get_initial_assets() {
+        account.deposit(depositor, asset);      // native-account method
+    }
 }
 
 // Transaction script: explicitly run by the owner, no note context.
@@ -216,16 +221,14 @@ The `Wallet` wrapper provides:
 
 ## Step 4: Build the Transaction Script
 
-Build in dependency order. The transaction script calls into the bank account via the FPI `#[account(...)]` macro, which reads the account's procedure roots from its compiled `.masp` at build time, so the `bank-account` component must be built first:
+Compiler 0.10 resolves and builds the `bank-account` path dependency automatically. The `#[account(...)]` macro reads the interface and procedure roots from the compiled dependency to generate the script's account bindings.
+
+From the project root, build the transaction script directly:
 
 ```bash title=">_ Terminal"
-# First, build the account component (generates WIT files and its .masp)
-cd contracts/bank-account
-cargo miden build --release
-
-# Then build the transaction script
-cd ../init-tx-script
-cargo miden build --release
+cd contracts/init-tx-script
+miden build --release
+cd ../..
 ```
 
 <details>
@@ -238,48 +241,44 @@ cargo miden build --release
 
 </details>
 
-:::note Cosmetic build errors
-The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
-:::
-
 ## Account Deployment Pattern
 
-In Miden, accounts are only visible on-chain after their first state change. Transaction scripts are commonly used for this "deployment":
+A public account becomes visible on-chain when its first transaction commits. The bank's `initialized` flag is separate from deployment: it controls whether the bank's deposit and withdrawal methods can run.
+
+The live example first consumes a funding note to obtain native tokens for fees. That transaction deploys the account while the bank is still uninitialized. The owner then submits the initialization script:
 
 ```text
-Execution Flow:
-
-1. Account owner creates transaction with init-tx-script
-   ┌───────────────────────────────────────┐
-   │ Transaction                           │
-   │  Account: Bank's AccountId            │
-   │  Script: init-tx-script               │
-   └───────────────────────────────────────┘
-
-2. Transaction executes
-   ┌───────────────────────────────────────┐
-   │ run(_arg, account)                    │
-   │  └─ account.initialize()              │
-   │       └─ Sets initialized flag to 1   │
-   └───────────────────────────────────────┘
-
-3. Account state updated
-   ┌───────────────────────────────────────┐
-   │ Bank Account                          │
-   │  Storage[0] = [1, 0, 0, 0]  ← Initialized
-   │  Now visible on-chain                 │
-   └───────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                          Initialization Flow                           │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│ 1. OWNER SIGNS THE INITIALIZATION TRANSACTION                          │
+│    ┌────────────────────────────────────────────┐                      │
+│    │ Account: Bank's AccountId                  │                      │
+│    │ Script: init-tx-script                     │                      │
+│    │ AuthSingleSig verifies the owner signature │                      │
+│    └────────────────────────────────────────────┘                      │
+│             │                                                          │
+│             ▼                                                          │
+│ 2. TRANSACTION SCRIPT EXECUTES                                         │
+│    ┌────────────────────────────────────────┐                          │
+│    │ run(_arg, account)                     │                          │
+│    │ └── account.initialize()               │                          │
+│    │     └── Sets the initialized flag to 1 │                          │
+│    └────────────────────────────────────────┘                          │
+│             │                                                          │
+│             ▼                                                          │
+│ 3. TRANSACTION COMMITS                                                 │
+│    ┌──────────────────────────────────────────────────────────┐        │
+│    │ bank_account::bank::initialized = [1, 0, 0, 0]           │        │
+│    │ Bank can now process deposits and withdrawals            │        │
+│    │ Funding already deployed the account in the live example │        │
+│    └──────────────────────────────────────────────────────────┘        │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-Before initialization:
-
-- Account exists locally but isn't visible on the network
-- Cannot receive notes or interact with other accounts
-
-After initialization:
-
-- Account is "deployed" and visible
-- Can receive deposits and interact normally
+Before initialization, other accounts can already create notes addressed to the bank, but its deposit and withdrawal methods reject them. After initialization, those methods can process the notes. A funding P2ID is handled by `BasicWallet` and does not credit any depositor's ledger balance.
 
 ## Using Script Arguments
 
@@ -288,18 +287,17 @@ The `_arg` parameter can pass data to the script:
 ```rust title="Example: Parameterized script"
 #[tx_script]
 fn run(arg: Word, account: &mut Wallet) {
-    // Use arg as configuration
-    let config_value = arg[0];
-    account.configure(config_value);
+    assert!(arg[0].as_canonical_u64() == 42, "Expected initialization argument");
+    account.initialize();
 }
 ```
 
-When creating the transaction, provide the argument:
+When creating the transaction, pass the argument with `tx_script_args`:
 
 ```rust title="Integration code (not contract code)"
-let tx_script_args = Word::from([felt!(42), felt!(0), felt!(0), felt!(0)]);
+let tx_script_args = Word::from([42u32, 0, 0, 0]);
 let tx_context = mock_chain
-    .build_tx_context(bank_account.id(), &[], &[])?
+    .build_transaction(bank_account.id())
     .tx_script(init_tx_script)
     .tx_script_args(tx_script_args)  // Pass the argument
     .build()?;
@@ -317,7 +315,7 @@ use integration::helpers::{
 
 use miden_client::{
     account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
-    auth::AuthSchemeId,
+    auth::AuthScheme,
     Word,
 };
 use miden_testing::{Auth, MockChain};
@@ -372,7 +370,7 @@ async fn init_test() -> anyhow::Result<()> {
     let mut builder = MockChain::builder();
     builder.add_existing_basic_faucet(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         "TEST",
         10_000_000,
@@ -385,14 +383,14 @@ async fn init_test() -> anyhow::Result<()> {
     let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
+        .build_transaction(bank_account.id())
         .tx_script(init_tx_script)
         .build()?;
 
     let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
     mock_chain.add_pending_executed_transaction(&executed_init)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Verify initialized flag flipped to 1
     let after = bank_account.storage().get_item(&initialized_slot)?;
@@ -412,7 +410,7 @@ A few things to note in this test:
 
 - The slot name is `bank_account::bank::initialized` (the namespace is `bank_account`, not `miden_bank_account`).
 - The `initialized` value slot has **no schema default**, so it must be seeded via `InitStorageData` or `AccountComponent::from_package` errors with `InitValueNotProvided`. Only the `balances` map slot defaults to empty.
-- A `kind = "tx-script"` contract compiles to a `TransactionScript`-kind package, **not** an `Executable`. So `unwrap_program()` / `TransactionScript::from_package` do not apply — the `build_tx_script_from_package` helper locates the entry export and builds the script via `TransactionScript::from_parts`.
+- A `kind = "tx-script"` contract exposes its entry procedure with `#[transaction_script]`. The `build_tx_script_from_package` helper loads it with `TransactionScript::from_package`.
 
 ## Enable the Initialization Guard
 
@@ -435,7 +433,7 @@ With this change, deposits and withdrawals will fail unless the bank has been in
 
 ## Try It: Verify Initialization
 
-Run the companion init test to verify the transaction script correctly flips the initialized flag:
+From the project root, run the companion init test to verify the transaction script correctly flips the initialized flag:
 
 ```bash title=">_ Terminal"
 cargo test --package integration --test init_test -- --nocapture
@@ -466,13 +464,13 @@ Your actual output may include additional trace lines from the Miden VM or MockC
 :::
 
 :::tip Troubleshooting
-**"Cannot find module bindings"**: The bank-account wasn't built. Run `cargo miden build --release` in `contracts/bank-account` first — the FPI `#[account(...)]` macro reads its procedure roots from the compiled `.masp`.
+**Account binding errors**: Check that `#[account(bank_account::Bank)]` matches the dependency name and exported component trait. Declare the `bank-account` path under `[dependencies]` and remove legacy `wit` overrides. Rebuild the transaction script with `miden build --release`; the compiler builds its account dependency automatically.
 
-**"Dependency not found"**: Check that the `bank-account` path dependency and the `[package.metadata.miden.dependencies]` WIT entry are both present in `miden-project.toml` with correct paths.
+**"Dependency not found"**: Check that the `bank-account` path dependency in `miden-project.toml` points to the account project.
 :::
 
 :::note Live network bin
-The MockChain test above is the source of truth for verifying this flow. The live-network bin (`cargo run --bin initialize`) also runs against a testnet node.
+The MockChain test above is the source of truth for verifying this flow. The live-network bin (`cargo run --bin initialize`) also runs against a testnet node. It prints the new bank ID and waits while you request native tokens from the testnet faucet, then consumes the funding note and submits the signed initialization transaction.
 :::
 
 ## What We've Built So Far
@@ -509,7 +507,7 @@ pub struct Wallet;
 /// 1. Transaction is created with this script attached
 /// 2. Script executes in the context of the bank account
 /// 3. Calls `account.initialize()` to enable deposits
-/// 4. Bank account is now "deployed" and visible on chain
+/// 4. Bank is ready to process deposits after the transaction commits
 ///
 /// # Arguments
 /// * `_arg` - Transaction script argument (unused in this script)
@@ -530,7 +528,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "0.13"
+miden = "=0.14.0"
 ```
 
 ```toml title="contracts/init-tx-script/miden-project.toml"
@@ -540,6 +538,7 @@ version = "0.1.0"
 
 [lib]
 kind = "tx-script"
+path = "src/lib.rs"
 namespace = "miden:base/transaction-script@1.0.0"
 
 [dependencies]
@@ -547,8 +546,6 @@ miden-core = "*"
 miden-protocol = "*"
 bank-account = { path = "../bank-account" }
 
-[package.metadata.miden.dependencies]
-bank-account = { wit = "../bank-account/target/generated-wit/" }
 ```
 
 ```toml title="contracts/init-tx-script/.cargo/config.toml"
@@ -566,9 +563,9 @@ rustflags = ["--cfg", "miden"]
 1. **`#[tx_script]`** marks the entry point with signature `fn run(_arg: Word, account: &mut Wallet)`
 2. **`#[account(...)]`** binds a `Wallet` wrapper to the native account's component, enabling direct method calls
 3. **Direct account access** - Methods called on the `account` parameter, not via module imports
-4. **Owner-initiated** - Only the account owner can execute transaction scripts
+4. **Authorization** - The account's authentication component controls which transactions can update it; a transaction script alone does not enforce ownership
 5. **Deployment pattern** - First state change makes account visible on-chain
-6. **TransactionScript-kind package** - Unlike an executable, the compiled tx-script is extracted with `build_tx_script_from_package`
+6. **Loading a transaction script** - `build_tx_script_from_package` uses `TransactionScript::from_package` to load the compiled entry procedure
 
 :::tip View Complete Source
 See the complete transaction script implementation in [contracts/init-tx-script/src/lib.rs](https://github.com/0xMiden/miden-tutorials/blob/main/examples/miden-bank/contracts/init-tx-script/src/lib.rs).

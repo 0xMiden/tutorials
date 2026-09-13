@@ -9,7 +9,7 @@ This guide covers the configuration required to use the Miden web SDK (`@miden-s
 
 ## Prerequisites
 
-- Node.js 20+ (Node 22+ requires an extra `localStorage` polyfill — see below)
+- Node.js 20.9+ for the current Next.js template; see the `localStorage` compatibility workaround below if needed
 - Next.js 14+ with App Router
 - yarn or npm
 
@@ -29,7 +29,7 @@ These tutorials use Next.js, so all code examples import from the SDK's `/lazy` 
 
 ## Next.js Configuration
 
-Create or update `next.config.ts` with these required settings:
+Create or update `next.config.ts` with these required settings. With Next.js 16 or newer, use `next dev --webpack` and `next build --webpack` so this webpack callback runs. The repository’s Next.js 15 app uses webpack by default.
 
 ```ts
 import type { NextConfig } from 'next';
@@ -171,13 +171,13 @@ repository runner. `NEXT_PUBLIC_MIDEN_NETWORK` selects the network when running 
 
 ## Node.js 22+ `localStorage` polyfill
 
-If you run `next dev` under Node.js 22 or later, every page request will crash with:
+Some Node.js and Next.js combinations fail in the development overlay with:
 
 ```
 TypeError: localStorage.getItem is not a function
 ```
 
-This is a Node + Next.js interaction, not a Miden SDK issue. Node 22+ defines `globalThis.localStorage` as an object, but its methods (`getItem`, `setItem`, …) are undefined unless Node is launched with `--localstorage-file`. Next.js's dev overlay guards with `typeof localStorage !== 'undefined'`, which passes on Node 22+, and then calls the missing methods.
+The workaround below handles a server-side `localStorage` object that lacks the methods the development overlay expects. Apply it if you encounter this error; it is not a requirement for every Node.js 22+ installation.
 
 Add this polyfill at the top of `next.config.ts`, before the config object:
 
@@ -204,22 +204,23 @@ Add this polyfill at the top of `next.config.ts`, before the config object:
 }
 ```
 
-This only affects `next dev` (SSR); static exports via `next build` are unaffected. The polyfill is harmless on Node ≤21 — it installs an in-memory stub that the dev overlay uses just like Node 22+'s (broken) built-in.
+This fallback supplies in-memory storage to server-side tooling. It does not persist application data and does not replace the browser's storage.
 
 ## SDK API Patterns
 
 ### Transaction return types
 
-All transaction methods return an object, not a plain transaction ID:
+Transaction calls return an object containing the ID and result. In these fragments, `mintOptions` and `sendOptions` are the parameter objects built with your funded accounts and token, as shown in the mint-and-transfer tutorial:
 
 ```ts
 // mint and consume return { txId, result }
-const { txId } = await client.transactions.mint({ ... });
+const { txId: mintTxId, result: mintResult } =
+  await client.transactions.mint(mintOptions);
 
 // send returns { txId, note, result }
 // note is non-null when returnNote: true
-const { txId, note } = await client.transactions.send({
-  ...,
+const { txId: sendTxId, note } = await client.transactions.send({
+  ...sendOptions,
   returnNote: true,
 });
 ```
@@ -231,12 +232,12 @@ You can wait for a transaction to be committed in two ways:
 ```ts
 // Option 1: Pass waitForConfirmation in the transaction call
 await client.transactions.mint({
-  ...,
+  ...mintOptions,
   waitForConfirmation: true,
 });
 
 // Option 2: Wait separately using waitFor
-const { txId } = await client.transactions.mint({ ... });
+const { txId } = await client.transactions.mint(mintOptions);
 await client.transactions.waitFor(txId); // accepts TransactionId object or hex string
 ```
 
@@ -245,7 +246,7 @@ await client.transactions.waitFor(txId); // accepts TransactionId object or hex 
 When displaying transaction IDs in explorer links, call `.toHex()`:
 
 ```ts
-const { txId } = await client.transactions.mint({ ... });
+const { txId } = await client.transactions.mint(mintOptions);
 console.log(`https://testnet.midenscan.com/tx/${txId.toHex()}`);
 ```
 

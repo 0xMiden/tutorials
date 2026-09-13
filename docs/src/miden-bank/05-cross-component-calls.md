@@ -14,7 +14,7 @@ By the end of this section, you will have:
 
 - Understood how bindings are generated and imported
 - Learned the dependency configuration in `miden-project.toml`
-- Explored the WIT interface files
+- Explored the embedded WIT interface
 - **Verified cross-component calls work** via the deposit flow
 
 ## Building on Part 4
@@ -22,24 +22,32 @@ By the end of this section, you will have:
 In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. But how does that call actually work? This part explains the binding system:
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│                  How Bindings Work                         │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│   bank-account/                                            │
-│   └── src/lib.rs         miden build                       │
-│       fn deposit()      ─────────────▶  generated-wit/     │
-│       fn withdraw()                      miden-bank-account.wit
-│                                                            │
-│                              ┌───────────────────────────┐ │
-│                              ▼                           │ │
-│   deposit-note/                                          │ │
-│   └── src/lib.rs                                         │ │
-│       #[account(bank_account::Bank)]                     │ │
-│       pub struct Wallet;                                 │ │
-│       account.deposit(...)  ────────────▶ calls via binding│
-│                                                            │
-└────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                           How Bindings Work                            │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│ bank-account/                                                          │
+│ └── src/lib.rs                                                         │
+│     #[component] trait Bank                                            │
+│     ├── deposit(...)                                                   │
+│     └── withdraw(...)                                                  │
+│              │                                                         │
+│              │ miden build                                             │
+│              ▼                                                         │
+│    ┌────────────────────────────────────────────────┐                  │
+│    │ bank-account.masp                              │                  │
+│    │ Compiled code + embedded WIT + procedure roots │                  │
+│    └────────────────────────────────────────────────┘                  │
+│              │                                                         │
+│              │ Read the embedded interface during the note build       │
+│              ▼                                                         │
+│ deposit-note/                                                          │
+│ └── src/lib.rs                                                         │
+│     #[account(bank_account::Bank)]                                     │
+│     pub struct Wallet;                                                 │
+│     account.deposit(...) ──▶ generated binding ──▶ Bank::deposit       │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## The Bindings System
@@ -47,23 +55,26 @@ In Part 4, you wrote `account.deposit(depositor, asset)` in the deposit note. Bu
 When you build an account component with `miden build`, it generates:
 
 1. **MASM code** - The compiled contract logic
-2. **WIT files** - WebAssembly Interface Type definitions
+2. **Embedded WIT** - WebAssembly Interface Type definitions stored in the package
 
-Other contracts (note scripts, transaction scripts) import these WIT files to call the account's methods.
+Other contracts (note scripts, transaction scripts) read the package's embedded interface to call the account's methods.
 
 ```text
 Build Flow:
-┌──────────────────┐    miden build    ┌─────────────────────────────────┐
-│ bank-account/    │ ─────────────────▶│ target/generated-wit/           │
-│  src/lib.rs      │                   │  miden-bank-account.wit         │
-│                  │                   │  (includes world definition)    │
-└──────────────────┘                   └─────────────────────────────────┘
-                                                      │
-                                                      ▼
-                                       ┌─────────────────────────────────┐
-                                       │ deposit-note/                   │
-                                       │  imports generated bindings     │
-                                       └─────────────────────────────────┘
+
+┌────────────────────┐                 ┌───────────────────────────────────┐
+│ bank-account/      │   miden build   │ bank-account.masp                 │
+│   src/lib.rs       │ ──────────────▶ │ Code + embedded WIT               │
+│   Bank component   │                 │ Account procedure roots           │
+└────────────────────┘                 └───────────────────────────────────┘
+                                                         │
+                                                         ▼
+                                       ┌───────────────────────────────────┐
+                                       │ deposit-note/                     │
+                                       │ #[account(bank_account::Bank)]    │
+                                       │ Generated Wallet bindings         │
+                                       │ account.deposit(...)              │
+                                       └───────────────────────────────────┘
 ```
 
 ## Declaring the Account Wrapper
@@ -108,7 +119,7 @@ impl DepositNote {
         let depositor = active_note::get_sender();
 
         // Get all assets attached to this note
-        let assets = active_note::get_assets();
+        let assets = active_note::get_initial_assets();
 
         // Deposit each asset into the bank
         for asset in assets {
@@ -126,7 +137,7 @@ The binding automatically handles:
 
 ## Configuring Dependencies
 
-Cross-component calls are configured in the note's `miden-project.toml`, which needs **two** dependency entries:
+Cross-component calls are configured in the note's `miden-project.toml`, which declares the bank as a path dependency:
 
 ```toml title="contracts/deposit-note/miden-project.toml"
 [dependencies]
@@ -134,9 +145,6 @@ miden-core = "*"
 miden-protocol = "*"
 bank-account = { path = "../bank-account" }
 
-# WIT for the account component this note calls, produced by building bank-account.
-[package.metadata.miden.dependencies]
-bank-account = { wit = "../bank-account/target/generated-wit/" }
 ```
 
 ### `[dependencies]` path
@@ -151,22 +159,13 @@ This tells `cargo-miden` where to find the source package. Used during the build
 - Verify interface compatibility
 - Link the compiled MASM code
 
-### `[package.metadata.miden.dependencies]` WIT
+### Embedded Interface
 
-```toml
-[package.metadata.miden.dependencies]
-bank-account = { wit = "../bank-account/target/generated-wit/" }
-```
-
-This points at the WIT interface files for the account component this note calls. The path is the `generated-wit/` directory created when you built the account component.
-
-:::warning Both Entries Required
-If either entry is missing, your build will fail with linking or interface errors.
-:::
+Compiler 0.10 embeds the WIT interface in the compiled bank package. The path dependency provides both the interface and the procedure roots. Remove the legacy `[package.metadata.miden.dependencies]` `wit` override: supplying it alongside an embedded interface causes the compiler to reject the build.
 
 ## Build Order
 
-Components must be built in dependency order:
+From the project root, build the account first to inspect its output, then build the note:
 
 ```bash title=">_ Terminal"
 # 1. Build the account component first
@@ -176,9 +175,12 @@ miden build
 # 2. Then build note scripts that depend on it
 cd ../deposit-note
 miden build
+
+# 3. Return to the project root
+cd ../..
 ```
 
-If you build out of order, you'll see errors about missing WIT files.
+If you build a dependent contract directly, compiler 0.10 also builds its path dependencies.
 
 ## What Methods Are Available?
 
@@ -189,9 +191,13 @@ Only the methods declared on the `#[component] trait Bank` are exported through 
 #[component]
 trait Bank {
     // EXPORTED: Available through bindings
+    #[account_procedure]
     fn initialize(&mut self);
+    #[account_procedure]
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
+    #[account_procedure]
     fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
+    #[account_procedure]
     fn withdraw(&mut self, withdraw_asset: Asset, serial_num: Word, tag: Felt, note_type: Felt);
 }
 ```
@@ -213,16 +219,24 @@ The balance getter is named `get_depositor_balance` to avoid colliding with the 
 
 ## Understanding the Generated WIT
 
-The WIT files describe the interface. Here's a simplified example:
+The compiler embeds this WIT in the bank package. Its imported core types come from the SDK:
 
-```wit title="target/generated-wit/miden-bank-account.wit"
-interface bank-account {
-    use miden:types/types.{account-id, asset, felt, word};
+```wit title="Embedded bank interface"
+package miden:bank-account@0.1.0;
+
+use miden:base/core-types@1.0.0;
+
+interface bank {
+    use core-types.{account-id, asset, felt, word};
 
     initialize: func();
     get-depositor-balance: func(depositor: account-id, asset: asset) -> felt;
     deposit: func(depositor: account-id, deposit-asset: asset);
     withdraw: func(withdraw-asset: asset, serial-num: word, tag: felt, note-type: felt);
+}
+
+world bank-world {
+    export bank;
 }
 ```
 
@@ -249,23 +263,23 @@ The `Wallet` wrapper gives direct method access through the `account` parameter,
 
 ## Try It: Verify Bindings Work
 
-If you completed Part 4 and built both contracts, the bindings are already working! Let's verify:
+After running the builds above, check the bank package from the project root:
 
 ```bash title=">_ Terminal"
-# Check that the WIT files were generated
-ls contracts/bank-account/target/generated-wit/
+# Check the compiled package (its interface is embedded)
+ls contracts/bank-account/target/miden/dev/bank-account.masp
 ```
 
 <details>
 <summary>Expected output</summary>
 
 ```text
-miden-bank-account.wit
+contracts/bank-account/target/miden/dev/bank-account.masp
 ```
 
 </details>
 
-These files enable the deposit note's `#[account(bank_account::Bank)]` wrapper to call `account.deposit()`.
+The embedded interface enables the deposit note's `#[account(bank_account::Bank)]` wrapper to call `account.deposit()`.
 
 ## Common Issues
 
@@ -275,12 +289,12 @@ These files enable the deposit note's `#[account(bank_account::Bank)]` wrapper t
 error: cannot find module `bindings`
 ```
 
-**Cause**: The account component wasn't built, or the WIT path is wrong.
+**Cause**: The account path dependency is missing or points to the wrong project.
 
 **Solution**:
 
 1. Build the account: `cd contracts/bank-account && miden build`
-2. Verify the WIT path in `miden-project.toml` points to `target/generated-wit/`
+2. Verify the `bank-account` path dependency in `miden-project.toml` points to the account project; remove legacy `wit` overrides
 
 ### "Method not found" Error
 
@@ -300,12 +314,12 @@ error: dependency 'bank-account' not found
 
 **Cause**: One of the dependency entries in `miden-project.toml` is missing or has the wrong path.
 
-**Solution**: Ensure both `[dependencies]` (`bank-account = { path = "../bank-account" }`) and `[package.metadata.miden.dependencies]` (`bank-account = { wit = "../bank-account/target/generated-wit/" }`) are present with correct paths.
+**Solution**: Add `bank-account = { path = "../bank-account" }` under `[dependencies]` and remove the legacy `wit` override.
 
 ## Key Takeaways
 
-1. **Build accounts first** - They generate WIT files that note scripts need
-2. **Two dependency entries** - Both `[dependencies]` (`path`) and `[package.metadata.miden.dependencies]` (`wit`) in `miden-project.toml` are required
+1. **Declare the path dependency** - The compiler builds the account package and reads its embedded WIT
+2. **Embedded interface** - Declare the path under `[dependencies]`; compiler 0.10 reads the interface from the compiled dependency. Do not add the legacy `wit` override.
 3. **Account wrapper pattern** - `#[account(bank_account::Bank)] pub struct Wallet;` exposes the component's methods on the `account` parameter
 4. **Only trait methods** - Methods on the private `impl BankStorage` helpers aren't exposed in bindings
 5. **Note and tx scripts share the pattern** - Both receive the account wrapper as a parameter (Part 6)

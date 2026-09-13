@@ -4,8 +4,11 @@ use integration::helpers::{
 };
 
 use miden_client::{
-    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
-    auth::AuthSchemeId,
+    account::{
+        component::{InitStorageData, StorageValueName},
+        StorageSlotName,
+    },
+    auth::AuthScheme,
     Word,
 };
 use miden_testing::{Auth, MockChain};
@@ -33,8 +36,8 @@ async fn init_test() -> anyhow::Result<()> {
     // The `initialized` value slot has no schema default, so `AccountComponent::from_package`
     // requires it to be seeded (with a zero Word = uninitialized) or it errors with
     // `InitValueNotProvided`. The `balances` map slot defaults to empty.
-    let initialized_slot = StorageSlotName::new("bank_account::bank::initialized")
-        .expect("Valid slot name");
+    let initialized_slot =
+        StorageSlotName::new("bank_account::bank::initialized").expect("Valid slot name");
 
     let bank_cfg = AccountCreationConfig {
         init_storage_data: {
@@ -48,19 +51,25 @@ async fn init_test() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
+    let mut bank_account = create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Verify bank starts uninitialized
     let before = bank_account.storage().get_item(&initialized_slot)?;
-    assert_eq!(before[0].as_canonical_u64(), 0, "Bank should start uninitialized");
-    println!("Before init: initialized = {}", before[0].as_canonical_u64());
+    assert_eq!(
+        before[0].as_canonical_u64(),
+        0,
+        "Bank should start uninitialized"
+    );
+    println!(
+        "Before init: initialized = {}",
+        before[0].as_canonical_u64()
+    );
 
     // Build mock chain
     let mut builder = MockChain::builder();
     builder.add_existing_basic_faucet(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         "TEST",
         10_000_000,
@@ -73,14 +82,14 @@ async fn init_test() -> anyhow::Result<()> {
     let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
+        .build_transaction(bank_account.id())
         .tx_script(init_tx_script)
         .build()?;
 
     let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
     mock_chain.add_pending_executed_transaction(&executed_init)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Verify initialized flag flipped to 1
     let after = bank_account.storage().get_item(&initialized_slot)?;

@@ -18,13 +18,13 @@ as shown in the complete example.
 
 ## Overview
 
-In this tutorial, we will explore how to leverage unauthenticated notes on Miden to settle transactions faster than the blocktime using the Miden client. Unauthenticated notes are essentially UTXOs that have not yet been fully committed into a block. This feature allows the notes to be created and consumed within the same batch during [batch production](https://0xmiden.github.io/miden-docs/imported/miden-base/src/blockchain.html#batch-production).
+This tutorial passes newly created P2ID notes directly to the next consumer. An unauthenticated input contains the full note without an inclusion proof. The transaction kernel delegates verification of the note's existence to the protocol kernels, allowing the consumer transaction to execute before the producer transaction is confirmed. Final settlement still requires verification by the network.
 
-When using unauthenticated notes, both the creation and consumption of notes can happen within the same batch, enabling faster-than-blocktime settlement. This is particularly powerful for applications requiring high-frequency transactions or optimistic settlement patterns.
+The Web and React SDKs choose the input mode from the executing client's store: they use an authenticated input when an inclusion proof is available and an unauthenticated input otherwise. Passing a full `Note` supports unauthenticated consumption but does not force that mode; synchronization can make an inclusion proof available.
 
-We construct a chain of transactions using the unauthenticated notes method on the transaction builder. Unauthenticated notes are also referred to as "erasable notes". We also demonstrate how a note can be created and consumed, highlighting the ability to transfer notes between client instances for asset transfers that can be settled between parties faster than the blocktime.
+The example uses one client to manage Alice and five recipient wallets. At each hop, it submits the consumer transaction before waiting for the sender's confirmation, then waits for both transactions before advancing to the next wallet. It verifies the resulting balances; it does not measure transaction latency or guarantee that both transactions settle in the same batch.
 
-For example, our demo creates a chain of unauthenticated note transactions:
+The asset follows this chain:
 
 ```markdown
 Alice ➡ Wallet 1 ➡ Wallet 2 ➡ Wallet 3 ➡ Wallet 4 ➡ Wallet 5
@@ -35,11 +35,11 @@ Alice ➡ Wallet 1 ➡ Wallet 2 ➡ Wallet 3 ➡ Wallet 4 ➡ Wallet 5
 - **Introduction to Unauthenticated Notes:** Understand what unauthenticated notes are and how they differ from standard notes.
 - **Miden Client Setup:** Configure the Miden client for browser-based transactions.
 - **P2ID Note Creation:** Learn how to create Pay-to-ID notes for targeted transfers.
-- **Performance Insights:** Observe how unauthenticated notes can reduce transaction times dramatically.
+- **Confirmation Boundaries:** Distinguish optimistic execution from confirmed settlement.
 
 ## Prerequisites
 
-- Node `v20` or greater
+- Node `v20.9.0` or greater (required by the current Next.js template)
 - Familiarity with TypeScript
 - `yarn`
 
@@ -64,8 +64,8 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 
 5. **Unauthenticated Note Transfer Chain:**
    - Create P2ID (Pay-to-ID) notes for each transfer in the chain.
-   - Use unauthenticated input notes to consume notes faster than blocktime.
-   - Measure and observe the performance benefits.
+   - Pass each full output note directly to the next consumer.
+   - Wait for both transactions to be confirmed and verify the balances.
 
 ## Step 1: Initialize your Next.js project
 
@@ -90,15 +90,17 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
   typescript: { code: `yarn add @miden-sdk/miden-sdk@0.16.0` },
 }} reactFilename="" tsFilename="" />
 
-**NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
+The current Next.js template uses Turbopack by default. Use the webpack configuration from the setup guide and update both scripts in `package.json`:
 
 `package.json`
 
 ```json
+{
   "scripts": {
     "dev": "next dev --webpack",
-    ...
+    "build": "next build --webpack"
   }
+}
 ```
 
 ## Step 2: Edit the `app/page.tsx` file
@@ -163,7 +165,7 @@ export default function Home() {
 Create the library file and add the following code:
 
 ```bash
-mkdir -p lib
+mkdir -p lib/react
 ```
 
 Copy and paste the following code into `lib/react/unauthenticatedNoteTransfer.tsx` (React) or `lib/unauthenticatedNoteTransfer.ts` (TypeScript):
@@ -408,7 +410,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 Unauthenticated notes are a powerful feature that allows notes to be:
 
 - **Created and consumed in the same block**
-- **Transferred faster than blocktime**
+- **Passed to a consuming transaction before block confirmation**
 - **Used for optimistic transactions**
 
 ### Performance Benefits
@@ -416,8 +418,8 @@ Unauthenticated notes are a powerful feature that allows notes to be:
 By using unauthenticated notes, we can:
 
 - Skip waiting for block confirmation between note creation and consumption
-- Create transaction chains that execute within a single block
-- Achieve sub-blocktime settlement for certain use cases
+- Submit dependent transaction chains that may be included in a single block
+- Begin dependent execution earlier; final settlement still requires network confirmation
 
 ### Use Cases
 
@@ -426,7 +428,7 @@ Unauthenticated notes are ideal for:
 - **High-frequency trading applications**
 - **Payment channels**
 - **Micropayment systems**
-- **Any scenario requiring fast settlement**
+- **Applications that benefit from optimistic execution before confirmation**
 
 ## Running the Example
 
@@ -471,27 +473,30 @@ Asset transfer chain completed ✅
 
 ## Conclusion
 
-Unauthenticated notes on Miden offer a powerful mechanism for achieving faster asset settlements by allowing notes to be both created and consumed within the same block. In this guide, we walked through:
+Unauthenticated notes let applications submit dependent transactions without first waiting for the producer's confirmation. Creation and consumption may be included in the same block; this does not provide settlement before block production. In this guide, we walked through:
 
 - **Setting up the Miden client** against testnet
 - **Creating P2ID Notes** for targeted asset transfers between specific accounts
-- **Building Transaction Chains** using unauthenticated input notes for sub-blocktime settlement
-- **Performance Observations** demonstrating how unauthenticated notes enable faster-than-blocktime transfers
+- **Building Transaction Chains** that submit consumption before waiting for the producer's confirmation
+- **Confirmation and balance checks** for the complete transfer chain
 
 By following this guide, you should now have a clear understanding of how to build and deploy high-performance transactions using unauthenticated notes on Miden with the Miden client. Unauthenticated notes are the ideal approach for applications like central limit order books (CLOBs) or other DeFi platforms where transaction speed is critical.
 
 ### Resetting the `MidenClientDB`
 
-The Miden webclient stores account and note data in the browser. If you get errors such as "Failed to build MMR", then you should reset the Miden webclient store. When switching between Miden networks such as from localhost to testnet be sure to reset the browser store. To clear the account and node data in the browser, paste this code snippet into the browser console:
+Stop or terminate the tutorial client and close other tabs using its store before resetting it. This deletes local account data and keys, so use it only for disposable tutorial accounts. The snippet below waits for deletion of the default testnet store; change `name` if you configured a different store.
 
 ```javascript
 (async () => {
-  const dbs = await indexedDB.databases();
-  for (const db of dbs) {
-    await indexedDB.deleteDatabase(db.name);
-    console.log(`Deleted database: ${db.name}`);
-  }
-  console.log('All databases deleted.');
+  const name = 'MidenClientDB_mtst';
+  await new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () =>
+      reject(new Error('Close clients and tabs using this store, then retry.'));
+  });
+  console.log(`Deleted database: ${name}`);
 })();
 ```
 

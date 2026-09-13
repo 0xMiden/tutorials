@@ -24,13 +24,13 @@ pub struct Wallet;
 ///
 /// # Note Storage (14 Felts)
 /// [0-3]: withdraw asset, encoded as [amount, 0, faucet_suffix(+metadata), faucet_prefix].
-///        Reconstructed into the v0.15 vault key [0, 0, storage[2], storage[3]] and value
+///        Reconstructed into the v0.16 vault key [0, 0, storage[2], storage[3]] and value
 ///        [amount, 0, 0, 0]. `storage[2]` carries the faucet suffix with the asset's metadata
-///        byte in its low 8 bits (host side: `FungibleAsset::to_key_word()[2]`), not the raw
+///        byte in its low 8 bits (host side: `FungibleAsset::to_id_word()[2]`), not the raw
 ///        suffix — so the bank reconstructs exactly the key the depositor's asset had.
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
-/// [9]: note_type (1 = Public, 2 = Private)
+/// [9]: note_type (1 = Public, 0 = Private)
 /// [10-13]: P2ID script_root (MAST root of the P2ID note script, Poseidon2-hashed).
 ///          Consumed by the bank account directly from the active note's storage inside
 ///          `Bank::withdraw`, so it never appears on the call — this keeps that
@@ -49,7 +49,7 @@ impl WithdrawRequestNote {
             "Withdraw request requires exactly 14 storage items"
         );
 
-        // Asset: reconstruct the v0.15 fungible-asset key/value from the note storage.
+        // Asset: reconstruct the v0.16 fungible-asset key/value from the note storage.
         // key   = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
         //         byte (low 8 bits) and storage[3] = faucet prefix.
         // value = [amount, 0, 0, 0]
@@ -64,7 +64,7 @@ impl WithdrawRequestNote {
         // Tag: single Felt for P2ID note routing
         let tag = storage[8];
 
-        // Note type: 1 = Public, 2 = Private
+        // Note type: 1 = Public, 0 = Private
         let note_type = storage[9];
 
         // Note: P2ID script root (storage[10..13]) is read by the bank account directly

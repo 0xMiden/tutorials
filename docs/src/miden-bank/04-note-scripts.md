@@ -80,7 +80,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "0.13"
+miden = "=0.14.0"
 ```
 
 Create the `miden-project.toml`. This is where the note declares its kind and its dependency on the bank account it calls into:
@@ -92,6 +92,7 @@ version = "0.1.0"
 
 [lib]
 kind = "note"
+path = "src/lib.rs"
 namespace = "miden:deposit-note/miden-deposit-note@0.1.0"
 
 [dependencies]
@@ -99,9 +100,6 @@ miden-core = "*"
 miden-protocol = "*"
 bank-account = { path = "../bank-account" }
 
-# WIT for the account component this note calls, produced by building bank-account.
-[package.metadata.miden.dependencies]
-bank-account = { wit = "../bank-account/target/generated-wit/" }
 ```
 
 Finally, the `.cargo/config.toml` pins the WebAssembly target and the `miden` cfg:
@@ -117,7 +115,7 @@ rustflags = ["--cfg", "miden"]
 Key configuration:
 
 - `kind = "note"` - Marks this as a note script
-- `bank-account = { path = "../bank-account" }` and the `[package.metadata.miden.dependencies]` `wit` entry declare the account component this note calls; the `wit` path points at the WIT files produced when `bank-account` is built
+- `bank-account = { path = "../bank-account" }` declares the component this note calls. Compiler 0.10 builds the dependency and reads its interface from the compiled package
 
 ## Step 3: Implement the Deposit Note
 
@@ -150,7 +148,7 @@ impl DepositNote {
         let depositor = active_note::get_sender();
 
         // Get all assets attached to this note
-        let assets = active_note::get_assets();
+        let assets = active_note::get_initial_assets();
 
         // Deposit each asset into the bank
         for asset in assets {
@@ -161,7 +159,7 @@ impl DepositNote {
 ```
 
 :::info Cross-Component Calls
-The `#[account(bank_account::Bank)] pub struct Wallet;` declaration and the `account.deposit(...)` call use Miden's cross-component binding system. The `#[account(...)]` macro wraps the consuming account so the note can call the bank's `Bank` methods directly. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). For now, just know that building `bank-account` first generates the WIT files that `deposit-note` binds against.
+The `#[account(bank_account::Bank)] pub struct Wallet;` declaration and the `account.deposit(...)` call use Miden's cross-component binding system. The `#[account(...)]` macro wraps the consuming account so the note can call the bank's `Bank` methods directly. We'll explain exactly how this works in [Part 5: Cross-Component Calls](./cross-component-calls). When you build `deposit-note`, Compiler 0.10 builds the `bank-account` dependency declared in `miden-project.toml` and reads its interface from the compiled package.
 :::
 
 ### The #[note] and #[note_script] Attributes
@@ -189,16 +187,16 @@ Returns the `AccountId` of the account that created/sent the note. In our bank:
 - The sender is the depositor
 - Their ID is used to credit their balance
 
-### get_assets() - Attached Assets
+### get_initial_assets() - Attached Assets
 
 ```rust
-let assets = active_note::get_assets();
+let assets = active_note::get_initial_assets();
 for asset in assets {
     // Process each asset
 }
 ```
 
-Returns an iterator over all assets attached to the note.
+Returns a `Vec<Asset>` containing all assets initially attached to the note. The `for` loop consumes that vector.
 
 ### get_storage() - Note Parameters
 
@@ -207,22 +205,20 @@ let storage = active_note::get_storage();
 let first_item = storage[0];
 ```
 
-Returns a slice of `Felt` values passed when the note was created. We'll use storage items in the withdraw request note (Part 7).
+Returns a `Vec<Felt>` containing the storage items passed when the note was created. The indexing example requires at least one item. We'll use storage items in the withdraw request note (Part 7).
 
 ## Step 4: Build the Note Script
 
-:::info Build Order Matters
-Build account components **first** before building note scripts that depend on them. The note script needs the generated WIT files from the account, and the FPI `#[account(...)]` macro reads the bank account's procedure roots from its compiled `.masp` at compile time.
+:::info Dependencies Build Automatically
+Compiler 0.10 resolves and builds the `bank-account` dependency before compiling the note. The `#[account(...)]` macro uses the bank's compiled interface and procedure roots to bind calls to its methods. You can build the note directly using the dependency declaration in `miden-project.toml`.
 :::
 
-```bash title=">_ Terminal"
-# First, ensure bank-account is built (generates WIT + the .masp the note binds against)
-cd contracts/bank-account
-cargo miden build --release
+From the project root:
 
-# Now build the deposit note
-cd ../deposit-note
-cargo miden build --release
+```bash title=">_ Terminal"
+cd contracts/deposit-note
+miden build --release
+cd ../..
 ```
 
 <details>
@@ -235,9 +231,6 @@ cargo miden build --release
 
 </details>
 
-:::note Cosmetic MAST-serialization errors
-The Miden compiler prints non-fatal `ERROR` lines about `MAST` serialization on every build. They are cosmetic — the build still succeeds and produces the `.masp` package.
-:::
 
 ## Execution Flow Diagram
 
@@ -257,31 +250,22 @@ The Miden compiler prints non-fatal `ERROR` lines about `MAST` serialization on 
 
 3. Note script runs
    depositor = get_sender()  → User's AccountId
-   assets = get_assets()     → [100 tokens]
+   assets = get_initial_assets() → [100 tokens]
    account.deposit(depositor, 100 tokens)
 
 4. Bank's deposit() method executes
-   - Validates initialization and amount
+   - Validates asset type and amount
+   - Checks initialization once the guard is enabled in Part 6
    - Updates balance: balances[User] += 100
    - Adds asset to vault
 ```
 
 ## Try It: Verify Deposits Work
 
-First, verify your deposit-note builds successfully:
+This test verifies the deposit flow end-to-end — building the contracts, initializing the bank, creating a deposit, and checking the balance.
 
-```bash title=">_ Terminal"
-# Ensure bank-account is built first
-cd contracts/bank-account && cargo miden build --release
-
-# Then build deposit-note
-cd ../deposit-note && cargo miden build --release
-```
-
-This is the first runnable test in the tutorial. It verifies the deposit flow end-to-end — building the bank and deposit-note contracts, creating a deposit, and checking the balance.
-
-:::note Initialization happens before deposits
-The bank's `require_initialized()` guard is active, so a deposit only succeeds once the bank has been initialized. The shipped `deposit_test.rs` initializes the bank first via the init transaction script (which we build in Part 6). The illustrative excerpt below omits that step to keep the focus on the deposit and note-script mechanics; see the shipped test for the complete init-then-deposit flow.
+:::note Preview of the Part 6 Initialization Flow
+The bank inherited from Part 3 still has `require_initialized()` commented out, so deposits currently work without initialization. In [Part 6](./06-transaction-scripts.md), we'll create the initialization transaction script and enable the guard, making initialization mandatory. The test below previews that flow: it initializes the bank, consumes a deposit note, and checks the depositor's balance. Run it after completing Part 6, or use the complete example projects from the repository.
 :::
 
 Create the test file:
@@ -290,76 +274,101 @@ Create the test file:
 The snippet below illustrates the deposit happy-path. The shipped repository's `examples/miden-bank/integration/tests/deposit_test.rs` is the source of truth and additionally exercises failure paths (`deposit_exceeds_max_should_fail`, `deposit_without_init_should_fail`).
 :::
 
-```rust title="integration/tests/deposit_test.rs (illustrative — see shipped file for the full version)"
+```rust title="integration/tests/deposit_test.rs"
 use integration::helpers::{
-    build_project_in_dir, create_testing_account_from_package,
+    build_project_in_dir, build_tx_script_from_package, create_testing_account_from_package,
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
-use miden_client::account::{component::{InitStorageData, StorageValueName}, StorageSlotName};
+
+use miden_client::{
+    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
+    auth::AuthScheme,
+    note::NoteAssets,
+    transaction::RawOutputNote,
+    Felt, Word,
+};
 use miden_client::asset::{Asset, FungibleAsset};
-use miden_client::auth::AuthSchemeId;
-use miden_client::note::NoteAssets;
-use miden_client::transaction::RawOutputNote;
-use miden_client::{Felt, Word};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
-#[tokio::test]
-async fn deposit_test() -> anyhow::Result<()> {
-    // =========================================================================
-    // SETUP: Build contracts and create mock chain
-    // =========================================================================
-    let mut builder = MockChain::builder();
-
-    // Create a faucet for test tokens
-    let faucet = builder.add_existing_basic_faucet(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, "TEST", 1000, Some(10))?;
-
-    // Create sender (depositor) wallet
-    let sender = builder.add_existing_wallet_with_assets(Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }, [FungibleAsset::new(faucet.id(), 100)?.into()])?;
-
-    // Build bank-account and deposit-note (the shipped test also builds init-tx-script; omitted here for brevity)
-    let bank_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/bank-account"),
-        true,
-    )?);
-
-    let deposit_note_package = Arc::new(build_project_in_dir(
-        Path::new("../contracts/deposit-note"),
-        true,
-    )?);
-
-    // Create the bank account with storage slots.
-    //
-    // The shipped deposit_test.rs initializes the bank first (via the init
-    // transaction script built in Part 6) because `require_initialized()` is
-    // active; this excerpt omits that step and focuses on the deposit flow.
+/// Storage slot names for the bank account component.
+///
+/// The `initialized` value slot has no schema default, so `AccountComponent::from_package`
+/// requires it to be seeded via `InitStorageData` (otherwise it errors with
+/// `InitValueNotProvided`). The `balances` map slot defaults to empty and needs no entry.
+fn bank_storage_slots() -> (StorageSlotName, StorageSlotName) {
     let initialized_slot =
         StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
     let balances_slot =
         StorageSlotName::new("bank_account::bank::balances")
             .expect("Valid slot name");
+    (initialized_slot, balances_slot)
+}
 
-    let mut init_storage_data = InitStorageData::default();
-    init_storage_data.insert_value(
-        StorageValueName::from_slot_name(&initialized_slot),
-        Word::default(),
+#[tokio::test]
+async fn deposit_test() -> anyhow::Result<()> {
+    // Test that after executing the deposit note, the depositor's balance is updated
+    let mut builder = MockChain::builder();
+
+    // Create a faucet to mint test assets
+    let faucet = builder.add_existing_basic_faucet(
+        Auth::BasicAuth {
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
+        },
+        "TEST",
+        1000,
+        Some(10),
     )?;
 
+    // Create note sender account (the depositor)
+    let sender = builder.add_existing_wallet_with_assets(
+        Auth::BasicAuth {
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
+        },
+        [FungibleAsset::new(faucet.id(), 100)?.into()],
+    )?;
+
+    // Build contracts
+    let bank_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/bank-account"),
+        true,
+    )?);
+    let deposit_note_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/deposit-note"),
+        true,
+    )?);
+    let init_tx_script_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/init-tx-script"),
+        true,
+    )?);
+
+    // Create the bank account. The `initialized` value slot has no schema default, so it must
+    // be seeded (here with a zero Word = uninitialized) or `from_package` errors with
+    // `InitValueNotProvided`; the `balances` map defaults to empty.
+    let (initialized_slot, balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
-        init_storage_data,
+        init_storage_data: {
+            let mut data = InitStorageData::default();
+            data.insert_value(
+                StorageValueName::from_slot_name(&initialized_slot),
+                Word::default(),
+            )?;
+            data
+        },
         ..Default::default()
     };
 
     let mut bank_account =
         create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
-    builder.add_account(bank_account.clone())?;
 
-    // Create the deposit note
+    // Create a fungible asset to deposit
     let deposit_amount: u64 = 1000;
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
     let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
 
+    // Create the deposit note with assets attached
+    // The sender becomes the depositor
     let deposit_note = create_testing_note_from_package(
         deposit_note_package.clone(),
         sender.id(),
@@ -369,33 +378,59 @@ async fn deposit_test() -> anyhow::Result<()> {
         },
     )?;
 
+    // Add bank account and deposit note to mockchain
+    builder.add_account(bank_account.clone())?;
     builder.add_output_note(RawOutputNote::Full(deposit_note.clone()));
+
+    // Build the mock chain
     let mut mock_chain = builder.build()?;
 
-    // =========================================================================
-    // EXECUTE DEPOSIT (the shipped test initializes the bank first; this excerpt omits that step)
-    // =========================================================================
-    let tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
+    // *********************************************************************************
+    // STEP 1: INITIALIZE THE BANK VIA TX SCRIPT
+    // *********************************************************************************
+    // Preview the Part 6 flow, where require_initialized() is enabled.
+    // Initialize via a transaction script that calls bank.initialize().
+
+    let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
+
+    let init_tx_context = mock_chain
+        .build_transaction(bank_account.id())
+        .tx_script(init_tx_script)
         .build()?;
 
+    let executed_init = init_tx_context.execute().await?;
+    mock_chain.add_pending_executed_transaction(&executed_init)?;
+    mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
+
+    println!("Bank initialized successfully");
+
+    // *********************************************************************************
+    // STEP 2: DEPOSIT
+    // *********************************************************************************
+
+    // Build the transaction context where bank consumes the deposit note
+    let tx_context = mock_chain
+        .build_transaction(bank_account.id())
+        .authenticated_input_note(deposit_note.id())
+        .build()?;
+
+    // Execute the transaction
     let executed_transaction = tx_context.execute().await?;
-    bank_account.apply_delta(&executed_transaction.account_delta())?;
+
+    // Add the executed transaction to the mockchain and prove
     mock_chain.add_pending_executed_transaction(&executed_transaction)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
-    println!("Deposit transaction executed!");
-
-    // =========================================================================
-    // VERIFY: Check balance was updated
-    // =========================================================================
+    // Create the key for the depositor (sender) in the storage map.
     // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
-    // In v0.15 the fungible-asset vault key is
-    // [asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix],
-    // so `key[2]` is the faucet suffix combined with a metadata byte (composition +
-    // callback flag) — not the raw faucet suffix. Derive the read key from the asset's
+    // In v0.16 the fungible-asset vault key is
+    // [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix],
+    // so `key[2]` is the faucet suffix combined with composition metadata,
+    // not the raw faucet suffix. Derive the read key from the asset's
     // actual key word so it matches the key the contract writes.
-    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_key_word();
+    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_id_word();
     let depositor_key = Word::from([
         sender.id().prefix().as_felt(),
         sender.id().suffix(),
@@ -403,7 +438,8 @@ async fn deposit_test() -> anyhow::Result<()> {
         asset_key_word[2],
     ]);
 
-    let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
+    // Get the depositor's balance from the bank's storage using named slot
+    let balance = bank_account.storage().get_map_item(&balances_slot, miden_client::account::StorageMapKey::new(depositor_key))?;
 
     // The contract stores `balance` as a `Felt`; reading the map returns the
     // single-Felt value widened into a Word at position [0] ([amount, 0, 0, 0]).
@@ -416,10 +452,10 @@ async fn deposit_test() -> anyhow::Result<()> {
 
     assert_eq!(
         balance, expected_balance,
-        "Balance should equal deposited amount"
+        "Depositor balance should equal the deposited amount"
     );
 
-    println!("\nPart 4 deposit test passed!");
+    println!("Deposit test passed! Deposited {} tokens", deposit_amount);
     Ok(())
 }
 ```
@@ -438,12 +474,12 @@ cargo test --package integration --test deposit_test -- --nocapture
     Finished `test` profile [unoptimized + debuginfo] target(s)
      Running tests/deposit_test.rs
 
-running 3 tests
+running 1 test
+Bank initialized successfully
+Deposit test passed! Deposited 1000 tokens
 test deposit_test ... ok
-test deposit_exceeds_max_should_fail ... ok
-test deposit_without_init_should_fail ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
 ```
 
 </details>
@@ -463,10 +499,10 @@ pub struct Wallet;
 /// # Note Storage (14 Felts)
 /// [0-3]: withdraw asset, encoded as [amount, 0, faucet_suffix(+metadata), faucet_prefix].
 ///        `storage[2]` carries the faucet suffix with the asset's metadata byte in its
-///        low 8 bits (host side: `FungibleAsset::to_key_word()[2]`), not the raw suffix.
+///        low 8 bits (host side: `FungibleAsset::to_id_word()[2]`), not the raw suffix.
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
-/// [9]: note_type (1 = Public, 2 = Private)
+/// [9]: note_type (1 = Public, 0 = Private)
 /// [10-13]: P2ID script_root (MAST root of the P2ID note script, Poseidon2-hashed)
 #[note]
 struct WithdrawRequestNote;
@@ -482,7 +518,7 @@ impl WithdrawRequestNote {
             "Withdraw request requires exactly 14 storage items"
         );
 
-        // Asset: reconstruct the v0.15 fungible-asset key/value from the note storage.
+        // Asset: reconstruct the v0.16 fungible-asset ID/value from the note storage.
         // key   = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
         //         byte (low 8 bits) and storage[3] = faucet prefix.
         // value = [amount, 0, 0, 0]
@@ -542,7 +578,7 @@ impl DepositNote {
         let depositor = active_note::get_sender();
 
         // Get all assets attached to this note
-        let assets = active_note::get_assets();
+        let assets = active_note::get_initial_assets();
 
         // Deposit each asset into the bank
         for asset in assets {
@@ -559,10 +595,10 @@ impl DepositNote {
 1. **`#[note]`** marks the struct and impl block, with **`#[note_script]`** on the entry point method `fn run(self, _arg: Word, account: &mut Wallet)`
 2. **`#[account(bank_account::Bank)] pub struct Wallet;`** wraps the consuming account so the note can call the bank's methods via `account.deposit(...)`
 3. **`active_note::get_sender()`** returns who created the note
-4. **`active_note::get_assets()`** returns assets attached to the note
+4. **`active_note::get_initial_assets()`** returns the assets attached to the note at creation time
 5. **`active_note::get_storage()`** returns parameterized data
 6. **Note scripts execute once** when consumed - no persistent state
-7. **Build order matters** - account components first, then note scripts
+7. **Dependencies build automatically** - declare the account component in `miden-project.toml`, then build the note with `miden build`
 
 :::tip View Complete Source
 See the complete note script implementations:

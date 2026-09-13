@@ -12,3 +12,7 @@ edition = "2021"
 
 [workspace.dependencies]
 
+
+# Keep local proving within the network reference-block window.
+[profile.dev]
+opt-level = 2

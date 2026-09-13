@@ -14,9 +14,9 @@ By the end of this section, you will have:
 
 - Defined constants for business rules (`MAX_DEPOSIT_AMOUNT`, `MAX_BALANCE`)
 - Used `assert!()` for transaction validation
-- Learned safe Felt comparison with `.as_canonical_u64()`
+- Compared token amounts with `u64` business limits using `.as_canonical_u64()`
 - Added a deposit method skeleton with validation
-- **Verified constraints work** by testing that invalid operations fail
+- **Verified the component builds and loads** with its initial storage; later parts exercise the transaction guards
 
 ## Building on Part 1
 
@@ -93,39 +93,54 @@ When an assertion fails:
 
 This is the primary mechanism for enforcing business rules in Miden contracts.
 
-## Safe Felt Comparisons
+## Comparing Felt Amounts with Business Limits
 
-:::warning Pitfall: Felt Comparison Operators
-Never use `<`, `>`, `<=`, or `>=` operators directly on `Felt` values. They produce incorrect results due to field element ordering.
+:::note Comparison and Arithmetic
+The current SDK's `<`, `>`, `<=`, and `>=` operators compare the canonical integer values of `Felt`s. Direct comparisons are supported. Arithmetic on `Felt` is modular, however, so validate amounts before addition or subtraction can wrap around the field modulus.
 :::
 
-**Wrong approach:**
+**Comparing two field elements:**
 
 ```rust
-// DON'T DO THIS - produces incorrect results
+// Direct Felt comparison uses canonical integer ordering.
 if deposit_amount > felt!(1_000_000) {
-    // This comparison is unreliable!
+    // The amount exceeds the limit.
 }
 ```
 
-**Correct approach:**
+**Comparing with our `u64` constant:**
 
 ```rust
-// CORRECT - convert to u64 first
+// Convert the amount to compare it with the u64 business limit.
 if deposit_amount.as_canonical_u64() > MAX_DEPOSIT_AMOUNT {
-    // This works correctly
+    // The amount exceeds the limit.
 }
 ```
 
-The `.as_canonical_u64()` method extracts the underlying 64-bit integer from a Felt, allowing standard Rust comparisons.
+Both comparisons have the same result. This tutorial uses `.as_canonical_u64()` to express quantity checks against `u64` limits explicitly. Converting a value after field arithmetic has wrapped does not recover its original quantity.
 
 ## Step 1: Add the Constant and Deposit Method
 
-Update your `contracts/bank-account/src/lib.rs` to add the constant and a deposit method skeleton. The component's public API lives in `#[component] impl Bank for BankStorage`, while private helpers like `require_initialized` and `balance_key` live in a separate plain `impl BankStorage` block (the `#[component]` macro only exports trait methods):
+Update your `contracts/bank-account/src/lib.rs` to add the constants and a deposit method skeleton. Keep the storage struct from Part 1 and replace the `Bank` trait and implementation blocks with the code below. Declare `deposit` in the trait with `#[account_procedure]` before implementing it in `#[component] impl Bank for BankStorage`. Private helpers like `require_initialized` and `balance_key` remain in a separate plain `impl BankStorage` block:
 
 ```rust title="contracts/bank-account/src/lib.rs"
 const MAX_DEPOSIT_AMOUNT: u64 = 1_000_000;
 const MAX_BALANCE: u64 = 9_223_372_034_707_292_160; // 2^63 - 2^31
+
+#[component]
+trait Bank {
+    /// Initialize the bank account, enabling deposits.
+    #[account_procedure]
+    fn initialize(&mut self);
+
+    /// Get the bank-tracked balance for a depositor and specific asset type.
+    #[account_procedure]
+    fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
+
+    /// Deposit an asset into the bank for a specific depositor.
+    #[account_procedure]
+    fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
+}
 
 #[component]
 impl Bank for BankStorage {
@@ -191,8 +206,8 @@ impl BankStorage {
 }
 ```
 
-:::warning v0.15 asset-key layout
-In v0.15 the fungible-asset vault key Word is `[asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. So `asset.key[2]` is the faucet suffix combined with a metadata byte (asset composition + a callback flag in the low 8 bits), **not** the raw faucet suffix. For the callbacks-disabled fungible assets this bank accepts the metadata byte is constant, so `(key[3], key[2])` remains a stable per-faucet identifier. The host/test side derives the same key from `FungibleAsset::new(faucet.id(), amt)?.to_key_word()` indices `[3]`/`[2]` (not `faucet.id().prefix()/suffix()`).
+:::warning v0.16 asset-ID layout
+In v0.16 the fungible-asset ID Word is `[asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. The fungible asset class is empty, and the metadata byte contains the composition bits; the callback flag is part of the faucet account ID. Thus `asset.key[2]` is **not** the raw faucet suffix. The host/test side derives the same ID from `FungibleAsset::new(faucet.id(), amt)?.to_id_word()` indices `[3]`/`[2]` (not `faucet.id().prefix()/suffix()`).
 :::
 
 ### The require_initialized() Guard
@@ -256,9 +271,6 @@ cd contracts/bank-account
 miden build
 ```
 
-:::note Cosmetic build output
-The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every build. These are cosmetic — the build still succeeds and emits the `.masp` package.
-:::
 
 ## Optional: Verify Constraints Work
 
@@ -378,6 +390,8 @@ This pattern is **mandatory** for any operation that subtracts from a balance. M
 
 ### State Checks
 
+This optional extension assumes a `paused: StorageValue<Word>` slot has been added to the component and initialized to a zero Word. The Bank component in this tutorial does not include that slot.
+
 ```rust
 fn require_not_paused(&self) {
     let paused: Word = self.paused.get();
@@ -426,12 +440,15 @@ struct BankStorage {
 #[component]
 trait Bank {
     /// Initialize the bank account, enabling deposits.
+    #[account_procedure]
     fn initialize(&mut self);
 
     /// Get the bank-tracked balance for a depositor and specific asset type.
+    #[account_procedure]
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
 
     /// Deposit an asset into the bank for a specific depositor.
+    #[account_procedure]
     fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
 }
 
@@ -501,7 +518,7 @@ impl BankStorage {
 
 1. **Constants** define immutable business rules at compile time
 2. **`assert!()`** enforces constraints - failures reject the transaction
-3. **Always use `.as_canonical_u64()`** for Felt comparisons, never direct operators
+3. **Use `.as_canonical_u64()`** to compare amounts with `u64` business limits; validate quantities before field arithmetic can wrap
 4. **Helper methods** like `require_initialized()` centralize validation logic
 5. **Failed assertions** mean no valid proof can be generated
 

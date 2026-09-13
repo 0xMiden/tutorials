@@ -18,14 +18,18 @@
 //! ```
 
 use integration::helpers::{
-    build_project_in_dir, create_basic_wallet_account, create_note_from_package,
-    setup_client, AccountCreationConfig, ClientSetup, NoteCreationConfig,
+    build_project_in_dir, create_basic_wallet_account, create_note_from_package, setup_client,
+    wait_for_native_funding, wait_for_transaction, AccountCreationConfig, ClientSetup,
+    NoteCreationConfig,
 };
 
 use anyhow::{bail, Context, Result};
 use miden_client::{
-    account::AccountId,
+    account::{AccountId, StorageMapKey, StorageSlotName},
+    asset::FungibleAsset,
+    note::NoteAssets,
     transaction::TransactionRequestBuilder,
+    Word,
 };
 use std::{env, path::Path, sync::Arc};
 
@@ -61,7 +65,10 @@ async fn main() -> Result<()> {
     } = setup_client().await?;
 
     let sync_summary = client.sync_state().await?;
-    println!("Connected to network. Latest block: {}", sync_summary.block_num);
+    println!(
+        "Connected to network. Latest block: {}",
+        sync_summary.block_num
+    );
 
     // Verify the bank account exists in our client
     let bank_account_record = client
@@ -90,27 +97,38 @@ async fn main() -> Result<()> {
     );
     println!("  ✓ Deposit note contract built");
 
-    // Create a sender account (the depositor) with assets
+    // Create the sender account, then receive funding before publishing its deposit.
     println!("\nCreating depositor wallet...");
     let sender_cfg = AccountCreationConfig::default();
     let sender_account = create_basic_wallet_account(&mut client, keystore.clone(), sender_cfg)
         .await
         .context("Failed to create sender wallet account")?;
-    println!("  ✓ Depositor wallet created: {}", sender_account.id().to_hex());
+    println!(
+        "  ✓ Depositor wallet created: {}",
+        sender_account.id().to_hex()
+    );
 
-    // For this demo, we'll create a deposit note without actual assets
-    // In a real scenario, you would have a faucet or existing assets
-    println!("\nCreating deposit note...");
-    println!("  Deposit amount: {} tokens", DEFAULT_DEPOSIT_AMOUNT);
+    wait_for_native_funding(&mut client, sender_account.id(), DEFAULT_DEPOSIT_AMOUNT).await?;
 
-    // Create the deposit note
-    // Note: In a real scenario, you would attach actual assets from a faucet
-    // For now, we create the note structure (assets would come from the sender's vault)
+    // Deposit native tokens; the sender also needs enough native tokens to pay fees.
+    let faucet_id = client
+        .get_latest_block_header()
+        .await?
+        .fee_parameters()
+        .fee_faucet_id();
+    let deposit_asset = FungibleAsset::new(faucet_id, DEFAULT_DEPOSIT_AMOUNT)?;
+    println!(
+        "\nCreating deposit note with {} native base units...",
+        DEFAULT_DEPOSIT_AMOUNT
+    );
     let deposit_note = create_note_from_package(
         &mut client,
         deposit_note_package.clone(),
         sender_account.id(),
-        NoteCreationConfig::default(),
+        NoteCreationConfig {
+            assets: NoteAssets::new(vec![deposit_asset.into()])?,
+            ..Default::default()
+        },
     )
     .context("Failed to create deposit note")?;
 
@@ -130,11 +148,7 @@ async fn main() -> Result<()> {
 
     println!("  ✓ Note published: {}", note_publish_tx_id.to_hex());
 
-    // Sync state
-    client
-        .sync_state()
-        .await
-        .context("Failed to sync state after publishing note")?;
+    wait_for_transaction(&mut client, note_publish_tx_id).await?;
 
     // Consume the deposit note with the bank account
     println!("\nExecuting deposit (bank consuming the note)...");
@@ -150,11 +164,24 @@ async fn main() -> Result<()> {
 
     println!("  ✓ Deposit transaction: {}", consume_tx_id.to_hex());
 
-    // Final sync
-    client
-        .sync_state()
-        .await
-        .context("Failed to sync state after deposit")?;
+    wait_for_transaction(&mut client, consume_tx_id).await?;
+    let bank = client
+        .get_account(bank_account_id)
+        .await?
+        .context("Bank missing after deposit")?;
+    let key = deposit_asset.to_id_word();
+    let depositor_key = StorageMapKey::new(Word::from([
+        sender_account.id().prefix().as_felt(),
+        sender_account.id().suffix(),
+        key[3],
+        key[2],
+    ]));
+    let balances_slot = StorageSlotName::new("bank_account::bank::balances")?;
+    let balance = bank.storage().get_map_item(&balances_slot, depositor_key)?;
+    anyhow::ensure!(
+        balance[0].as_canonical_u64() == DEFAULT_DEPOSIT_AMOUNT,
+        "Depositor ledger does not match the deposited assets"
+    );
 
     println!("\n=== Deposit Complete ===");
     println!("\nDepositor: {}", sender_account.id().to_hex());

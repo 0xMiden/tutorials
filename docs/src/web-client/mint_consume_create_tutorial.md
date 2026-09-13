@@ -45,21 +45,21 @@ Before we start coding, it's important to understand **notes**:
 
 Let's mint some tokens for Alice. When we mint from a faucet, it creates a note containing the specified amount of tokens targeted to Alice's account.
 
-Add this to the end of your `createMintConsume` function:
+Add the operations below after funding Alice and the faucet in `createMintConsume`. Import `NoteVisibility` and the shared support functions shown in the complete example. For React, also initialize `useMint`, `useConsume` and `useSend`, and obtain `committed`, `waitForTokenNotes` and `assertBalance` from `useTutorialSupport`.
 
 <CodeSdkTabs example={{
 react: { code: `// 3. Mint 1000 tokens to Alice
 console.log('Minting tokens to Alice...');
 const mintResult = await mint({
-.faucetId, // Faucet account (who mints the tokens)
-.targetAccountId: aliceId, // Target account (who receives the tokens)
+.faucetId: faucet, // Faucet account (who mints the tokens)
+.targetAccountId: alice, // Target account (who receives the tokens)
 .amount: BigInt(1000), // Amount to mint (in base units)
 .noteType: NoteVisibility.Public, // Note visibility (public = onchain)
 });
 console.log('Mint tx:', mintResult.transactionId);
 
 // Wait for the mint transaction to be committed
-await waitForCommit(mintResult.transactionId);`},
+await committed(mintResult.transactionId);`},
   typescript: { code:`// 4. Mint tokens from the faucet to Alice
 console.log("Minting tokens to Alice...");
 const { txId: mintTxId } = await client.transactions.mint({
@@ -83,21 +83,21 @@ await client.transactions.waitFor(mintTxId);` },
 
 After minting, Alice has a note waiting for her but the tokens aren't in her account yet. We need to consume the note to add its assets to her account balance.
 
-The TypeScript `MidenClient` exposes `client.transactions.consumeAll({ account })` — a single call that finds every consumable note targeted at `account` and consumes them in one transaction. The React SDK instead splits the flow into two hooks: `useWaitForNotes().waitForConsumableNotes(...)` surfaces the notes and `useConsume().consume(...)` consumes them.
+Select the tutorial notes before consuming them: v0.16 also exposes globally consumable `TX_FEE` notes. The shared `consumeAllFeeAware` TypeScript helper excludes those fee notes. In React, `waitForTokenNotes` selects committed notes containing our faucet’s token and returns the `InputNoteRecord` values accepted by `useConsume`.
 
 <CodeSdkTabs example={{
-react: { code: `// 4. Wait for consumable notes to appear, then consume them
-const notes = await waitForConsumableNotes({ accountId: alice });
+react: { code: `// 4. Wait for committed tutorial-token notes, then consume them
+const notes = await waitForTokenNotes(alice, faucet);
 console.log('Consumable notes:', notes.length);
 
 console.log('Consuming minted notes...');
-await consume({ accountId: alice.id().toString(), notes });
+const consumed = await consume({ accountId: alice.id().toString(), notes });
+await committed(consumed.transactionId);
+await assertBalance(alice, faucet, BigInt(1000));
 console.log('Notes consumed.');`},
-typescript: { code:`// 5. Consume every consumable note for Alice in a single transaction
+typescript: { code:`// 5. Consume Alice's tutorial notes and await confirmation
 console.log('Consuming minted notes...');
-await client.transactions.consumeAll({
-.account: alice,
-});
+await consumeAllFeeAware(client, alice);
 
 console.log('Notes consumed.');` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
@@ -115,13 +115,15 @@ react: { code: `// 7. Create Bob and send him 100 tokens
 const bob = await createWallet({ storageMode: StorageMode.Public, authScheme });
 const bobAddress = bob.id().toString();
 console.log("Sending tokens to Bob's account...");
-await send({
+const sent = await send({
 .from: alice,
 .to: bobAddress,
 .assetId: faucet,
 .amount: BigInt(100),
 .noteType: NoteVisibility.Public,
 });
+await committed(sent.txId);
+await assertBalance(alice, faucet, BigInt(900));
 console.log('Tokens sent successfully!');` },
 typescript: { code: `// 7. Create Bob and send him tokens
 const bob = await client.accounts.create({
@@ -136,6 +138,8 @@ await client.transactions.send({
 .token: faucet, // Asset ID (faucet that created the tokens)
 .amount: BigInt(100), // Amount to send
 .type: NoteVisibility.Public, // Note visibility
+.waitForConfirmation: true,
+.timeout: 120_000,
 });
 
 console.log('Tokens sent successfully!');` },
@@ -372,16 +376,19 @@ Tokens sent successfully!
 
 ### Resetting the `MidenClientDB`
 
-The Miden webclient stores account and note data in the browser. To clear the account and note data in the browser, paste this code snippet into the browser console:
+The Miden webclient stores account and note data in IndexedDB. Stop or terminate the tutorial client and close other tabs using its store before resetting it. This deletes local account data and keys, so use it only for disposable tutorial accounts. The following browser-console snippet deletes the default testnet `MidenClientDB_mtst` store after the deletion request completes; change `name` if you configured a different store.
 
 ```javascript
 (async () => {
-  const dbs = await indexedDB.databases(); // Get all database names
-  for (const db of dbs) {
-    await indexedDB.deleteDatabase(db.name);
-    console.log(`Deleted database: ${db.name}`);
-  }
-  console.log('All databases deleted.');
+  const name = 'MidenClientDB_mtst';
+  await new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () =>
+      reject(new Error('Close clients and tabs using this store, then retry.'));
+  });
+  console.log(`Deleted database: ${name}`);
 })();
 ```
 

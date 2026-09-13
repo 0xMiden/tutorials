@@ -31,7 +31,7 @@ You need three things to follow along.
 
 2. Two wallets: an EVM wallet supported by [RainbowKit](https://www.rainbowkit.com/) (MetaMask, Rabby, Coinbase Wallet, …) and the [MidenFi browser extension](https://chromewebstore.google.com/detail/miden-wallet/ablmompanofnodfdkgchkpmphailefpb) for signing P2IDE notes on Miden.
 
-3. A small Sepolia ETH balance for gas. The community [pk910 PoW faucet](https://sepolia-faucet.pk910.de/) pays 0.05–0.1 ETH per ~10-minute mining session; the [Google Cloud Sepolia faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia) is the backup. Either covers the gas for `depositERC20AndRegister` plus a couple of allowance approvals.
+3. A small Sepolia ETH balance for gas. The community [pk910 PoW faucet](https://sepolia-faucet.pk910.de/) and [Google Cloud Sepolia faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia) are possible sources; check their current requirements and limits. Keep enough test ETH for token approvals and the Compact deposit.
 
 :::caution Do not set COOP/COEP headers
 `@miden-sdk/vite-plugin` defaults to `crossOriginIsolation: true`, which sets `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers on the dev server and breaks gRPC-Web to `transport.miden.io`. The reference app passes `{ crossOriginIsolation: false }` to opt out — see the [Vite + WASM setup guide](./setup_guide.md) for the deployment-side counterpart.
@@ -202,7 +202,7 @@ Success is signalled by the 5-second polling loop: `getIntentStatus` returns an 
 The reverse direction lives in `buildEVMToMidenTaskDataParams` + `useWithdrawIntent`. The task envelope sets `destinationChainId` to the Miden virtual chain id (`999999999`) so the allocator's `getTokenDataFromMidenFaucetId` resolves the output side as Miden-native, and the note type flips to `P2ID` (not `P2IDE`) because the Miden recipient consumes the note directly rather than recalling it. The reverse-quote convention is the same as Step 2: pass `tokenInAmount: '0'` and a Miden-side `minTokenOut` in base units; the backend computes the required EVM input.
 
 :::caution Bridge with headroom before the reverse direction
-The Step 3 reverse quote folds a route fee into the required deposit, so a Step 2 bridge of exactly 1 USDC won't cover a 1-USDC reverse — the quote asks for ~1.01 USDC and MetaMask flags `depositERC20AndRegister` as likely to fail (the `approve` lands first; rejecting the deposit is recoverable). Set Step 2's `min output` to about `2e18` for headroom, or run a second forward bridge before retrying.
+The reverse quote includes route fees, so bridging out one token may not leave enough to request one token back. Compare the quoted input amount with your balance before approval and deposit. Use the selected token's decimals when converting amounts to base units; do not assume an 18-decimal asset.
 :::
 
 **From `examples/bridging-app/src/services/epoch-bridge.ts` (lines 216–237):**
@@ -234,7 +234,7 @@ The Step 3 reverse quote folds a route fee into the required deposit, so a Step 
   return taskDataParams;
 ```
 
-`solveIntent({ ..., collateralType: CollateralType.EVM })` then walks the user's wallet through an ERC-20 `approve` (only on the first deposit of a given token) and `depositERC20AndRegister` / `depositNativeAndRegister` against Epoch's [Compact](https://docs.epochprotocol.xyz/epoch-miden-integration/integration-guide) contract on Sepolia. The intent nonce extracted from the solve result drives the same 5-second status poll as the forward direction.
+`solveIntent({ ..., collateralType: CollateralType.EVM })` then walks the user's wallet through an ERC-20 `approve` (only on the first deposit of a given token) and `depositERC20AndRegister` / `depositNativeAndRegister` against Epoch's [Compact](https://docs.epochprotocol.xyz/integration-guides/sdk-integration-guide) contract on Sepolia. The intent nonce extracted from the solve result drives the same 5-second status poll as the forward direction.
 
 :::caution Forced-withdrawal preflight
 If the user cancelled a prior EVM → Miden intent on the same Compact deposit id, the next intent will revert. Call `sdk.disableForcedWithdrawal(depositId)` first; the SDK error message names the deposit id when this preflight is required.
@@ -272,7 +272,7 @@ Recovery primitives (`retryIntentSolve`, `disableForcedWithdrawal`, `withdrawTok
 
 Check these integration details before a live round trip:
 
-- **Don't follow the npm package README.** It documents an unrelated SDK; the [integration guide](https://docs.epochprotocol.xyz/epoch-miden-integration/integration-guide) and `dist/sdk/epoch-intent-sdk.d.ts` are the source of truth.
+- **Don't follow the npm package README.** It documents an unrelated SDK; the [integration guide](https://docs.epochprotocol.xyz/integration-guides/sdk-integration-guide) and `dist/sdk/epoch-intent-sdk.d.ts` are the source of truth.
 - **Public notes only.** P2IDE notes for the allocator must be `'public'`; a `'private'` note is invisible to the solver.
 - **Await confirmation and match the note ID.** A fee-paying transaction also creates a `TX_FEE` output. Do not pass `outputNotes[0]` to Epoch; locate the exact collateral note ID after `waitForTransaction`.
 - **Honor Epoch’s callback window and binding.** `createMidenP2IDENote` supplies `recallBlocks` and `bindingAttachmentFelts`. Build a public P2IDE with `currentBlock + recallBlocks` after a fresh sync and include the attachment verbatim. A plain `SendTransaction` cannot represent this attachment. The quote’s preliminary reclaim-height field is not a substitute for the callback values.
@@ -287,6 +287,6 @@ Check these integration details before a live round trip:
 ## Where to go next
 
 - The runnable [`examples/bridging-app/`](https://github.com/0xMiden/tutorials/tree/main/examples/bridging-app) is the canonical reference; every code block above is a paste-verified slice of it.
-- The [Epoch protocol integration guide](https://docs.epochprotocol.xyz/epoch-miden-integration/integration-guide) covers the SDK surface in depth, including the parts this tutorial does not exercise (multi-hop intents, custom resource locks).
+- The [Epoch protocol integration guide](https://docs.epochprotocol.xyz/integration-guides/sdk-integration-guide) covers the SDK surface in depth, including the parts this tutorial does not exercise (multi-hop intents, custom resource locks).
 - Upstream Epoch example: [`epochprotocol/miden-integration-example`](https://github.com/epochprotocol/miden-integration-example). The reference app forks this with the adaptations documented in its README.
 - The companion [React wallet tutorial](./react_wallet_tutorial.md) walks the `@miden-sdk/react` hook surface end-to-end if you want a deeper foundation before extending the bridging app.

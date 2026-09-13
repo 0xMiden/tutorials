@@ -37,12 +37,12 @@ Part 2:                          Part 3:
 ## The Asset Type
 
 Miden splits a fungible `Asset` into a `value` word and a `key` word. The `value`
-holds the amount; the `key` is the vault key word. In protocol v0.15 the fungible
+holds the amount; the `key` is the vault key word. In protocol v0.16 the fungible
 vault key word has this layout:
 
 ```text
 Asset value: [amount, 0, 0, 0]
-Asset key:   [asset_id_suffix, asset_id_prefix, faucet_suffix | metadata, faucet_prefix]
+Asset key:   [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata, faucet_prefix]
                                                  ━━━━━━━━━━━━━━━━━━━━━━━   ━━━━━━━━━━━━━
                                                         key index 2        key index 3
 ```
@@ -62,12 +62,11 @@ let faucet_suffix = deposit_asset.key[2];      // Faucet ID suffix (+ metadata b
 let faucet_prefix = deposit_asset.key[3];      // Faucet ID prefix
 ```
 
-:::note v0.15 vault-key layout
-`asset.key[2]` is **not** the raw faucet suffix — the asset's metadata byte
-(composition + a callback flag) is folded into its low 8 bits. For the
-callbacks-disabled fungible assets this bank accepts that byte is constant, so
-`(asset.key[3], asset.key[2])` is still a stable per-faucet identifier. The
-host-side mirror is `FungibleAsset::to_key_word()` indices `[3]` / `[2]`.
+:::note v0.16 asset-ID layout
+`asset.key[2]` is **not** the raw faucet suffix — the composition metadata is
+folded into its low byte. The callback flag is encoded in the faucet account ID
+in v0.16. Thus `(asset.key[3], asset.key[2])` is a stable per-faucet identifier.
+The host-side mirror is `FungibleAsset::to_id_word()` indices `[3]` / `[2]`.
 :::
 
 ## Receiving Assets with add_asset()
@@ -98,10 +97,10 @@ fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     // NOTE: Initialization guard — enabled in Part 6 (Transaction Scripts)
     // self.require_initialized();
 
-    // Verify this is a fungible asset.
-    // For fungible assets, value = [amount, 0, 0, 0]; value[1] is always 0.
+    // Verify the asset composition identifies a fungible asset.
+    // Zero padding in the value word alone cannot distinguish NFTs.
     assert!(
-        deposit_asset.value[1].as_canonical_u64() == 0,
+        deposit_asset.is_fungible(),
         "Only fungible assets are supported"
     );
 
@@ -166,9 +165,9 @@ This design allows:
 - **Per-asset tracking**: Different token types are tracked separately
 - **Unique keys**: The combination ensures no collisions
 
-Because `asset.key[2]` carries the v0.15 metadata byte in its low bits (not the raw
-faucet suffix), the host side must derive the _same_ key from
-`FungibleAsset::to_key_word()` rather than from `faucet.id().suffix()` directly — the
+Because `asset.key[2]` carries the v0.16 composition metadata in its low byte (not the
+raw faucet suffix), the host side must derive the _same_ ID from
+`FungibleAsset::to_id_word()` rather than from `faucet.id().suffix()` directly — the
 test below shows this.
 
 The remaining internal helpers live in a separate, plain `impl BankStorage` block (not
@@ -203,7 +202,15 @@ let new_balance = current_balance - withdraw_amount;
 This is not optional - it's a **security requirement** for any financial operation.
 :::
 
-Add this method to your Bank impl block:
+Add this declaration inside your existing `Bank` trait:
+
+```rust title="contracts/bank-account/src/lib.rs"
+/// Withdraw assets back to the depositor.
+#[account_procedure]
+fn withdraw(&mut self, withdraw_asset: Asset, serial_num: Word, tag: Felt, note_type: Felt);
+```
+
+Then add this method inside your existing `impl Bank for BankStorage` block:
 
 ```rust title="contracts/bank-account/src/lib.rs"
 fn withdraw(
@@ -222,7 +229,7 @@ fn withdraw(
 
     // Verify this is a fungible asset — see `deposit()` for the rationale.
     assert!(
-        withdraw_asset.value[1].as_canonical_u64() == 0,
+        withdraw_asset.is_fungible(),
         "Only fungible assets are supported"
     );
 
@@ -275,7 +282,7 @@ fn create_p2id_note(
     _note_type: Felt,
 ) {
     // Placeholder - implemented in Part 7: Output Notes
-    // For now, this will cause a compile error if actually called
+    // Calling this placeholder aborts execution
     todo!("P2ID note creation - see Part 7")
 }
 ```
@@ -288,11 +295,6 @@ Build the contract:
 cd contracts/bank-account
 miden build
 ```
-
-:::note Cosmetic build output
-The Miden compiler prints non-fatal `MAST`-serialization `ERROR` lines on every
-build. They are cosmetic — the build still succeeds and produces the `.masp`.
-:::
 
 ## Try It: Verify Deposits Work
 
@@ -322,7 +324,7 @@ use integration::helpers::{
 
 use miden_client::{
     account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
-    auth::AuthSchemeId,
+    auth::AuthScheme,
     note::NoteAssets,
     transaction::RawOutputNote,
     Felt, Word,
@@ -354,7 +356,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create a faucet to mint test assets
     let faucet = builder.add_existing_basic_faucet(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         "TEST",
         1000,
@@ -364,7 +366,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create note sender account (the depositor)
     let sender = builder.add_existing_wallet_with_assets(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         [FungibleAsset::new(faucet.id(), 100)?.into()],
     )?;
@@ -434,14 +436,14 @@ async fn deposit_test() -> anyhow::Result<()> {
     let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
+        .build_transaction(bank_account.id())
         .tx_script(init_tx_script)
         .build()?;
 
     let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
     mock_chain.add_pending_executed_transaction(&executed_init)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     println!("Bank initialized successfully");
 
@@ -451,27 +453,26 @@ async fn deposit_test() -> anyhow::Result<()> {
 
     // Build the transaction context where bank consumes the deposit note
     let tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
+        .build_transaction(bank_account.id())
+        .authenticated_input_note(deposit_note.id())
         .build()?;
 
     // Execute the transaction
     let executed_transaction = tx_context.execute().await?;
 
-    // Apply the account delta to the bank account
-    bank_account.apply_delta(&executed_transaction.account_delta())?;
-
     // Add the executed transaction to the mockchain and prove
     mock_chain.add_pending_executed_transaction(&executed_transaction)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Create the key for the depositor (sender) in the storage map.
     // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
-    // In v0.15 the fungible-asset vault key is
-    // [asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix],
-    // so `key[2]` is the faucet suffix combined with a metadata byte (composition +
-    // callback flag) — not the raw faucet suffix. Derive the read key from the asset's
+    // In v0.16 the fungible-asset vault key is
+    // [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix],
+    // so `key[2]` is the faucet suffix combined with composition metadata,
+    // not the raw faucet suffix. Derive the read key from the asset's
     // actual key word so it matches the key the contract writes.
-    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_key_word();
+    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_id_word();
     let depositor_key = Word::from([
         sender.id().prefix().as_felt(),
         sender.id().suffix(),
@@ -480,7 +481,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     ]);
 
     // Get the depositor's balance from the bank's storage using named slot
-    let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
+    let balance = bank_account.storage().get_map_item(&balances_slot, miden_client::account::StorageMapKey::new(depositor_key))?;
 
     // The contract stores `balance` as a `Felt`; reading the map returns the
     // single-Felt value widened into a Word at position [0] ([amount, 0, 0, 0]).
@@ -515,20 +516,12 @@ cargo test --package integration --test deposit_test -- --nocapture
     Finished `test` profile [unoptimized + debuginfo] target(s)
      Running tests/deposit_test.rs
 
-running 3 tests
-Bank initialized successfully
+running 1 test
 Deposit test passed! Deposited 1000 tokens
 test deposit_test ... ok
-test deposit_exceeds_max_should_fail ... ok
-test deposit_without_init_should_fail ... ok
 
-test result: ok. 3 passed; 0 failed; 0 ignored
+test result: ok. 1 passed; 0 failed; 0 ignored
 ```
-
-:::note Cosmetic build output
-Each contract build during the test prints non-fatal `MAST`-serialization `ERROR`
-lines from the Miden compiler. They are cosmetic and do not affect the result.
-:::
 
 </details>
 
@@ -591,6 +584,7 @@ struct BankStorage {
 #[component]
 trait Bank {
     /// Initialize the bank account, enabling deposits.
+    #[account_procedure]
     fn initialize(&mut self);
 
     /// Get the bank-tracked balance for a depositor and specific asset type.
@@ -598,12 +592,15 @@ trait Bank {
     /// Named `get_depositor_balance` (not `get_balance`) to avoid colliding with
     /// the built-in `ActiveAccount::get_balance` vault method that the account
     /// wrapper generates.
+    #[account_procedure]
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
 
     /// Deposit an asset into the bank for a specific depositor.
+    #[account_procedure]
     fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset);
 
     /// Withdraw assets back to the depositor.
+    #[account_procedure]
     fn withdraw(&mut self, withdraw_asset: Asset, serial_num: Word, tag: Felt, note_type: Felt);
 }
 
@@ -636,7 +633,7 @@ impl Bank for BankStorage {
         // self.require_initialized();
 
         assert!(
-            deposit_asset.value[1].as_canonical_u64() == 0,
+            deposit_asset.is_fungible(),
             "Only fungible assets are supported"
         );
 
@@ -684,7 +681,7 @@ impl Bank for BankStorage {
         let depositor = active_note::get_sender();
 
         assert!(
-            withdraw_asset.value[1].as_canonical_u64() == 0,
+            withdraw_asset.is_fungible(),
             "Only fungible assets are supported"
         );
 
@@ -744,7 +741,7 @@ impl BankStorage {
 
 ## Key Takeaways
 
-1. **Asset layout**: `value[0]` = amount; `key[2]` = faucet_suffix + metadata byte (v0.15); `key[3]` = faucet_prefix. Mirror it host-side with `FungibleAsset::to_key_word()` indices `[3]`/`[2]`
+1. **Asset layout**: `value[0]` = amount; `key[2]` = faucet suffix plus composition metadata; `key[3]` = faucet prefix. Mirror it host-side with `FungibleAsset::to_id_word()` indices `[3]`/`[2]`
 2. **`native_account::add_asset()`** adds assets to the vault
 3. **`native_account::remove_asset()`** removes assets from the vault (Part 7)
 4. **Balance tracking** is application-level logic using `StorageMap`

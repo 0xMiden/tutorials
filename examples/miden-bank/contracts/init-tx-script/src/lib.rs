@@ -17,7 +17,7 @@ pub struct Wallet;
 /// 1. Transaction is created with this script attached
 /// 2. Script executes in the context of the bank account
 /// 3. Calls `account.initialize()` to enable deposits
-/// 4. Bank account is now "deployed" and visible on chain
+/// 4. Bank is ready to process deposits after the transaction commits
 ///
 /// # Arguments
 /// * `_arg` - Transaction script argument (unused in this script)

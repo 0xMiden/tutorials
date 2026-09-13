@@ -34,7 +34,7 @@ impl DepositNote {
         let depositor = active_note::get_sender();
 
         // Get all assets attached to this note
-        let assets = active_note::get_assets();
+        let assets = active_note::get_initial_assets();
 
         // Deposit each asset into the bank
         for asset in assets {

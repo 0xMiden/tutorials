@@ -38,13 +38,13 @@ In this tutorial, we'll build a simple Next.js application that demonstrates the
 Before we dive into code, a quick refresher:
 
 - **Public accounts**: The account's data and code are stored on-chain and are openly visible, including its assets.
-- **Private accounts**: The account's state and logic are off-chain, only known to its owner.
+- **Private accounts**: The account's state and logic are kept off-chain. The owner retains them locally and can share them; the chain records the account commitment.
 - **Public notes**: The note's state is visible to anyone - perfect for scenarios where transparency is desired.
 - **Private notes**: The note's state is stored off-chain, you will need to share the note data with the relevant parties (via email or Telegram) for them to be able to consume the note.
 
 > **Important**: In Miden, "accounts" and "smart contracts" can be used interchangeably due to native account abstraction. Every account is programmable and can contain custom logic.
 
-It is useful to think of notes on Miden as "cryptographic cashier's checks" that allow users to send tokens. If the note is private, the note transfer is only known to the sender and receiver.
+It is useful to think of notes on Miden as "cryptographic cashier's checks" that allow users to send tokens. Private note details must be shared with the recipient. The chain still records public note metadata, the note commitment, and its eventual nullifier; privacy also depends on how the details and transaction witness are shared.
 
 ## Step 1: Initialize your Next.js project
 
@@ -69,15 +69,17 @@ It is useful to think of notes on Miden as "cryptographic cashier's checks" that
   typescript: { code: `yarn add @miden-sdk/miden-sdk@0.16.0` },
 }} reactFilename="" tsFilename="" />
 
-**NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
+The current Next.js template uses Turbopack by default. These SDK examples use the webpack configuration from the setup guide, so update both scripts in `package.json`:
 
 `package.json`
 
 ```json
+{
   "scripts": {
     "dev": "next dev --webpack",
-    ...
+    "build": "next build --webpack"
   }
+}
 ```
 
 ## Step 2: Set up the Miden client
@@ -89,7 +91,7 @@ The Miden client is your gateway to interact with the Miden blockchain. It handl
 First, we'll create a separate file for our blockchain logic. In the project root, create a folder `lib/` and inside it `lib/react/createMintConsume.tsx` (React) or `lib/createMintConsume.ts` (TypeScript):
 
 ```bash
-mkdir -p lib
+mkdir -p lib/react
 ```
 
 <CodeSdkTabs example={{
@@ -228,7 +230,7 @@ react: { code: `const run = async () => {
 .console.log('Alice ID:', alice.id().toString());
 };` },
 typescript: { code: `// lib/createMintConsume.ts
-import { MidenClient } from '@miden-sdk/miden-sdk/lazy';
+import { MidenClient, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
@@ -261,7 +263,7 @@ export async function createMintConsume(): Promise<void> {
 
 A faucet in Miden is a special type of account that can mint new tokens. Think of it as your own token factory. Let's deploy one that will create our custom "MID" tokens.
 
-Add this code after creating Alice's account:
+Add this code after creating Alice’s account. Use `fundAccount` from `useTutorialSupport` in React, or import `fundAccountForFees` from `./feeSupport` in TypeScript, as shown in the complete example. Consuming native fee funding is the first transaction that deploys each account.
 
 <CodeSdkTabs example={{
 react: { code: `// 2. Deploy a fungible faucet
@@ -274,20 +276,22 @@ const faucet = await createFaucet({
 .storageMode: StorageMode.Public, // Public: faucet operations are transparent
 });
 console.log('Faucet account ID:', faucet.id().toString());
-
+await fundAccount(alice);
+await fundAccount(faucet);
 console.log('Setup complete.');`},
   typescript: { code:`// 3. Deploy a fungible faucet
 // A faucet is an account that can mint new tokens
 console.log('Creating faucet…');
-const faucetAccount = await client.accounts.create({
+const faucet = await client.accounts.create({
 .type: 0, // 0 = FungibleFaucet: can mint divisible tokens
 .symbol: 'MID', // Token symbol (like ETH, BTC, etc.)
 .decimals: 8, // Decimals (8 means 1 MID = 100,000,000 base units)
 .maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
 .storage: StorageMode.Public, // Public: faucet operations are transparent
 });
-console.log('Faucet account ID:', faucetAccount.id().toString());
-
+console.log('Faucet account ID:', faucet.id().toString());
+await fundAccountForFees(client, alice);
+await fundAccountForFees(client, faucet);
 console.log('Setup complete.');` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
@@ -320,11 +324,8 @@ import {
 .useMiden,
 .useCreateWallet,
 .useCreateFaucet,
-.useMint,
-.useConsume,
-.useSend,
 } from '@miden-sdk/react/lazy';
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import { tutorialNetwork } from '../feeSupport';
 import {
 .TutorialButton,
@@ -336,16 +337,7 @@ function CreateMintConsumeInner() {
 .const { sync } = useMiden();
 .const { createWallet } = useCreateWallet();
 .const { createFaucet } = useCreateFaucet();
-.const { mint } = useMint();
-.const { consume } = useConsume();
-.const { send } = useSend();
-.const {
-..fundAccount,
-..committed,
-..waitForTokenNotes,
-..waitForNote,
-..assertBalance,
-.} = useTutorialSupport();
+.const { fundAccount } = useTutorialSupport();
 
 .const run = async () => {
 ..console.log('Synchronizing before creating accounts…');
@@ -371,42 +363,13 @@ function CreateMintConsumeInner() {
 ..console.log('Faucet ID:', faucet.id().toString());
 ..await fundAccount(faucet);
 
-..await sync();
-..const minted = await mint({
-...faucetId: faucet,
-...targetAccountId: alice,
-...amount: BigInt(1000),
-...noteType: NoteVisibility.Public,
-..});
-..await committed(minted.transactionId);
-..const notes = await waitForTokenNotes(alice, faucet);
-..const consumed = await consume({ accountId: alice.id().toString(), notes });
-..await committed(consumed.transactionId);
-..await assertBalance(alice, faucet, BigInt(1000));
-
-..const bob = await createWallet({
-...storageMode: StorageMode.Public,
-...authScheme,
-..});
-..const sent = await send({
-...from: alice,
-...to: bob,
-...assetId: faucet,
-...amount: BigInt(100),
-...noteType: NoteVisibility.Public,
-...returnNote: true,
-..});
-..await committed(sent.txId);
-..if (!sent.note) throw new Error('Send did not return its output note');
-..await waitForNote(sent.note.id().toString());
-..await assertBalance(alice, faucet, BigInt(900));
-..console.log('Tokens sent successfully!');
+..console.log('Setup complete.');
 .};
 
 .return (
 ..<TutorialButton
 ...name="createMintConsume"
-...label="Run: Create, Mint, Consume & Send"
+...label="Run: Create Wallet & Deploy Faucet"
 ...run={run}
 ../>
 .);
@@ -426,9 +389,8 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code: `// lib/createMintConsume.ts
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import {
-.consumeAllFeeAware,
 .createTutorialClient,
 .fundAccountForFees,
 } from './feeSupport';
@@ -468,49 +430,13 @@ export async function createMintConsume(): Promise<void> {
 .await fundAccountForFees(client, alice);
 .await fundAccountForFees(client, faucet);
 
-.// 4. Mint tokens to Alice.
-.console.log('Minting tokens to Alice...');
-.await client.sync();
-.const { txId: mintTxId } = await client.transactions.mint({
-..account: faucet,
-..to: alice,
-..amount: BigInt(1000),
-..type: NoteVisibility.Public,
-.});
-.console.log('Waiting for transaction confirmation...');
-.await client.transactions.waitFor(mintTxId, { timeout: 120_000 });
-
-.// 5-6. Consume all available notes for Alice.
-.console.log('Consuming minted notes...');
-.await consumeAllFeeAware(client, alice);
-
-.console.log('Notes consumed.');
-
-.// 7. Send tokens to Bob
-.const bob = await client.accounts.create({
-..storage: StorageMode.Public,
-.});
-.console.log("Sending tokens to Bob's account...");
-.await client.sync();
-.const { txId: sendTxId } = await client.transactions.send({
-..account: alice,
-..to: bob,
-..token: faucet,
-..amount: BigInt(100),
-..type: NoteVisibility.Public,
-..waitForConfirmation: true,
-..timeout: 120_000,
-.});
-.console.log(\`Transaction committed: \${sendTxId.toHex()}\`);
-.const updatedAlice = await client.accounts.get(alice);
-.const balance = updatedAlice?.vault().getBalance(faucet.id());
-.if (balance !== BigInt(900))
-..throw new Error(\`Expected Alice to retain 900 MID, got \${balance}\`);
-.console.log('Tokens sent successfully!');
+.console.log('Setup complete.');
 }` },
 }} reactFilename="lib/react/createMintConsume.tsx" tsFilename="lib/createMintConsume.ts" />
 
 ### Running the example
+
+From the parent directory of `miden-web-app`:
 
 ```bash
 cd miden-web-app
@@ -521,11 +447,11 @@ yarn dev
 Open [http://localhost:3000](http://localhost:3000) in your browser, click **Tutorial #1: Create a wallet and deploy a faucet**, and check the browser console (F12 or right-click → Inspect → Console):
 
 ```
-Latest block: 2247
+Latest block number: <testnet block>
 Creating account for Alice…
-Alice ID: 0xd70b2072c6495d100000869a8bacf2
+Alice ID: <testnet account>
 Creating faucet…
-Faucet ID: 0x2d7e506fb88dde200000a1386efec8
+Faucet ID: <testnet account>
 Setup complete.
 ```
 

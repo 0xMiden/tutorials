@@ -3,6 +3,7 @@ name = "withdraw-request-note"
 version = "0.1.0"
 
 [lib]
+path = "src/lib.rs"
 kind = "note"
 namespace = "miden:withdraw-request-note/miden-withdraw-request-note@0.1.0"
 
@@ -10,7 +11,3 @@ namespace = "miden:withdraw-request-note/miden-withdraw-request-note@0.1.0"
 miden-core = "*"
 miden-protocol = "*"
 bank-account = { path = "../bank-account" }
-
-# WIT for the account component this note calls, produced by building bank-account.
-[package.metadata.miden.dependencies]
-bank-account = { wit = "../bank-account/target/generated-wit/" }

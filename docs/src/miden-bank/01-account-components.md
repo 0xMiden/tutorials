@@ -6,7 +6,7 @@ description: "Learn how to define account components with the #[component] attri
 
 # Part 1: Account Components and Storage
 
-In this section, you'll learn the fundamentals of building Miden account components. We'll explore the storage types introduced in Part 0 — `Value` and `StorageMap` — and add component methods.
+In this section, you'll learn the fundamentals of building Miden account components. We'll explore the storage types introduced in Part 0 — `StorageValue` and `StorageMap` — and add component methods.
 
 ## What You'll Build in This Part
 
@@ -82,11 +82,11 @@ struct BankStorage {
 }
 ```
 
-The `balances` field is a `StorageMap` that tracks each depositor's balance. The compiler derives slot IDs by hashing slot names (not by field declaration order). Slot names follow the pattern `{package_name}::{component_struct}::{field_name}` — here `bank_account::bank::initialized` and `bank_account::bank::balances`.
+The `balances` field is a `StorageMap` that tracks each depositor's balance. The compiler derives slot IDs by hashing slot names (not by field declaration order). Slot names follow the pattern `{package_name}::{component_interface}::{field_name}` — here `bank_account::bank::initialized` and `bank_account::bank::balances`.
 
 ## Storage Types Explained
 
-Miden accounts have storage slots that persist state on-chain. Each slot holds one `Word` (4 Felts = 32 bytes). The Miden Rust compiler provides two abstractions:
+Miden accounts have persistent storage slots. Public account storage is published on-chain; private accounts publish its commitment. A value slot holds one `Word` (4 Felts = 32 bytes), while a map slot holds the root of its key-value map. The Miden Rust compiler provides two abstractions:
 
 ### StorageValue Storage
 
@@ -116,7 +116,7 @@ self.initialized.set(new_value);
 ```
 
 :::tip Type Annotations
-The `.get()` method requires a type annotation: `let current: Word = self.initialized.get();`
+`StorageValue<Word>::get()` returns a `Word`. The annotation in `let current: Word = self.initialized.get();` makes that type explicit but is not required.
 :::
 
 ### StorageMap
@@ -143,17 +143,16 @@ let key = Word::from([
     asset.key[2],
 ]);
 
-// Get returns a generic type V where V: From<Word>.
-// Here we annotate the result as Felt, which works because Felt implements From<Word>.
+// This field is StorageMap<Word, Felt>, so get returns Felt.
 let balance: Felt = self.balances.get(key);
 
-// Set stores a value at the key (any type that implements Into<Word>)
+// Set stores a Felt at this Word key.
 let new_balance = Felt::new(balance.as_canonical_u64() + deposit_amount.as_canonical_u64()).unwrap();
 self.balances.set(key, new_balance);
 ```
 
 :::info StorageMap Has a Generic API
-`StorageMap::get()` returns a generic type `V` (constrained by `V: From<Word>`), not specifically `Felt`. The type is inferred from the variable annotation. In this tutorial we use `Felt` because we store single balance values, but you could also use `Word` or any custom type that implements the trait.
+`StorageMap<K, V>::get()` returns the map's declared value type `V`, which must implement `WordValue`. Our `StorageMap<Word, Felt>` therefore returns `Felt`; the variable annotation does not change the map's value type. A map declared with `Word` values would return `Word`.
 :::
 
 ### Storage Layout
@@ -165,7 +164,7 @@ Plan your storage layout carefully:
 | `initialized` | `StorageValue<Word>`     | Initialization flag |
 | `balances`    | `StorageMap<Word, Felt>` | Depositor balances  |
 
-The `description` attribute generates named slot identifiers (e.g., `bank_account::bank::initialized`) used in tests to reference specific slots. The naming convention is `{package_name}::{component_struct}::{field_name}`. The compiler derives slot IDs by hashing these names, so field declaration order does not affect slot assignment.
+The `description` attribute adds human-readable metadata. The package namespace, component interface, and field name determine slot names such as `bank_account::bank::initialized`, which tests use to identify slots. The naming convention is `{package_name}::{component_interface}::{field_name}`. The compiler derives slot IDs by hashing these names, so field declaration order does not affect slot assignment.
 
 ## Step 2: Implement Component Methods
 
@@ -176,9 +175,11 @@ Now let's add methods to our Bank. The exported API is declared as a `#[componen
 #[component]
 trait Bank {
     /// Initialize the bank account, enabling deposits.
+    #[account_procedure]
     fn initialize(&mut self);
 
     /// Get the bank-tracked balance for a depositor and specific asset type.
+    #[account_procedure]
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
 }
 
@@ -232,8 +233,8 @@ impl BankStorage {
 }
 ```
 
-:::info v0.15 fungible-asset key layout
-A fungible asset's vault key Word is `[asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. So `asset.key[3]` is the faucet id prefix and `asset.key[2]` is the faucet id suffix folded together with a metadata byte (composition + callback flag) in its low 8 bits — `key[2]` is **not** the raw faucet suffix. For the callbacks-disabled fungible assets this bank accepts the metadata byte is constant, so `(key[3], key[2])` is a stable per-faucet identifier. The host-side mirror is `FungibleAsset::to_key_word()` indices `[3]`/`[2]`.
+:::info v0.16 fungible-asset ID layout
+A fungible asset's ID Word is `[asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. For fungible assets, the asset class is empty. `asset.key[3]` is the faucet ID prefix and `asset.key[2]` is the faucet ID suffix with the composition bits in its low byte, so `key[2]` is **not** the raw faucet suffix. The callback flag is now encoded in the faucet account ID, not in the asset metadata byte. The host-side mirror is `FungibleAsset::to_id_word()` indices `[3]`/`[2]`.
 :::
 
 The bank requires initialization before accepting deposits: `require_initialized()` is called at the top of `deposit()` and `withdraw()` (covered in later parts).
@@ -262,12 +263,9 @@ miden build
 
 This compiles the Rust code to Miden Assembly and generates:
 
-- `target/miden/release/bank-account.masp` - The compiled package
-- `target/generated-wit/` - WIT interface files for other contracts to use
+- `target/miden/dev/bank-account.masp` - The compiled package
+- The package embeds the WIT interface used by dependent contracts
 
-:::note Cosmetic build errors
-The build prints non-fatal `MAST`-serialization `ERROR` lines on every run. These are cosmetic — the build still succeeds and produces the `.masp` package.
-:::
 
 ## Optional: Verify Your Code
 
@@ -287,7 +285,7 @@ Create a new test file:
 use integration::helpers::{
     build_project_in_dir, create_testing_account_from_package, AccountCreationConfig,
 };
-use miden_client::account::{StorageMap, StorageSlot, StorageSlotName};
+use miden_client::account::{component::{InitStorageData, StorageValueName}, StorageSlotName};
 use miden_client::{Felt, Word};
 use std::{path::Path, sync::Arc};
 
@@ -304,7 +302,7 @@ async fn test_bank_account_storage() -> anyhow::Result<()> {
     )?);
 
     // Create named storage slots matching the contract's storage layout
-    // The naming convention is: {package_name}::{component_struct}::{field_name}
+    // The naming convention is: {package_name}::{component_interface}::{field_name}
     let initialized_slot =
         StorageSlotName::new("bank_account::bank::initialized")
             .expect("Valid slot name");
@@ -349,8 +347,11 @@ async fn test_bank_account_storage() -> anyhow::Result<()> {
     // =========================================================================
 
     // Check that we can query the balances map (should return 0 for any key)
-    let test_key = Word::from([Felt::new(1), Felt::new(2), Felt::new(0), Felt::new(0)]);
-    let balance = bank_account.storage().get_map_item(&balances_slot, test_key)?;
+    let test_key = Word::from([Felt::from(1u32), Felt::from(2u32), Felt::from(0u32), Felt::from(0u32)]);
+    let balance = bank_account.storage().get_map_item(
+        &balances_slot,
+        miden_client::account::StorageMapKey::new(test_key),
+    )?;
 
     // Balance for non-existent depositor should be all zeros
     assert_eq!(
@@ -436,9 +437,11 @@ struct BankStorage {
 #[component]
 trait Bank {
     /// Initialize the bank account, enabling deposits.
+    #[account_procedure]
     fn initialize(&mut self);
 
     /// Get the bank-tracked balance for a depositor and specific asset type.
+    #[account_procedure]
     fn get_depositor_balance(&self, depositor: AccountId, asset: Asset) -> Felt;
 }
 
@@ -493,7 +496,7 @@ impl BankStorage {
 
 ## Key Takeaways
 
-1. **`#[component]`** marks structs and impl blocks as Miden account components
+1. **`#[component]`** marks the exported component trait and its implementation; `#[component_storage]` marks the storage struct
 2. **`StorageValue<Word>`** stores a single Word, read with `.get()`, write with `.set()`
 3. **`StorageMap<Word, Felt>`** stores key-value pairs, access with `.get()` and `.set()`
 4. **Storage slots** are identified by name (IDs derived from hashed slot names), each holds 4 Felts (32 bytes)

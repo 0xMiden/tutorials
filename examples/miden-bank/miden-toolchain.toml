@@ -1,0 +1,4 @@
+[toolchain]
+channel = "0.16.0"
+profile = "empty"
+components = ["midenc", "cargo-miden", "core", "protocol"]

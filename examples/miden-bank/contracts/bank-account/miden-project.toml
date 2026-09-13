@@ -3,12 +3,10 @@ name = "bank-account"
 version = "0.1.0"
 
 [lib]
+path = "src/lib.rs"
 kind = "account-component"
 namespace = "miden:bank-account/bank@0.1.0"
 
 [dependencies]
 miden-core = "*"
 miden-protocol = "*"
-
-[package.metadata.miden]
-supported-types = ["RegularAccountImmutableCode"]

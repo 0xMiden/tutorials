@@ -3,14 +3,17 @@ use integration::helpers::{
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
 
+use miden_client::asset::{Asset, FungibleAsset, NonFungibleAsset};
 use miden_client::{
-    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
-    auth::AuthSchemeId,
+    account::{
+        component::{InitStorageData, StorageValueName},
+        StorageSlotName,
+    },
+    auth::AuthScheme,
     note::NoteAssets,
     transaction::RawOutputNote,
     Felt, Word,
 };
-use miden_client::asset::{Asset, FungibleAsset};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
@@ -21,12 +24,63 @@ use std::{path::Path, sync::Arc};
 /// `InitValueNotProvided`). The `balances` map slot defaults to empty and needs no entry.
 fn bank_storage_slots() -> (StorageSlotName, StorageSlotName) {
     let initialized_slot =
-        StorageSlotName::new("bank_account::bank::initialized")
-            .expect("Valid slot name");
+        StorageSlotName::new("bank_account::bank::initialized").expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("bank_account::bank::balances")
-            .expect("Valid slot name");
+        StorageSlotName::new("bank_account::bank::balances").expect("Valid slot name");
     (initialized_slot, balances_slot)
+}
+
+/// An NFT can have zero in value[1]; that is not a fungibility check in v0.16.
+#[tokio::test]
+async fn deposit_nft_with_zero_padding_should_fail() -> anyhow::Result<()> {
+    let mut builder = MockChain::builder();
+    let faucet = builder.add_existing_non_fungible_faucet(Auth::IncrNonce, "NFT")?;
+    let sender = builder.add_existing_wallet_with_assets(Auth::IncrNonce, [])?;
+    let nft = NonFungibleAsset::from_parts(faucet.id(), Word::from([25u32, 0, 7, 0]));
+    let bank_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/bank-account"),
+        true,
+    )?);
+    let deposit_package = Arc::new(build_project_in_dir(
+        Path::new("../contracts/deposit-note"),
+        true,
+    )?);
+    let (initialized_slot, _) = bank_storage_slots();
+    let mut init_storage_data = InitStorageData::default();
+    init_storage_data.insert_value(
+        StorageValueName::from_slot_name(&initialized_slot),
+        Word::from([1u32, 0, 0, 0]),
+    )?;
+    let bank = create_testing_account_from_package(
+        bank_package,
+        AccountCreationConfig {
+            init_storage_data,
+            ..Default::default()
+        },
+    )?;
+    let note = create_testing_note_from_package(
+        deposit_package,
+        sender.id(),
+        NoteCreationConfig {
+            assets: NoteAssets::new(vec![nft.into()])?,
+            ..Default::default()
+        },
+    )?;
+    builder.add_account(bank.clone())?;
+    builder.add_output_note(RawOutputNote::Full(note.clone()));
+    let chain = builder.build()?;
+    let error = chain
+        .build_transaction(bank.id())
+        .authenticated_input_note(note.id())
+        .build()?
+        .execute()
+        .await
+        .expect_err("an NFT with zero padding must not be credited as fungible tokens");
+    assert!(
+        format!("{error:?}").contains("FailedAssertion"),
+        "unexpected failure: {error:?}"
+    );
+    Ok(())
 }
 
 #[tokio::test]
@@ -37,7 +91,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create a faucet to mint test assets
     let faucet = builder.add_existing_basic_faucet(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         "TEST",
         1000,
@@ -47,7 +101,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create note sender account (the depositor)
     let sender = builder.add_existing_wallet_with_assets(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         [FungibleAsset::new(faucet.id(), 100)?.into()],
     )?;
@@ -82,8 +136,7 @@ async fn deposit_test() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
+    let mut bank_account = create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Create a fungible asset to deposit
     let deposit_amount: u64 = 1000;
@@ -117,14 +170,14 @@ async fn deposit_test() -> anyhow::Result<()> {
     let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
+        .build_transaction(bank_account.id())
         .tx_script(init_tx_script)
         .build()?;
 
     let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
     mock_chain.add_pending_executed_transaction(&executed_init)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     println!("Bank initialized successfully");
 
@@ -134,27 +187,28 @@ async fn deposit_test() -> anyhow::Result<()> {
 
     // Build the transaction context where bank consumes the deposit note
     let tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
+        .build_transaction(bank_account.id())
+        .authenticated_input_note(deposit_note.id())
         .build()?;
 
     // Execute the transaction
     let executed_transaction = tx_context.execute().await?;
 
     // Apply the account delta to the bank account
-    bank_account.apply_delta(&executed_transaction.account_delta())?;
 
     // Add the executed transaction to the mockchain and prove
     mock_chain.add_pending_executed_transaction(&executed_transaction)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Create the key for the depositor (sender) in the storage map.
     // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
-    // In v0.15 the fungible-asset vault key is
-    // [asset_id_suffix, asset_id_prefix, faucet_suffix | metadata_byte, faucet_prefix],
-    // so `key[2]` is the faucet suffix combined with a metadata byte (composition +
-    // callback flag) — not the raw faucet suffix. Derive the read key from the asset's
+    // In v0.16 the fungible-asset vault key is
+    // [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix],
+    // so `key[2]` is the faucet suffix combined with composition metadata,
+    // not the raw faucet suffix. Derive the read key from the asset's
     // actual key word so it matches the key the contract writes.
-    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_key_word();
+    let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_id_word();
     let depositor_key = Word::from([
         sender.id().prefix().as_felt(),
         sender.id().suffix(),
@@ -163,7 +217,10 @@ async fn deposit_test() -> anyhow::Result<()> {
     ]);
 
     // Get the depositor's balance from the bank's storage using named slot
-    let balance = bank_account.storage().get_map_item(&balances_slot, depositor_key)?;
+    let balance = bank_account.storage().get_map_item(
+        &balances_slot,
+        miden_client::account::StorageMapKey::new(depositor_key),
+    )?;
 
     // The contract stores `balance` as a `Felt`; reading the map returns the
     // single-Felt value widened into a Word at position [0] ([amount, 0, 0, 0]).
@@ -197,7 +254,7 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
     let large_amount: u64 = 2_000_000; // Exceeds MAX_DEPOSIT_AMOUNT
     let faucet = builder.add_existing_basic_faucet(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         "TEST",
         large_amount,
@@ -207,7 +264,7 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
     // Create note sender account (the depositor) with large asset balance
     let sender = builder.add_existing_wallet_with_assets(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         [FungibleAsset::new(faucet.id(), large_amount)?.into()],
     )?;
@@ -240,8 +297,7 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
+    let mut bank_account = create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Create a deposit note with amount exceeding the max
     let fungible_asset = FungibleAsset::new(faucet.id(), large_amount)?;
@@ -267,26 +323,28 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
     let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
+        .build_transaction(bank_account.id())
         .tx_script(init_tx_script)
         .build()?;
 
     let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
     mock_chain.add_pending_executed_transaction(&executed_init)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Build the transaction context
     let tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
+        .build_transaction(bank_account.id())
+        .authenticated_input_note(deposit_note.id())
         .build()?;
 
     // Execute should fail due to max deposit constraint
     let result = tx_context.execute().await;
 
+    let error = result.expect_err("deposit above the maximum must fail");
     assert!(
-        result.is_err(),
-        "Expected transaction to fail due to exceeding max deposit amount, but it succeeded"
+        format!("{error:?}").contains("FailedAssertion"),
+        "unexpected failure: {error:?}"
     );
 
     println!(
@@ -308,7 +366,7 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
     // Create a faucet to mint test assets
     let faucet = builder.add_existing_basic_faucet(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         "TEST",
         1000,
@@ -318,7 +376,7 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
     // Create note sender account (the depositor)
     let sender = builder.add_existing_wallet_with_assets(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         [FungibleAsset::new(faucet.id(), 100)?.into()],
     )?;
@@ -348,8 +406,7 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
+    let bank_account = create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // Create a deposit note
     let deposit_amount: u64 = 1000;
@@ -374,15 +431,17 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
 
     // Try to deposit WITHOUT initializing the bank first
     let tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
+        .build_transaction(bank_account.id())
+        .authenticated_input_note(deposit_note.id())
         .build()?;
 
     // Execute should fail because the bank is not initialized
     let result = tx_context.execute().await;
 
+    let error = result.expect_err("deposit before initialization must fail");
     assert!(
-        result.is_err(),
-        "Expected deposit to fail when bank not initialized, but it succeeded"
+        format!("{error:?}").contains("FailedAssertion"),
+        "unexpected failure: {error:?}"
     );
 
     println!("Uninitialized deposit correctly rejected - bank must be initialized first");

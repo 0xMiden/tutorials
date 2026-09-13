@@ -3,14 +3,17 @@ use integration::helpers::{
     create_testing_note_from_package, AccountCreationConfig, NoteCreationConfig,
 };
 
+use miden_client::asset::{Asset, FungibleAsset};
 use miden_client::{
-    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
-    auth::AuthSchemeId,
+    account::{
+        component::{InitStorageData, StorageValueName},
+        StorageSlotName,
+    },
+    auth::AuthScheme,
     note::{Note, NoteAssets, NoteTag, NoteType, P2idNote, P2idNoteStorage, PartialNoteMetadata},
     transaction::RawOutputNote,
     Felt, Word,
 };
-use miden_client::asset::{Asset, FungibleAsset};
 use miden_testing::{Auth, MockChain};
 use std::{path::Path, sync::Arc};
 
@@ -18,21 +21,26 @@ use std::{path::Path, sync::Arc};
 /// seeded via `InitStorageData` (no schema default); the `balances` map defaults to empty.
 fn bank_storage_slots() -> (StorageSlotName, StorageSlotName) {
     let initialized_slot =
-        StorageSlotName::new("bank_account::bank::initialized")
-            .expect("Valid slot name");
+        StorageSlotName::new("bank_account::bank::initialized").expect("Valid slot name");
     let balances_slot =
-        StorageSlotName::new("bank_account::bank::balances")
-            .expect("Valid slot name");
+        StorageSlotName::new("bank_account::bank::balances").expect("Valid slot name");
     (initialized_slot, balances_slot)
 }
 
 #[tokio::test]
 async fn withdraw_test() -> anyhow::Result<()> {
+    for note_type in [NoteType::Public, NoteType::Private] {
+        withdraw_flow(note_type).await?;
+    }
+    Ok(())
+}
+
+async fn withdraw_flow(note_type: NoteType) -> anyhow::Result<()> {
     // *********************************************************************************
     // SETUP
     // *********************************************************************************
 
-    // Test that after executing the deposit note, the depositor's balance is updated
+    // Verify withdrawal through consumption of the resulting P2ID note.
     let mut builder = MockChain::builder();
 
     // Define the deposit amount
@@ -41,7 +49,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
     // Create a faucet to mint test assets
     let faucet = builder.add_existing_basic_faucet(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         "TEST",
         deposit_amount,
@@ -51,7 +59,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
     // Create note sender account (the depositor)
     let sender = builder.add_existing_wallet_with_assets(
         Auth::BasicAuth {
-            auth_scheme: AuthSchemeId::Falcon512Poseidon2,
+            auth_scheme: AuthScheme::Falcon512Poseidon2,
         },
         [FungibleAsset::new(faucet.id(), deposit_amount)?.into()],
     )?;
@@ -73,7 +81,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
     // Create the bank account. The `initialized` value slot has no schema default, so it must
     // be seeded (here with a zero Word = uninitialized) or `from_package` errors with
     // `InitValueNotProvided`; the `balances` map defaults to empty.
-    let (initialized_slot, _balances_slot) = bank_storage_slots();
+    let (initialized_slot, balances_slot) = bank_storage_slots();
     let bank_cfg = AccountCreationConfig {
         init_storage_data: {
             let mut data = InitStorageData::default();
@@ -86,8 +94,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut bank_account =
-        create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
+    let mut bank_account = create_testing_account_from_package(bank_package.clone(), bank_cfg)?;
 
     // *********************************************************************************
     // STEP 1: CRAFT DEPOSIT NOTE
@@ -136,22 +143,22 @@ async fn withdraw_test() -> anyhow::Result<()> {
     println!("Serial num (random): {:?}", p2id_output_note_serial_num);
 
     // Note type for the P2ID output note
-    let note_type_felt = Felt::new_unchecked(1); // 1 = Public note (stored on-chain)
+    let note_type_felt = Felt::from(note_type); // Public = 1, Private = 0
 
     // Get the P2ID script root (Poseidon2-hashed MAST root). `script_root()` returns
-    // a `NoteScriptRoot` in v0.15; convert to a `Word` so its felts can be indexed.
+    // a `NoteScriptRoot` in v0.16; convert to a `Word` so its felts can be indexed.
     let p2id_script_root = Word::from(P2idNote::script_root());
 
     // Note storage layout (14 Felts):
     // [0-3]: withdraw asset encoded as [amount, 0, asset.key[2] (faucet suffix + metadata byte), asset.key[3] (faucet prefix)]
     // [4-7]: serial_num (random/unique per note)
     // [8]: tag (P2ID note tag for routing)
-    // [9]: note_type (1 = Public, 2 = Private)
+    // [9]: note_type (1 = Public, 0 = Private)
     // [10-13]: P2ID script_root (MAST root for recipient computation)
-    // In v0.15 the fungible-asset vault key encodes the faucet suffix together with a
+    // In v0.16 the fungible-asset vault key encodes the faucet suffix together with a
     // metadata byte at index [2] (and the faucet prefix at [3]). Encode the asset from the
     // asset's real key word so the bank reconstructs the same key it deposited under.
-    let withdraw_asset_key_word = FungibleAsset::new(faucet.id(), withdraw_amount)?.to_key_word();
+    let withdraw_asset_key_word = FungibleAsset::new(faucet.id(), withdraw_amount)?.to_id_word();
     let withdraw_request_note_storage = vec![
         // WITHDRAW ASSET ENCODING
         Felt::new_unchecked(withdraw_amount),
@@ -165,7 +172,7 @@ async fn withdraw_test() -> anyhow::Result<()> {
         p2id_output_note_serial_num[3],
         // TAG (directly passed, no advice provider needed)
         p2id_tag_felt,
-        // NOTE TYPE (1 = Public)
+        // NOTE TYPE (1 = Public, 0 = Private)
         note_type_felt,
         // P2ID SCRIPT ROOT (4 Felts)
         p2id_script_root[0],
@@ -201,14 +208,14 @@ async fn withdraw_test() -> anyhow::Result<()> {
     let init_tx_script = build_tx_script_from_package(init_tx_script_package.as_ref())?;
 
     let init_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[], &[])?
+        .build_transaction(bank_account.id())
         .tx_script(init_tx_script)
         .build()?;
 
     let executed_init = init_tx_context.execute().await?;
-    bank_account.apply_delta(&executed_init.account_delta())?;
     mock_chain.add_pending_executed_transaction(&executed_init)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     println!("Bank initialized successfully");
 
@@ -218,18 +225,17 @@ async fn withdraw_test() -> anyhow::Result<()> {
 
     // Build the transaction context where bank consumes the deposit note
     let deposit_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[deposit_note.id()], &[])?
+        .build_transaction(bank_account.id())
+        .authenticated_input_note(deposit_note.id())
         .build()?;
 
     // Execute the transaction
     let executed_deposit_transaction = deposit_tx_context.execute().await?;
 
-    // Apply the account delta to the bank account
-    bank_account.apply_delta(&executed_deposit_transaction.account_delta())?;
-
     // Add the executed transaction to the mockchain and prove
     mock_chain.add_pending_executed_transaction(&executed_deposit_transaction)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     println!("Bank deposit successful");
 
@@ -241,8 +247,8 @@ async fn withdraw_test() -> anyhow::Result<()> {
     let recipient = P2idNoteStorage::new(sender.id()).into_recipient(p2id_output_note_serial_num);
     let p2id_output_note_asset = FungibleAsset::new(faucet.id(), withdraw_amount)?;
     let p2id_output_note_assets = NoteAssets::new(vec![p2id_output_note_asset.into()])?;
-    let p2id_output_note_metadata = PartialNoteMetadata::new(bank_account.id(), NoteType::Public)
-        .with_tag(p2id_tag);
+    let p2id_output_note_metadata =
+        PartialNoteMetadata::new(bank_account.id(), note_type).with_tag(p2id_tag);
 
     println!("Recipient digest: {:?}", recipient.digest().to_hex());
 
@@ -253,18 +259,72 @@ async fn withdraw_test() -> anyhow::Result<()> {
     );
 
     let withdraw_request_tx_context = mock_chain
-        .build_tx_context(bank_account.id(), &[withdraw_request_note.id()], &[])?
-        .extend_expected_output_notes(vec![RawOutputNote::Full(p2id_output_note)])
+        .build_transaction(bank_account.id())
+        .authenticated_input_note(withdraw_request_note.id())
+        .expected_output_notes(vec![RawOutputNote::Full(p2id_output_note.clone())])
         .build()?;
 
     let executed_withdraw_request_transaction = withdraw_request_tx_context.execute().await?;
 
-    bank_account.apply_delta(&executed_withdraw_request_transaction.account_delta())?;
-
     mock_chain.add_pending_executed_transaction(&executed_withdraw_request_transaction)?;
     mock_chain.prove_next_block()?;
+    bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
-    println!("Withdraw test passed!");
+    let remaining = deposit_amount - withdraw_amount;
+    let asset = FungibleAsset::new(faucet.id(), withdraw_amount)?;
+    let asset_key = asset.to_id_word();
+    let depositor_key = miden_client::account::StorageMapKey::new(Word::from([
+        sender.id().prefix().as_felt(),
+        sender.id().suffix(),
+        asset_key[3],
+        asset_key[2],
+    ]));
+    let balance = bank_account
+        .storage()
+        .get_map_item(&balances_slot, depositor_key)?;
+    assert_eq!(balance[0].as_canonical_u64(), remaining);
+    assert_eq!(
+        u64::from(bank_account.vault().get_balance(asset.id())?),
+        remaining
+    );
+    assert_eq!(
+        executed_withdraw_request_transaction
+            .output_notes()
+            .num_notes(),
+        1
+    );
+    // MockChain retains only headers for newly committed private notes. Supply their
+    // full details explicitly, as the recipient would receive them out of band.
+    let consume_p2id = |account_id| {
+        let tx = mock_chain.build_transaction(account_id);
+        if note_type == NoteType::Public {
+            tx.authenticated_input_note(p2id_output_note.id())
+        } else {
+            tx.unauthenticated_input_note(p2id_output_note.clone())
+        }
+    };
+
+    // P2ID must reject a consumer other than the depositor.
+    let error = consume_p2id(bank_account.id())
+        .build()?
+        .execute()
+        .await
+        .expect_err("only the depositor may consume the withdrawal note");
+    assert!(
+        format!("{error:?}").contains("FailedAssertion"),
+        "unexpected failure: {error:?}"
+    );
+
+    let sender_balance_before = u64::from(sender.vault().get_balance(asset.id())?);
+    let executed_receive = consume_p2id(sender.id()).build()?.execute().await?;
+    mock_chain.add_pending_executed_transaction(&executed_receive)?;
+    mock_chain.prove_next_block()?;
+    let sender_after = mock_chain.committed_account(sender.id())?;
+    assert_eq!(
+        u64::from(sender_after.vault().get_balance(asset.id())?),
+        sender_balance_before + withdraw_amount
+    );
+    println!("{note_type:?} withdrawal consumed by depositor! Remaining bank balance: {remaining}");
 
     Ok(())
 }

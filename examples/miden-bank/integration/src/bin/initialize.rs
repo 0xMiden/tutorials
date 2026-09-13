@@ -13,13 +13,16 @@
 //! Prints the bank account ID that should be used for subsequent deposits.
 
 use integration::helpers::{
-    build_project_in_dir, build_tx_script_from_package, create_account_from_package,
-    create_basic_wallet_account, setup_client, AccountCreationConfig, ClientSetup,
+    build_project_in_dir, build_tx_script_from_package, create_account_from_package, setup_client,
+    wait_for_native_funding, wait_for_transaction, AccountCreationConfig, ClientSetup,
 };
 
 use anyhow::{Context, Result};
 use miden_client::{
-    account::{component::{InitStorageData, StorageValueName}, StorageSlotName},
+    account::{
+        component::{InitStorageData, StorageValueName},
+        StorageSlotName,
+    },
     transaction::TransactionRequestBuilder,
     Word,
 };
@@ -36,7 +39,10 @@ async fn main() -> Result<()> {
     } = setup_client().await?;
 
     let sync_summary = client.sync_state().await?;
-    println!("Connected to network. Latest block: {}", sync_summary.block_num);
+    println!(
+        "Connected to network. Latest block: {}",
+        sync_summary.block_num
+    );
 
     // Build contracts
     println!("\nBuilding contracts...");
@@ -56,8 +62,8 @@ async fn main() -> Result<()> {
     // be seeded (here with a zero Word = uninitialized) or `from_package` errors with
     // `InitValueNotProvided`; the `balances` map defaults to empty.
     println!("\nCreating bank account...");
-    let initialized_slot = StorageSlotName::new("bank_account::bank::initialized")
-        .context("Valid slot name")?;
+    let initialized_slot =
+        StorageSlotName::new("bank_account::bank::initialized").context("Valid slot name")?;
     let mut init_storage_data = InitStorageData::default();
     init_storage_data.insert_value(
         StorageValueName::from_slot_name(&initialized_slot),
@@ -68,21 +74,15 @@ async fn main() -> Result<()> {
         ..Default::default()
     };
 
-    let bank_account = create_account_from_package(&mut client, bank_package.clone(), bank_cfg)
-        .await
-        .context("Failed to create bank account")?;
+    let bank_account =
+        create_account_from_package(&mut client, keystore, bank_package.clone(), bank_cfg)
+            .await
+            .context("Failed to create bank account")?;
 
     println!("  ✓ Bank account created");
     println!("  Bank Account ID: {}", bank_account.id().to_hex());
 
-    // Create a sender account to execute the init transaction
-    // (The bank account itself uses NoAuth, so we need a separate authenticated account)
-    println!("\nCreating admin wallet for initialization...");
-    let admin_cfg = AccountCreationConfig::default();
-    let admin_account = create_basic_wallet_account(&mut client, keystore.clone(), admin_cfg)
-        .await
-        .context("Failed to create admin wallet account")?;
-    println!("  ✓ Admin wallet created: {}", admin_account.id().to_hex());
+    wait_for_native_funding(&mut client, bank_account.id(), 0).await?;
 
     // Build and execute the initialization transaction
     println!("\nInitializing bank account...");
@@ -104,17 +104,24 @@ async fn main() -> Result<()> {
 
     println!("  ✓ Init transaction submitted: {}", init_tx_id.to_hex());
 
-    // Sync to confirm the transaction
-    client
-        .sync_state()
-        .await
-        .context("Failed to sync state after initialization")?;
+    wait_for_transaction(&mut client, init_tx_id).await?;
+    let bank = client
+        .get_account(bank_account.id())
+        .await?
+        .context("Bank missing after init")?;
+    anyhow::ensure!(
+        bank.storage().get_item(&initialized_slot)?[0].as_canonical_u64() == 1,
+        "Bank did not initialize"
+    );
 
     println!("\n=== Initialization Complete ===");
     println!("\nBank Account ID (use this for deposits):");
     println!("  {}", bank_account.id().to_hex());
     println!("\nTo make a deposit, run:");
-    println!("  cargo run --bin deposit -- {}", bank_account.id().to_hex());
+    println!(
+        "  cargo run --bin deposit -- {}",
+        bank_account.id().to_hex()
+    );
 
     Ok(())
 }

@@ -15,12 +15,12 @@ You'll create a **banking system** consisting of:
 - **Bank Account Component**: A smart contract that manages depositor balances and vault operations
 - **Deposit Note**: A note script that processes deposits into the bank
 - **Withdraw Request Note**: A note script that requests withdrawals from the bank
-- **Initialization Script**: A transaction script to deploy and initialize the bank
+- **Initialization Script**: A transaction script to initialize the bank
 
-The tutorial includes runnable tests where appropriate — some parts are setup-only or conceptual, with the first runnable test in Part 4.
+The tutorial includes runnable tests where appropriate — some parts are setup-only or conceptual, with setup tests in Parts 0–2 and transaction tests once the required contracts are in place.
 
-:::note Verification runs on MockChain
-This tutorial targets protocol **v0.15** and the v0.15-aligned Rust compiler. The contracts depend on the published `miden = "0.13"` SDK, and the integration harness builds them with the published `cargo-miden = "0.9"` release. The flow is verified end-to-end by the MockChain integration tests (`tests/{init,deposit,withdraw}_test.rs`), which all pass. The live-network binaries (`cargo run --bin initialize` / `--bin deposit`) also run against testnet.
+:::note Version and fee setup
+The contracts use stable `miden = "=0.14.0"` and compiler 0.10.0; the native integration harness uses protocol/client 0.16. The companion MockChain tests cover initialization, deposit, deposit rejection, and withdrawal. Live testnet transactions also need native tokens for fees. The live binaries print each new account ID and wait for an externally requested public P2ID funding note, then consume it before proceeding.
 :::
 
 ## Tutorial Structure
@@ -49,23 +49,30 @@ This tutorial is designed for hands-on learning. Each part builds on the previou
 ## Tutorial Cards
 
 import DocCard from '@theme/DocCard';
+import {useDoc} from '@docusaurus/plugin-content-docs/client';
+
+export const BankDocCard = ({item}) => {
+const {metadata} = useDoc();
+const sectionPath = metadata.permalink.replace(/\/$/, '');
+  return <DocCard item={{...item, href: `${sectionPath}/${item.href}`}} />;
+};
 
 <div className="row">
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/project-setup',
+        href: 'project-setup',
         label: 'Part 0: Project Setup',
         description: 'Create your project with miden new and understand the workspace structure.',
       }}
     />
   </div>
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/account-components',
+        href: 'account-components',
         label: 'Part 1: Account Components',
         description: 'Learn #[component], StorageValue storage, and StorageMap for managing state.',
       }}
@@ -75,20 +82,20 @@ import DocCard from '@theme/DocCard';
 
 <div className="row">
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/constants-constraints',
+        href: 'constants-constraints',
         label: 'Part 2: Constants & Constraints',
         description: 'Define business rules with constants and validate with assertions.',
       }}
     />
   </div>
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/asset-management',
+        href: 'asset-management',
         label: 'Part 3: Asset Management',
         description: 'Handle fungible assets with vault operations and balance tracking.',
       }}
@@ -98,20 +105,20 @@ import DocCard from '@theme/DocCard';
 
 <div className="row">
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/note-scripts',
+        href: 'note-scripts',
         label: 'Part 4: Note Scripts',
         description: 'Write scripts that execute when notes are consumed.',
       }}
     />
   </div>
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/cross-component-calls',
+        href: 'cross-component-calls',
         label: 'Part 5: Cross-Component Calls',
         description: 'Call account methods from note scripts via bindings.',
       }}
@@ -121,20 +128,20 @@ import DocCard from '@theme/DocCard';
 
 <div className="row">
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/transaction-scripts',
+        href: 'transaction-scripts',
         label: 'Part 6: Transaction Scripts',
         description: 'Write scripts for account initialization and owner operations.',
       }}
     />
   </div>
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/output-notes',
+        href: 'output-notes',
         label: 'Part 7: Creating Output Notes',
         description: 'Create P2ID notes programmatically for withdrawals.',
       }}
@@ -144,10 +151,10 @@ import DocCard from '@theme/DocCard';
 
 <div className="row">
   <div className="col col--6">
-    <DocCard
+    <BankDocCard
       item={{
         type: 'link',
-        href: 'miden-bank/complete-flows',
+        href: 'complete-flows',
         label: 'Part 8: Complete Flows',
         description: 'Walk through end-to-end deposit and withdraw operations.',
       }}

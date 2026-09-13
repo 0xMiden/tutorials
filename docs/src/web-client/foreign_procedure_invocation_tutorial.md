@@ -67,15 +67,17 @@ This tutorial assumes you have a basic understanding of Miden assembly and compl
    yarn add @miden-sdk/miden-sdk@0.16.0
    ```
 
-**NOTE!**: Be sure to add the `--webpack` command to your `package.json` when running the `dev script`. The dev script should look like this:
+The current Next.js template uses Turbopack by default. These examples use the webpack configuration from the setup guide, so update both scripts in `package.json`:
 
 `package.json`
 
 ```json
+{
   "scripts": {
     "dev": "next dev --webpack",
-    ...
+    "build": "next build --webpack"
   }
+}
 ```
 
 ## Step 2: Edit the `app/page.tsx` file
@@ -261,17 +263,11 @@ We need to tell our bundler to treat `.masm` files as plain text strings. In Nex
 Open `next.config.ts` and add the highlighted rule inside the `webpack` callback:
 
 ```ts
-webpack: (config, { isServer }) => {
-  // ... existing WASM config ...
-
-  // Import .masm files as strings
-  config.module.rules.push({
-    test: /\.masm$/,
-    type: "asset/source",
-  });
-
-  return config;
-},
+// Import .masm files as strings. Keep the existing WASM configuration.
+config.module.rules.push({
+  test: /\.masm$/,
+  type: "asset/source",
+});
 ```
 
 :::tip Other bundlers
@@ -675,6 +671,8 @@ await client.transactions.execute({
   account: countReaderAccount,
   script,
   foreignAccounts: [counterAccount],
+  waitForConfirmation: true,
+  timeout: 120_000,
 });
 ```
 
@@ -704,16 +702,19 @@ yarn dev
 
 ### Resetting the `MidenClientDB`
 
-The Miden webclient stores account and note data in the browser. If you get errors such as "Failed to build MMR", then you should reset the Miden webclient store. When switching between Miden networks such as from localhost to testnet be sure to reset the browser store. To clear the account and node data in the browser, paste this code snippet into the browser console:
+The Miden webclient stores account and note data in IndexedDB. Stop or terminate the tutorial client and close other tabs using its store before resetting it. This deletes local account data and keys, so use it only for disposable tutorial accounts. The following browser-console snippet deletes the default testnet `MidenClientDB_mtst` store after the deletion request completes; change `name` if you configured a different store.
 
 ```javascript
 (async () => {
-  const dbs = await indexedDB.databases();
-  for (const db of dbs) {
-    await indexedDB.deleteDatabase(db.name);
-    console.log(`Deleted database: ${db.name}`);
-  }
-  console.log('All databases deleted.');
+  const name = 'MidenClientDB_mtst';
+  await new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () =>
+      reject(new Error('Close clients and tabs using this store, then retry.'));
+  });
+  console.log(`Deleted database: ${name}`);
 })();
 ```
 

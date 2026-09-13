@@ -22,6 +22,7 @@ use miden_client::{
     Client, ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
+use miden_protocol::transaction::InputNote;
 use rust_client::{fund_account_for_fees, FeeConfig, TutorialNetwork};
 
 /// Waits for a specific transaction to be committed.
@@ -257,8 +258,10 @@ async fn main() -> Result<(), ClientError> {
         let deserialized_p2id_note = Note::read_from_bytes(&serialized).unwrap();
 
         // Time consume note request building
-        let consume_note_request =
-            TransactionRequestBuilder::new().build_consume_notes(vec![deserialized_p2id_note])?;
+        // Keep this input unauthenticated even if syncing has already fetched its proof.
+        let consume_note_request = TransactionRequestBuilder::new()
+            .explicit_input_notes([(InputNote::unauthenticated(deserialized_p2id_note), None)])
+            .build()?;
 
         let tx_id = client
             .submit_tutorial_transaction(accounts[i + 1].id(), consume_note_request)

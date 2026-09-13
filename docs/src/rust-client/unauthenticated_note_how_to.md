@@ -13,7 +13,7 @@ For toolchain requirements and shared fee helpers, see the [Rust client setup](.
 
 In this guide, we supply a complete note to a consuming transaction before waiting for the note's inclusion proof. Such an input is unauthenticated: the node checks the dependency on its creation transaction. This lets a note be created and consumed within the same block, although confirmation still depends on block production.
 
-We construct a chain with `TransactionRequestBuilder::build_consume_notes`, passing the complete `Note` without an inclusion proof. We also serialize and deserialize each note to demonstrate how its details could be sent between clients. The example uses one client for all accounts and waits for each transfer and consumption to confirm before beginning the next hop.
+We construct the transfer chain with `TransactionRequestBuilder::explicit_input_notes`, wrapping each complete `Note` in `InputNote::unauthenticated`. This pins the input mode even if a sync has already fetched its inclusion proof. `build_consume_notes` selects the mode from the store and can authenticate an input when a proof is available. We also serialize and deserialize each note to demonstrate how its details could be sent between clients. The example uses one client for all accounts and waits for each transfer and consumption to confirm before beginning the next hop.
 
 For example, our demo creates a chain of unauthenticated note transactions:
 
@@ -44,7 +44,7 @@ Alice ➡ Bob ➡ Charlie ➡ Dave ➡ Eve
 4. **Minting and Transacting with Unauthenticated Notes:**
    - Mint tokens for one of the accounts (Alice) from the deployed faucet.
    - Create a note representing the minted tokens.
-   - Submit the note-creation transaction without waiting for confirmation, then pass the complete note to `.build_consume_notes(vec![note])`. This calls `input_notes` internally without extra execution arguments.
+   - Submit the note-creation transaction without waiting for confirmation, then pass the complete note to `.explicit_input_notes([(InputNote::unauthenticated(note), None)])`. The explicit mode stays unauthenticated even if the note commits before the consuming transaction executes.
    - Serialize the note to demonstrate how it could be transferred to another client instance.
    - Consume the note in a subsequent transaction, effectively creating a chain of unauthenticated transactions.
 
@@ -108,6 +108,7 @@ use miden_client::{
     utils::{Deserializable, Serializable},
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
+use miden_protocol::transaction::InputNote;
 use rust_client::{FeeConfig, TutorialNetwork, fund_account_for_fees};
 
 /// Waits for a specific transaction to be committed.
@@ -343,8 +344,10 @@ async fn main() -> Result<(), ClientError> {
         let deserialized_p2id_note = Note::read_from_bytes(&serialized).unwrap();
 
         // Time consume note request building
-        let consume_note_request =
-            TransactionRequestBuilder::new().build_consume_notes(vec![deserialized_p2id_note])?;
+        // Keep this input unauthenticated even if syncing has already fetched its proof.
+        let consume_note_request = TransactionRequestBuilder::new()
+            .explicit_input_notes([(InputNote::unauthenticated(deserialized_p2id_note), None)])
+            .build()?;
 
         let tx_id = client
             .submit_tutorial_transaction(accounts[i + 1].id(), consume_note_request)
@@ -468,7 +471,7 @@ Account: <account_4_id> balance: 20
 
 ## Conclusion
 
-This example builds, serializes, and consumes complete notes through `build_consume_notes` without first waiting for their inclusion proofs. It confirms four transfers across five accounts and checks the tutorial-asset balances `[80, 0, 0, 0, 20]`; each account's native fee balance is separate.
+This example builds and serializes complete notes, then consumes the four transfer notes through `explicit_input_notes` with an explicitly unauthenticated mode. The earlier mint consumption uses `build_consume_notes` and may be authenticated. It confirms four transfers across five accounts and checks the tutorial-asset balances `[80, 0, 0, 0, 20]`; each account's native fee balance is separate.
 
 Applications can use this pattern to submit dependent transactions before the notes are committed. The node must still accept the creation transaction for its dependent consumption to settle.
 

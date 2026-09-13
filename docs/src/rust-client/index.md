@@ -32,8 +32,8 @@ The runner uses a fresh store for each example and deploys a counter before the
 FPI and public-account interaction examples. The [oracle tutorial](./oracle_tutorial.md)
 requires an external deployment and is excluded from the default run.
 
-Testnet transactions pay fees in the native asset. The shared
-[`rust-client` helpers](https://github.com/0xMiden/tutorials/blob/next/rust-client/src/lib.rs)
+Testnet transactions pay fees in the native asset. The
+shared helpers in `rust-client/src/lib.rs` in your v0.16 checkout
 fund each executing account, synchronize before submission, and wait for confirmation.
 They also filter `TX_FEE` notes when selecting tutorial notes. Set
 `MIDEN_FAUCET_URL` if you need to override the network's public faucet API.

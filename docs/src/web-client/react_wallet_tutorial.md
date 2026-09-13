@@ -64,13 +64,36 @@ First, create a new Vite + React project and install the Miden React SDK.
    yarn add @miden-sdk/miden-sdk@0.16.0 @miden-sdk/react@0.16.0
    ```
 
-3. Configure the `MidenProvider` in your `main.tsx` file. The provider initializes the Miden client and makes it available to all child components:
+3. Install the Vite integration and update `vite.config.ts`. The Miden plugin v0.16 supports Vite 5 and 6, so pin Vite 6 and its compatible React plugin even if the generator installed newer versions:
+
+   ```bash
+   yarn add -D vite@^6 @vitejs/plugin-react@^4 @miden-sdk/vite-plugin@0.16.0 vite-plugin-wasm vite-plugin-top-level-await
+   ```
+
+   ```ts
+   import { defineConfig } from 'vite';
+   import react from '@vitejs/plugin-react';
+   import { midenVitePlugin } from '@miden-sdk/vite-plugin';
+   import wasm from 'vite-plugin-wasm';
+   import topLevelAwait from 'vite-plugin-top-level-await';
+
+   export default defineConfig({
+     plugins: [react(), midenVitePlugin({ crossOriginIsolation: false }), wasm(), topLevelAwait()],
+     worker: { format: 'es', plugins: () => [wasm(), topLevelAwait()] },
+   });
+   ```
+
+   This Vite tutorial uses the main SDK entries throughout. Para and Turnkey import
+   `SignerContext` from `@miden-sdk/react`; mixing it with `/lazy` creates separate
+   contexts in v0.16. Keep providers and hooks on the same entry.
+
+4. Configure the `MidenProvider` in your `main.tsx` file. The provider initializes the Miden client and makes it available to all child components:
 
 ```tsx
 // main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MidenProvider } from '@miden-sdk/react/lazy';
+import { MidenProvider } from '@miden-sdk/react';
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -100,7 +123,7 @@ The `useMiden()` hook provides access to the client's initialization state. Use 
 
 ```tsx
 // App.tsx
-import { useMiden } from '@miden-sdk/react/lazy';
+import { useMiden } from '@miden-sdk/react';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -124,7 +147,7 @@ The `useMiden()` hook returns:
 The `useAccounts()` hook provides access to all accounts stored in the client. Use it to check if the user has any existing wallets.
 
 ```tsx
-import { useMiden, useAccounts } from '@miden-sdk/react/lazy';
+import { useMiden, useAccounts } from '@miden-sdk/react';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -156,8 +179,8 @@ The `useAccounts()` hook returns:
 The `useCreateWallet()` hook provides a function to create new wallet accounts.
 
 ```tsx
-import { useMiden, useAccounts, useCreateWallet } from '@miden-sdk/react/lazy';
-import { getWasmOrThrow } from '@miden-sdk/miden-sdk/lazy';
+import { useMiden, useAccounts, useCreateWallet } from '@miden-sdk/react';
+import { getWasmOrThrow } from '@miden-sdk/miden-sdk';
 
 export default function App() {
   const { isReady, error } = useMiden();
@@ -209,7 +232,7 @@ The `useCreateWallet()` hook returns:
 The `useAccount(accountId)` hook provides detailed information about a specific account, including its assets and balances.
 
 ```tsx
-import { useAccount, formatAssetAmount } from '@miden-sdk/react/lazy';
+import { useAccount, formatAssetAmount } from '@miden-sdk/react';
 
 function Wallet({ accountId }: { accountId: string }) {
   const { account, assets } = useAccount(accountId);
@@ -258,7 +281,7 @@ The `formatAssetAmount(amount, decimals)` utility formats a raw amount with the 
 The `useNotes({ accountId })` hook provides access to notes that can be consumed by the account.
 
 ```tsx
-import { useNotes, formatNoteSummary } from '@miden-sdk/react/lazy';
+import { useNotes, formatNoteSummary } from '@miden-sdk/react';
 
 function UnclaimedNotes({ accountId }: { accountId: string }) {
   const { consumableNoteSummaries } = useNotes({ accountId });
@@ -294,14 +317,14 @@ The `formatNoteSummary(summary)` utility formats a note summary for display.
 The `useConsume()` hook provides a function to consume (claim) notes and add their assets to the account.
 
 ```tsx
-import { useConsume, formatNoteSummary } from '@miden-sdk/react/lazy';
+import { useConsume, formatNoteSummary, type NoteSummary } from '@miden-sdk/react';
 
 function UnclaimedNotes({
   accountId,
   consumableNoteSummaries,
 }: {
   accountId: string;
-  consumableNoteSummaries: Array<{ id: string }>;
+  consumableNoteSummaries: NoteSummary[];
 }) {
   const { consume, isLoading: isConsuming } = useConsume();
 
@@ -340,12 +363,12 @@ The `useConsume()` hook returns:
 
 ## Step 8: Sending Tokens with useSend
 
-The `useSend()` hook provides a function to send tokens to other accounts.
+The `useSend()` hook provides a function to send tokens to other accounts. Select the first asset when balances arrive asynchronously, as shown below, so a newly funded wallet can use the form.
 
 ```tsx
-import { useState, type ChangeEvent } from 'react';
-import { useSend, parseAssetAmount } from '@miden-sdk/react/lazy';
-import { NoteVisibility } from '@miden-sdk/miden-sdk/lazy';
+import { useEffect, useState, type ChangeEvent } from 'react';
+import { useSend, parseAssetAmount } from '@miden-sdk/react';
+import { NoteVisibility } from '@miden-sdk/miden-sdk';
 
 function SendForm({
   accountId,
@@ -356,7 +379,12 @@ function SendForm({
 }) {
   const { send, isLoading: isSending } = useSend();
   const [to, setTo] = useState('');
-  const [assetId, setAssetId] = useState(assets[0]?.assetId ?? '');
+  const [assetId, setAssetId] = useState('');
+  const defaultAssetId = assets[0]?.assetId;
+
+  useEffect(() => {
+    if (!assetId && defaultAssetId) setAssetId(defaultAssetId);
+  }, [assetId, defaultAssetId]);
   const [amount, setAmount] = useState('');
   const [noteType, setNoteType] = useState<NoteVisibility>(
     NoteVisibility.Private,
@@ -451,7 +479,7 @@ Here is the complete wallet application combining all the features we've covered
 ```tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MidenProvider } from '@miden-sdk/react/lazy';
+import { MidenProvider } from '@miden-sdk/react';
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -476,7 +504,7 @@ import {
   formatAssetAmount,
   formatNoteSummary,
   parseAssetAmount,
-} from '@miden-sdk/react/lazy';
+} from '@miden-sdk/react';
 import {
   useMiden,
   useAccounts,
@@ -485,8 +513,8 @@ import {
   useCreateWallet,
   useConsume,
   useSend,
-} from '@miden-sdk/react/lazy';
-import { NoteVisibility, getWasmOrThrow } from '@miden-sdk/miden-sdk/lazy';
+} from '@miden-sdk/react';
+import { NoteVisibility, getWasmOrThrow } from '@miden-sdk/miden-sdk';
 
 const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
   <div className="panel">
@@ -677,7 +705,7 @@ own accounts; the wallet UI above starts with an empty wallet that needs funding
 The Miden client stores account and note data in the browser's IndexedDB.
 Upgrading from v0.15 automatically recreates the Miden store; export private
 notes and any other local data you need before upgrading. To manually reset only
-Miden databases on the current origin, close other tabs using the client and run:
+Miden databases on the current origin, stop the current client, close other tabs using it, and run:
 
 ```javascript
 (async () => {
@@ -706,7 +734,7 @@ By default, the Miden React SDK manages keys internally using the browser's Inde
 The `useSigner()` hook from `@miden-sdk/react` provides a unified interface for interacting with any signer provider. When you wrap your app with a signer provider (Para, Turnkey, MidenFi, etc.), the hook returns the signer context with connection state and methods.
 
 ```tsx
-import { useSigner } from '@miden-sdk/react/lazy';
+import { useSigner } from '@miden-sdk/react';
 
 function ConnectButton() {
   const signer = useSigner();
@@ -735,30 +763,68 @@ This unified interface means your wallet UI code works the same regardless of wh
 
 ---
 
-### Para: EVM Wallet Integration
+### External signer sessions in v0.16
 
-[Para](https://para.space/) provides a modal-based authentication flow that allows users to sign in with their EVM wallets (MetaMask, WalletConnect, etc.).
+The Para and Turnkey examples below import an **existing public testnet account**
+controlled by the selected signer. Pass its ID as `existingAccountId`. This uses
+`importAccountId` to avoid the new-account authentication-enum mismatch in React
+SDK v0.16.0. An API key or organization ID alone does not create that account.
 
-:::note Compatible Para release required
-
-`@miden-sdk/use-miden-para-react@0.15.1` requires v0.15 SDK packages.
-The pattern below needs an adapter release with v0.16-compatible peer dependencies;
-check the [package metadata](https://registry.npmjs.org/@miden-sdk/use-miden-para-react) before installing.
-
-:::
-
-**Integration pattern (requires a compatible adapter):**
+Use this shared wrapper in `SignerSession.tsx`. It mounts `MidenProvider` after
+connection and unmounts it on disconnect, so reconnecting creates a fresh client
+instead of calling v0.16.0's unavailable `setSignCb` method. Replace the original
+provider wrapper in `main.tsx` with the selected signer example; do not nest two
+`MidenProvider` instances.
 
 ```tsx
-import { ParaSignerProvider } from '@miden-sdk/use-miden-para-react';
-import { MidenProvider, useSigner } from '@miden-sdk/react/lazy';
+import type { ReactNode } from 'react';
+import { MidenProvider, useSigner } from '@miden-sdk/react';
 
-function App() {
+export function SignerSession({ children }: { children: ReactNode }) {
+  const signer = useSigner();
+  if (!signer?.isConnected) {
+    return <button onClick={signer?.connect}>Connect wallet</button>;
+  }
   return (
-    <ParaSignerProvider apiKey="your-api-key" environment="PRODUCTION">
-      <MidenProvider config={{ rpcUrl: 'testnet' }}>
+    <MidenProvider key={signer.storeName} config={{ rpcUrl: 'testnet' }}>
+      {children}
+    </MidenProvider>
+  );
+}
+```
+
+### Para: EVM Wallet Integration
+
+[Para](https://docs.getpara.com/v2/introduction/welcome) provides a modal-based authentication flow that allows users to sign in with their EVM wallets (MetaMask, WalletConnect, etc.).
+
+Use `@miden-sdk/para-react@0.16.0` with the 0.16 SDK packages.
+Provide a Para API key for the selected environment.
+
+Install the adapter and its peer dependencies:
+
+```bash
+yarn add @miden-sdk/para-react@0.16.0 @miden-sdk/para@0.16.0 @getpara/react-sdk-lite@^2.11.0 @getpara/web-sdk@^2.11.0 @tanstack/react-query@^5
+yarn add -D vite-plugin-node-polyfills@^0.22.0
+```
+
+In `vite.config.ts`, import `paraVitePlugin` from `@miden-sdk/para-react/vite`
+and add `paraVitePlugin()` to the existing `plugins` array. It supplies the
+browser polyfills required by Para. Import `@getpara/react-sdk-lite/styles.css`
+once in `src/main.tsx` for the connection modal.
+
+**Integration:**
+
+```tsx
+import { ParaSignerProvider } from '@miden-sdk/para-react';
+import { useSigner } from '@miden-sdk/react';
+import { SignerSession } from './SignerSession';
+
+function App({ existingAccountId }: { existingAccountId: string }) {
+  return (
+    <ParaSignerProvider apiKey="your-api-key" environment="PRODUCTION" importAccountId={existingAccountId}>
+      <SignerSession>
         <Wallet />
-      </MidenProvider>
+      </SignerSession>
     </ParaSignerProvider>
   );
 }
@@ -785,7 +851,7 @@ function Wallet() {
 | `apiKey`                | `string`                                     | Your Para API key                          |
 | `environment`           | `"PRODUCTION" \| "DEVELOPMENT" \| "SANDBOX"` | Para environment                           |
 | `showSigningModal`      | `boolean`                                    | Whether to show signing confirmation modal |
-| `customSignConfirmStep` | `ReactNode`                                  | Custom signing confirmation UI             |
+| `customSignConfirmStep` | `CustomSignConfirmStep`                      | Custom signing confirmation UI             |
 
 ---
 
@@ -793,26 +859,28 @@ function Wallet() {
 
 [Turnkey](https://turnkey.com/) provides programmatic key management, giving your application full control over the authentication flow.
 
-:::note Compatible Turnkey release required
+Use `@miden-sdk/turnkey-react@0.16.0` with the 0.16 SDK packages.
+Create a Turnkey organization and pass its ID in `config`.
 
-`@miden-sdk/miden-turnkey-react@1.15.1` requires v0.15 SDK packages.
-The pattern below needs an adapter release with v0.16-compatible peer dependencies;
-check the [package metadata](https://registry.npmjs.org/@miden-sdk/miden-turnkey-react) before installing.
+Install the adapter and its peer dependencies:
 
-:::
+```bash
+yarn add @miden-sdk/turnkey-react@0.16.0 @miden-sdk/turnkey@0.16.0 @turnkey/core@^1.8.2 @turnkey/react-wallet-kit@^1.6.2 @turnkey/sdk-browser@^5.13.4
+```
 
-**Integration pattern (requires a compatible adapter):**
+**Integration:**
 
 ```tsx
-import { TurnkeySignerProvider } from '@miden-sdk/miden-turnkey-react';
-import { MidenProvider, useSigner } from '@miden-sdk/react/lazy';
+import { TurnkeySignerProvider } from '@miden-sdk/turnkey-react';
+import { useSigner } from '@miden-sdk/react';
+import { SignerSession } from './SignerSession';
 
-function App() {
+function App({ existingAccountId }: { existingAccountId: string }) {
   return (
-    <TurnkeySignerProvider>
-      <MidenProvider config={{ rpcUrl: 'testnet' }}>
+    <TurnkeySignerProvider config={{ defaultOrganizationId: "your-organization-id" }} importAccountId={existingAccountId}>
+      <SignerSession>
         <Wallet />
-      </MidenProvider>
+      </SignerSession>
     </TurnkeySignerProvider>
   );
 }
@@ -832,13 +900,13 @@ function Wallet() {
 }
 ```
 
-Calling `connect()` handles the full Turnkey authentication flow: passkey login, wallet discovery, and account selection. No manual setup is needed.
+After configuring the organization, `connect()` starts the Turnkey authentication flow: passkey login, wallet discovery, and account selection.
 
 **TurnkeySignerProvider Props:**
 
-| Prop     | Type                               | Description                                                                                                                   |
-| -------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `config` | `Partial<TurnkeySDKBrowserConfig>` | Optional. Defaults to `apiBaseUrl: "https://api.turnkey.com"` and `defaultOrganizationId` from `VITE_TURNKEY_ORG_ID` env var. |
+| Prop     | Type                                   | Description                                                                                |
+| -------- | -------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `config` | `TurnkeySignerProviderProps["config"]` | Required. Set `defaultOrganizationId`; `apiBaseUrl` defaults to `https://api.turnkey.com`. |
 
 The `useTurnkeySigner()` hook is available for advanced use cases where you need direct access to the Turnkey `client`, the selected `account`, or the `setAccount()` method to manually control account selection.
 
@@ -846,7 +914,7 @@ The `useTurnkeySigner()` hook is available for advanced use cases where you need
 
 ### MidenFi: Wallet Adapter
 
-[MidenFi](https://miden.fi/) provides a wallet adapter pattern similar to Solana's wallet-adapter, enabling integration with the MidenFi ecosystem.
+[MidenFi](https://github.com/0xMiden/wallet) provides a wallet adapter pattern similar to Solana's wallet-adapter, enabling integration with the MidenFi ecosystem.
 
 **Installation:**
 
@@ -859,14 +927,15 @@ yarn add @miden-sdk/miden-wallet-adapter-react@0.16.0 @miden-sdk/miden-wallet-ad
 ```tsx
 import { MidenFiSignerProvider } from '@miden-sdk/miden-wallet-adapter-react';
 import { WalletAdapterNetwork } from '@miden-sdk/miden-wallet-adapter-base';
-import { MidenProvider, useSigner } from '@miden-sdk/react/lazy';
+import { useSigner } from '@miden-sdk/react';
+import { SignerSession } from './SignerSession';
 
 function App() {
   return (
     <MidenFiSignerProvider network={WalletAdapterNetwork.Testnet}>
-      <MidenProvider config={{ rpcUrl: 'testnet' }}>
+      <SignerSession>
         <Wallet />
-      </MidenProvider>
+      </SignerSession>
     </MidenFiSignerProvider>
   );
 }
@@ -903,59 +972,93 @@ network strings, booleans, or string arrays in place of these enum values.
 
 If you need to integrate with a different signing service, you can build your own signer provider by implementing the `SignerContextValue` interface and providing it via `SignerContext.Provider`.
 
+Pass your service initializer as `initializeSigningService`. It must return the ID
+of an existing public account on testnet, its serialized public key commitment,
+and a callback that signs the SDK's serialized signing inputs. The callback must
+verify the requested public key before signing. Account creation and deployment
+belong to the signing service in this example: `importAccountId` imports that
+account instead of rebuilding it with a new seed. This also avoids the new-account
+auth-enum mismatch in the published React SDK v0.16.0.
+
+Keep a non-null context while disconnected so `useSigner()` can expose `connect`
+and `MidenProvider` waits for the signer. In v0.16, `accountConfig` is only read
+when connected, although its TypeScript type is non-nullable; the assertion below
+reflects that runtime guard. Import WASM classes from the core SDK and await
+`MidenClient.ready()` before constructing them.
+
+The keyed fragment remounts the child `MidenProvider` after each connection.
+This avoids v0.16.0's reconnect path, which calls an unavailable `setSignCb`
+method. The account-specific store name stays the same, preserving local data.
+
 ```tsx
-import { useState, useCallback, type ReactNode } from 'react';
+import { Fragment, useState, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import {
   SignerContext,
   type SignerContextValue,
-  AccountStorageMode,
-} from '@miden-sdk/react/lazy';
+  type SignerAccountConfig,
+  type SignCallback,
+} from '@miden-sdk/react';
+import { AccountStorageMode, MidenClient } from '@miden-sdk/miden-sdk';
+
+interface SigningService {
+  // An existing public account on the network configured in MidenProvider.
+  accountId: string;
+  publicKeyCommitment: Uint8Array;
+  signMessage: SignCallback;
+  disconnect?: () => Promise<void>;
+}
 
 interface CustomSignerProviderProps {
   children: ReactNode;
-  // Your provider-specific config
+  initializeSigningService: () => Promise<SigningService>;
 }
 
-export function CustomSignerProvider({ children }: CustomSignerProviderProps) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [signerContext, setSignerContext] = useState<SignerContextValue | null>(
-    null,
-  );
+export function CustomSignerProvider({
+  children,
+  initializeSigningService,
+}: CustomSignerProviderProps) {
+  const service = useRef<SigningService | null>(null);
+  const [accountConfig, setAccountConfig] = useState<SignerAccountConfig | null>(null);
+  const [connection, setConnection] = useState(0);
 
   const connect = useCallback(async () => {
-    // 1. Initialize your signing service and get credentials
-    const { publicKeyCommitment, signMessage } =
-      await initializeYourSigningService();
-
-    // 2. Build the signer context
-    const context: SignerContextValue = {
-      signCb: async (pubKey, signingInputs) => {
-        // Sign the message using your service
-        return signMessage(signingInputs);
-      },
-      accountConfig: {
-        publicKeyCommitment,
-        storageMode: AccountStorageMode.public(),
-      },
-      storeName: 'custom_signer',
-      name: 'CustomSigner',
-      isConnected: true,
-      connect,
-      disconnect,
-    };
-
-    setSignerContext(context);
-    setIsConnected(true);
-  }, []);
+    await MidenClient.ready();
+    const connected = await initializeSigningService();
+    service.current = connected;
+    setAccountConfig({
+      publicKeyCommitment: connected.publicKeyCommitment,
+      storageMode: AccountStorageMode.public(),
+      importAccountId: connected.accountId,
+    });
+    setConnection((previous) => previous + 1);
+  }, [initializeSigningService]);
 
   const disconnect = useCallback(async () => {
-    setSignerContext(null);
-    setIsConnected(false);
+    const connected = service.current;
+    service.current = null;
+    setAccountConfig(null);
+    await connected?.disconnect?.();
   }, []);
+
+  const signCb = useCallback<SignCallback>(async (pubKey, signingInputs) => {
+    if (!service.current) throw new Error('CustomSigner is not connected');
+    return service.current.signMessage(pubKey, signingInputs);
+  }, []);
+
+  const signerContext = useMemo<SignerContextValue>(() => ({
+    signCb,
+    // v0.16 only reads this field when isConnected is true.
+    accountConfig: accountConfig!,
+    storeName: accountConfig ? `custom_${accountConfig.importAccountId}` : 'custom',
+    name: 'CustomSigner',
+    isConnected: accountConfig !== null,
+    connect,
+    disconnect,
+  }), [accountConfig, signCb, connect, disconnect]);
 
   return (
     <SignerContext.Provider value={signerContext}>
-      {children}
+      <Fragment key={connection}>{children}</Fragment>
     </SignerContext.Provider>
   );
 }
@@ -981,4 +1084,4 @@ Now that you've built a React wallet, explore these related topics:
 
 - [Creating Multiple Notes in a Single Transaction](./creating_multiple_notes_tutorial.md) - Learn about batch operations
 - [Miden React SDK Reference](https://github.com/0xMiden/web-sdk/tree/v0.16.0/packages/react-sdk) - Full API documentation
-- [Miden Documentation](https://docs.miden.io/) - Core Miden concepts
+- [Miden Documentation](https://docs.miden.xyz/) - Core Miden concepts
