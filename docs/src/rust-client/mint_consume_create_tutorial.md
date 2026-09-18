@@ -114,6 +114,21 @@ println!(
     "All of Alice's notes consumed successfully. TX: {:?}",
     tx_id
 );
+
+// `alice_account` was created before the consume transaction. Retrieve Alice
+// again from the client before reading state changed by that transaction.
+let updated_alice_account = client
+    .get_account(alice_account.id())
+    .await?
+    .expect("Alice's account should be tracked by the client");
+let updated_balance = updated_alice_account
+    .vault()
+    .get_balance(AssetId::new_fungible(faucet_account.id()))?;
+assert_eq!(
+    updated_balance.as_u64(),
+    500,
+    "Alice should hold the five consumed 100-unit notes"
+);
 ```
 
 ## Step 4: Sending tokens to other accounts
