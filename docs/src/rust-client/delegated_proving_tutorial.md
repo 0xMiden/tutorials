@@ -7,6 +7,8 @@ sidebar_position: 12
 
 _Using delegated proving to minimize transaction proving times on computationally constrained devices_
 
+**[View the complete runnable example on GitHub](https://github.com/0xMiden/tutorials/blob/main/rust-client/src/bin/delegated_prover.rs)**
+
 For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
 
 ## Overview

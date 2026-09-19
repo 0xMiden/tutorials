@@ -15,6 +15,8 @@ The Miden Rust client can be used for a variety of things, including:
 
 This section of the docs is an overview of the different things one can achieve using the Rust client, and how to implement them.
 
+For complete runnable examples, browse the [`rust-client/src/bin`](https://github.com/0xMiden/tutorials/tree/main/rust-client/src/bin) source directory. Individual tutorials also link directly to their corresponding example where available.
+
 ## Running the v0.16 examples
 
 The examples use Rust 1.98.1 and Miden v0.16. The repository includes the

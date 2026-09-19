@@ -7,6 +7,8 @@ sidebar_position: 2
 
 _Using the Miden client in Rust to create accounts and deploy faucets_
 
+**[View the complete runnable example on GitHub](https://github.com/0xMiden/tutorials/blob/main/rust-client/src/bin/create_mint_consume_send.rs)**
+
 For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
 
 ## Overview

@@ -7,6 +7,8 @@ sidebar_position: 10
 
 _Using mappings in Miden assembly for storing key value pairs_
 
+[View the complete runnable Rust example](https://github.com/0xMiden/tutorials/blob/main/rust-client/src/bin/mapping_example.rs)
+
 For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
 
 ## Overview
