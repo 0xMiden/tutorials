@@ -11,7 +11,7 @@ _Move assets between Miden testnet and Sepolia testnet through the Epoch protoco
 
 This is a guided tour of the reference app under [`examples/bridging-app/`](https://github.com/0xMiden/tutorials/tree/main/examples/bridging-app), which bridges fungible tokens between Miden testnet and Sepolia through the [Epoch protocol](https://epochprotocol.xyz/) intent SDK. Clone and run the app, then read the steps below as annotations on the integration points you'd port into your own Miden frontend. Every fenced code block is a verbatim slice of the app; the file and line range above each block points to the source.
 
-Live settlement requires an Epoch allocator and asset faucet deployed on the selected Miden network and compatible with v0.16. Devnet is available for explicit checks by setting `VITE_MIDEN_NETWORK`, `VITE_MIDEN_RPC_URL`, and `VITE_MIDEN_PROVER` to `devnet` with a matching allocator and faucet.
+Live settlement requires an Epoch allocator and asset faucet deployed on the selected Miden network and compatible with v0.17. Devnet is available for explicit checks by setting `VITE_MIDEN_NETWORK`, `VITE_MIDEN_RPC_URL`, and `VITE_MIDEN_PROVER` to `devnet` with a matching allocator and faucet.
 
 Stack: Vite + React 19 + TypeScript, `@miden-sdk/react`, `@epoch-protocol/epoch-intents-sdk`, [RainbowKit](https://www.rainbowkit.com/) + [wagmi](https://wagmi.sh/) + [viem](https://viem.sh/).
 

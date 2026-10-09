@@ -1,5 +1,5 @@
 // lib/createMintConsume.ts
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { FaucetType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import {
   consumeAllFeeAware,
   createTutorialClient,
@@ -12,9 +12,7 @@ export async function createMintConsume(): Promise<void> {
     return;
   }
 
-  const client = await createTutorialClient({
-    proverUrl: 'local',
-  });
+  const client = await createTutorialClient();
 
   // 1. Sync with the latest blockchain state
   const state = await client.sync();
@@ -27,11 +25,11 @@ export async function createMintConsume(): Promise<void> {
   });
   console.log('Alice ID:', alice.id().toString());
 
-  // 3. Create our own fungible faucet. SDK v0.16 includes BasicWallet,
+  // 3. Create our own fungible faucet. SDK v0.17 includes BasicWallet,
   // allowing both accounts to consume native fee funding before minting MID.
   console.log('Creating faucet…');
   const faucet = await client.accounts.create({
-    type: 0, // 0 = FungibleFaucet
+    type: FaucetType.FungibleFaucet,
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),

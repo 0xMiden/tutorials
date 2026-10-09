@@ -1,4 +1,5 @@
 use miden::protocol::native_account
+use miden::protocol::tx
 use miden::standards::fee
 
 # CONSTANTS
@@ -26,8 +27,9 @@ pub proc auth__basic(auth_args: word)
     dropw
     # => [pad(16)]
 
+    exec.tx::get_reference_block_number
     exec.fee::native_conversion_info
-    # => [CONVERSION_INFO, pad(16)]
+    # => [CONVERSION_INFO, serial_number_block, pad(16)]
 
     push.POST_FEE_CYCLES exec.fee::pay_fee drop
     # => [pad(16)]

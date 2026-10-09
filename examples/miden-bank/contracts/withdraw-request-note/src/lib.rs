@@ -24,7 +24,7 @@ pub struct Wallet;
 ///
 /// # Note Storage (14 Felts)
 /// [0-3]: withdraw asset, encoded as [amount, 0, faucet_suffix(+metadata), faucet_prefix].
-///        Reconstructed into the v0.16 vault key [0, 0, storage[2], storage[3]] and value
+///        Reconstructed into the v0.17 vault key [0, 0, storage[2], storage[3]] and value
 ///        [amount, 0, 0, 0]. `storage[2]` carries the faucet suffix with the asset's metadata
 ///        byte in its low 8 bits (host side: `FungibleAsset::to_id_word()[2]`), not the raw
 ///        suffix — so the bank reconstructs exactly the key the depositor's asset had.
@@ -49,8 +49,8 @@ impl WithdrawRequestNote {
             "Withdraw request requires exactly 14 storage items"
         );
 
-        // Asset: reconstruct the v0.16 fungible-asset key/value from the note storage.
-        // key   = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
+        // Asset: reconstruct the v0.17 fungible-asset key/value from the note storage.
+        // id    = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
         //         byte (low 8 bits) and storage[3] = faucet prefix.
         // value = [amount, 0, 0, 0]
         let withdraw_asset = Asset::new(

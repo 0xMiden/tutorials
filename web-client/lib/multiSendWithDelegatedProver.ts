@@ -7,6 +7,7 @@
 import {
   NoteArray,
   NoteVisibility,
+  FaucetType,
   StorageMode,
   createP2IDNote,
 } from '@miden-sdk/miden-sdk/lazy';
@@ -33,7 +34,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
   // ── Creating new faucet ────────────────────────────────────────────────────
   const faucet = await client.accounts.create({
-    type: 0, // 0 = FungibleFaucet
+    type: FaucetType.FungibleFaucet,
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),

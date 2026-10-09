@@ -20,7 +20,7 @@ You'll create a **banking system** consisting of:
 The tutorial includes runnable tests where appropriate — some parts are setup-only or conceptual, with setup tests in Parts 0–2 and transaction tests once the required contracts are in place.
 
 :::note Version and fee setup
-The contracts use stable `miden = "=0.14.0"` and compiler 0.10.0; the native integration harness uses protocol/client 0.16. The companion MockChain tests cover initialization, deposit, deposit rejection, and withdrawal. Live testnet transactions also need native tokens for fees. The live binaries print each new account ID and wait for an externally requested public P2ID funding note, then consume it before proceeding.
+The contracts use stable `miden = "=0.15.0"` and compiler 0.11.0; the native integration harness uses protocol/client 0.17. The companion MockChain tests cover initialization, deposit, deposit rejection, and withdrawal. Live testnet transactions also need native tokens for fees. The live binaries print each new account ID and wait for an externally requested public P2ID funding note, then consume it before proceeding.
 :::
 
 ## Tutorial Structure

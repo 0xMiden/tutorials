@@ -7,7 +7,7 @@ sidebar_position: 11
 
 _Creating notes inside the MidenVM using Miden assembly_
 
-For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
+For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v017-examples).
 
 ## Overview
 
@@ -59,9 +59,9 @@ Keep the generated `[package]` section in `Cargo.toml`, replace its empty `[depe
 [dependencies]
 # Clone tutorials next to this Cargo project (see Rust client setup).
 rust-client = { path = "../tutorials/rust-client" }
-miden-client = { version = "=0.16.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "=0.16.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "=0.16.0" }
+miden-client = { version = "=0.17.2", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "=0.17.2", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "=0.17.1" }
 rand = { version = "0.10" }
 tokio = { version = "1.48", features = ["rt-multi-thread", "net", "macros", "fs"] }
 
@@ -244,7 +244,7 @@ use miden_client::{
     asset::{AssetAmount, AssetId, FungibleAsset, TokenSymbol},
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
+    rng::draw_word,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
         Note, NoteAssets, NoteDetails, NoteRecipient, NoteStorage, NoteTag, NoteType,
@@ -457,7 +457,7 @@ async fn main() -> Result<(), ClientError> {
     // Read the MASM source from the tutorials repository.
     let code =
         std::fs::read_to_string("../tutorials/masm/notes/iterative_output_note.masm").unwrap();
-    let serial_num = client.rng().draw_word();
+    let serial_num = draw_word(client.rng());
 
     // Create note metadata and tag
     let tag = NoteTag::new(0);

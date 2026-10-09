@@ -18,7 +18,7 @@ export async function foreignProcedureInvocation(): Promise<void> {
     return;
   }
 
-  const client = await createTutorialClient({ proverUrl: 'local' });
+  const client = await createTutorialClient();
   console.log('Current block number: ', (await client.sync()).blockNum());
 
   const counterSlotName = 'miden::tutorials::counter';

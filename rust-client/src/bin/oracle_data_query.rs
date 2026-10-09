@@ -124,12 +124,12 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Pass a compatible oracle account ID and its `get_median` procedure root as CLI
     // arguments (or through the matching environment variables). This tutorial remains skipped
-    // by the runner until Pragma publishes a deployment for the current protocol release.
+    // by default because its procedure root depends on the external deployment.
     let oracle_bech32 = std::env::args()
         .nth(1)
         .or_else(|| std::env::var("MIDEN_ORACLE_ACCOUNT_ID").ok())
         .ok_or_else(|| ClientError::Observer(Box::new(std::io::Error::other(
-            "Oracle deployment is required: set MIDEN_ORACLE_ACCOUNT_ID and MIDEN_ORACLE_GET_MEDIAN_ROOT for the selected network. Use a compatible v0.16 deployment on the selected network.",
+            "Oracle deployment is required: set MIDEN_ORACLE_ACCOUNT_ID and MIDEN_ORACLE_GET_MEDIAN_ROOT for the selected network. Use a compatible v0.17 deployment on the selected network.",
         ))))?;
     let get_median_proc_root = std::env::args()
         .nth(2)
@@ -146,7 +146,7 @@ async fn main() -> Result<(), ClientError> {
         "oracle account must match the selected tutorial network"
     );
 
-    // BTC/USD was identified by the faucet ID pair `1:0` in the previous deployment. Override
+    // The published v0.17 deployment identifies BTC/USD by the pair `1:0`. Override
     // either value with the optional third and fourth CLI arguments for the selected deployment.
     // The faucet ID word is laid out as [0, 0, suffix, prefix].
     let pair_prefix: u64 = std::env::args()

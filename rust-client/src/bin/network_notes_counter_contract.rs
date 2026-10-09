@@ -12,12 +12,12 @@ use miden_client::{
     asset::AssetAmount,
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
         NetworkAccountTarget, Note, NoteAssets, NoteAttachments, NoteError, NoteExecutionHint,
         NoteRecipient, NoteStorage, NoteTag, NoteType, P2idNote, PartialNoteMetadata,
     },
+    rng::draw_word,
     rpc::{GrpcClient, VerifyingRpcClient},
     transaction::{ExpirationTransactionScript, TransactionId, TransactionRequestBuilder},
     Client, ClientError, Felt, Word,
@@ -195,7 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create and submit the network note that will increment the counter
     // Generate a random serial number for the note
-    let serial_num = client.rng().draw_word();
+    let serial_num = draw_word(client.rng());
 
     // Reuse the `note_script` compiled in STEP 2 (its root is allowlisted on the
     // account, so the network transaction builder will execute this note).

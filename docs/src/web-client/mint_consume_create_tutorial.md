@@ -7,7 +7,7 @@ import { CodeSdkTabs } from '@site/src/components';
 
 _Using the Miden client in TypeScript to mint, consume, and transfer assets_
 
-:::note v0.16 setup
+:::note v0.17 setup
 
 Follow the [network and fee setup](./setup_guide.md#network-and-fee-setup)
 and copy the shared support files imported by the complete example.
@@ -83,7 +83,7 @@ await client.transactions.waitFor(mintTxId);` },
 
 After minting, Alice has a note waiting for her but the tokens aren't in her account yet. We need to consume the note to add its assets to her account balance.
 
-Select the tutorial notes before consuming them: v0.16 also exposes globally consumable `TX_FEE` notes. The shared `consumeAllFeeAware` TypeScript helper excludes those fee notes. In React, `waitForTokenNotes` selects committed notes containing our faucet’s token and returns the `InputNoteRecord` values accepted by `useConsume`.
+Select the tutorial notes before consuming them: v0.17 also exposes globally consumable `TX_FEE` notes. The shared `consumeAllFeeAware` TypeScript helper excludes those fee notes. In React, `waitForTokenNotes` selects committed notes containing our faucet’s token and returns the `InputNoteRecord` values accepted by `useConsume`.
 
 <CodeSdkTabs example={{
 react: { code: `// 4. Wait for committed tutorial-token notes, then consume them
@@ -205,7 +205,7 @@ function CreateMintConsumeInner() {
 ..console.log('Alice ID:', alice.id().toString());
 ..await fundAccount(alice);
 
-..// v0.16 faucets include BasicWallet, so they can receive fee funding.
+..// v0.17 faucets include BasicWallet, so they can receive fee funding.
 ..const faucet = await createFaucet({
 ...tokenSymbol: 'MID',
 ...decimals: 8,
@@ -262,7 +262,7 @@ export default function CreateMintConsume() {
 ..<MidenProvider
 ...config={{
 ....rpcUrl: tutorialNetwork(),
-....prover: 'local',
+....prover: tutorialNetwork(),
 ....autoSyncInterval: 0,
 ...}}
 ..>
@@ -271,7 +271,7 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code: `// lib/createMintConsume.ts
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { FaucetType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import {
 .consumeAllFeeAware,
 .createTutorialClient,
@@ -284,9 +284,7 @@ export async function createMintConsume(): Promise<void> {
 ..return;
 .}
 
-.const client = await createTutorialClient({
-..proverUrl: 'local',
-.});
+.const client = await createTutorialClient();
 
 .// 1. Sync with the latest blockchain state
 .const state = await client.sync();
@@ -299,11 +297,11 @@ export async function createMintConsume(): Promise<void> {
 .});
 .console.log('Alice ID:', alice.id().toString());
 
-.// 3. Create our own fungible faucet. SDK v0.16 includes BasicWallet,
+.// 3. Create our own fungible faucet. SDK v0.17 includes BasicWallet,
 .// allowing both accounts to consume native fee funding before minting MID.
 .console.log('Creating faucet…');
 .const faucet = await client.accounts.create({
-..type: 0, // 0 = FungibleFaucet
+..type: FaucetType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 hex = "0.4"
-miden-client = { version = "=0.16.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "=0.16.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "=0.16.0" }
+miden-client = { version = "=0.17.2", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "=0.17.2", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "=0.17.1" }
 rand = { version = "0.10" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }

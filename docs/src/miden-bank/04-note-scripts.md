@@ -80,7 +80,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "=0.14.0"
+miden = "=0.15.0"
 ```
 
 Create the `miden-project.toml`. This is where the note declares its kind and its dependency on the bank account it calls into:
@@ -364,7 +364,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create a fungible asset to deposit
     let deposit_amount: u64 = 1000;
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
+    let note_assets = NoteAssets::new(vec![Asset::from(fungible_asset)])?;
 
     // Create the deposit note with assets attached
     // The sender becomes the depositor
@@ -423,10 +423,10 @@ async fn deposit_test() -> anyhow::Result<()> {
     bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Create the key for the depositor (sender) in the storage map.
-    // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
-    // In v0.16 the fungible-asset vault key is
+    // Key format: [depositor_prefix, depositor_suffix, asset.id.inner[3], asset.id.inner[2]].
+    // In v0.17 the fungible-asset vault key is
     // [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix],
-    // so `key[2]` is the faucet suffix combined with composition metadata,
+    // so `id.inner[2]` is the faucet suffix combined with composition metadata,
     // not the raw faucet suffix. Derive the read key from the asset's
     // actual key word so it matches the key the contract writes.
     let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_id_word();
@@ -517,8 +517,8 @@ impl WithdrawRequestNote {
             "Withdraw request requires exactly 14 storage items"
         );
 
-        // Asset: reconstruct the v0.16 fungible-asset ID/value from the note storage.
-        // key   = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
+        // Asset: reconstruct the v0.17 fungible-asset ID/value from the note storage.
+        // id    = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
         //         byte (low 8 bits) and storage[3] = faucet prefix.
         // value = [amount, 0, 0, 0]
         let withdraw_asset = Asset::new(

@@ -7,7 +7,7 @@ import { CodeSdkTabs } from '@site/src/components';
 
 _Using unauthenticated notes for optimistic note consumption with the Miden client_
 
-:::note v0.16 setup
+:::note v0.17 setup
 
 Follow the [network and fee setup](./setup_guide.md#network-and-fee-setup)
 and copy the shared support files imported by the complete example.
@@ -86,8 +86,8 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react@0.16.0 @miden-sdk/miden-sdk@0.16.0` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.16.0` },
+  react: { code: `yarn add @miden-sdk/react@0.17.0 @miden-sdk/miden-sdk@0.17.1` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.17.1` },
 }} reactFilename="" tsFilename="" />
 
 The current Next.js template uses Turbopack by default. Use the webpack configuration from the setup guide and update both scripts in `package.json`:
@@ -287,7 +287,7 @@ export default function UnauthenticatedNoteTransfer() {
 ..<MidenProvider
 ...config={{
 ....rpcUrl: tutorialNetwork(),
-....prover: 'local',
+....prover: tutorialNetwork(),
 ....autoSyncInterval: 0,
 ...}}
 ..>
@@ -295,7 +295,7 @@ export default function UnauthenticatedNoteTransfer() {
 ..</MidenProvider>
 .);
 }`},
-  typescript: { code: `import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+  typescript: { code: `import { FaucetType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import {
 .consumeAllFeeAware,
 .createTutorialClient,
@@ -307,9 +307,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .// Ensure this runs only in a browser context
 .if (typeof window === 'undefined') return console.warn('Run in browser');
 
-.const client = await createTutorialClient({
-..proverUrl: 'local',
-.});
+.const client = await createTutorialClient();
 
 .console.log('Latest block:', (await client.sync()).blockNum());
 
@@ -332,7 +330,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
 .}
 
 .const faucet = await client.accounts.create({
-..type: 0, // 0 = FungibleFaucet
+..type: FaucetType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

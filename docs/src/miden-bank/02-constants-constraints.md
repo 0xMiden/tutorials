@@ -190,8 +190,8 @@ impl BankStorage {
         Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3], // faucet id prefix
-            asset.key[2], // faucet id suffix folded with the asset metadata byte
+            asset.id.inner[3], // faucet id prefix
+            asset.id.inner[2], // faucet id suffix folded with the asset metadata byte
         ])
     }
 
@@ -206,8 +206,8 @@ impl BankStorage {
 }
 ```
 
-:::warning v0.16 asset-ID layout
-In v0.16 the fungible-asset ID Word is `[asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. The fungible asset class is empty, and the metadata byte contains the composition bits; the callback flag is part of the faucet account ID. Thus `asset.key[2]` is **not** the raw faucet suffix. The host/test side derives the same ID from `FungibleAsset::new(faucet.id(), amt)?.to_id_word()` indices `[3]`/`[2]` (not `faucet.id().prefix()/suffix()`).
+:::warning v0.17 asset-ID layout
+In v0.17 the fungible-asset ID Word is `[asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. The fungible asset class is empty, and the metadata byte contains the version in bits 0–3 and composition in bits 4–5; the callback flag is part of the faucet account ID. Thus `asset.id.inner[2]` is **not** the raw faucet suffix. The host/test side derives the same ID from `FungibleAsset::new(faucet.id(), amt)?.to_id_word()` indices `[3]`/`[2]` (not `faucet.id().prefix()/suffix()`).
 :::
 
 ### The require_initialized() Guard
@@ -268,7 +268,7 @@ Build the updated contract:
 
 ```bash title=">_ Terminal"
 cd contracts/bank-account
-miden build
+miden build --release
 ```
 
 ## Optional: Verify Constraints Work
@@ -495,8 +495,8 @@ impl BankStorage {
         Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3],
-            asset.key[2],
+            asset.id.inner[3],
+            asset.id.inner[2],
         ])
     }
 

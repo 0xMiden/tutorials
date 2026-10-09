@@ -114,7 +114,7 @@ export default function UnauthenticatedNoteTransfer() {
     <MidenProvider
       config={{
         rpcUrl: tutorialNetwork(),
-        prover: 'local',
+        prover: tutorialNetwork(),
         autoSyncInterval: 0,
       }}
     >

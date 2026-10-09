@@ -2,7 +2,7 @@
  * Mint 100 MID base units on the configured network to a newly created recipient.
  * Uses testnet unless another network is configured explicitly.
  */
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { FaucetType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import {
   createTutorialClient,
   fundAccountForFees,
@@ -14,16 +14,14 @@ export async function mintTestnetToAddress(): Promise<void> {
     return;
   }
 
-  const client = await createTutorialClient({
-    proverUrl: 'local',
-  });
+  const client = await createTutorialClient();
 
   console.log('Latest block:', (await client.sync()).blockNum());
 
   // ── Create a faucet ────────────────────────────────────────────────────────
   console.log('Creating faucet...');
   const faucet = await client.accounts.create({
-    type: 0, // 0 = FungibleFaucet
+    type: FaucetType.FungibleFaucet,
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),

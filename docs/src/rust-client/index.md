@@ -15,10 +15,14 @@ The Miden Rust client can be used for a variety of things, including:
 
 This section of the docs is an overview of the different things one can achieve using the Rust client, and how to implement them.
 
-## Running the v0.16 examples
+## Running the v0.17 examples
 
-The examples use Rust 1.98.1 and Miden v0.16. The repository includes the
+The examples use Rust 1.98.1 and Miden v0.17. The repository includes the
 required toolchain configuration and dependency lockfiles.
+
+The Rust client and SQLite store are pinned to 0.17.2, with protocol 0.17.1.
+Start with a fresh database and regenerate accounts, notes, and compiled packages
+when upgrading from 0.16; their persisted formats are incompatible with 0.17.
 
 From the repository root, run the Rust tutorials on testnet with Node.js and Yarn:
 
@@ -33,10 +37,13 @@ FPI and public-account interaction examples. The [oracle tutorial](./oracle_tuto
 requires an external deployment and is excluded from the default run.
 
 Testnet transactions pay fees in the native asset. The
-shared helpers in `rust-client/src/lib.rs` in your v0.16 checkout
+shared helpers in `rust-client/src/lib.rs` in your v0.17 checkout
 fund each executing account, synchronize before submission, and wait for confirmation.
 They also filter `TX_FEE` notes when selecting tutorial notes. Set
 `MIDEN_FAUCET_URL` if you need to override the network's public faucet API.
+The faucet's metadata identifies its funding wallet. The helpers validate the
+asset in the committed funding note against the synced protocol configuration
+before consuming it.
 
 To follow a tutorial in a standalone project, clone this repository as `tutorials`
 and create the project alongside it. The tutorial's `Cargo.toml` includes the

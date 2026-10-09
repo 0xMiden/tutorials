@@ -45,7 +45,7 @@ function CreateMintConsumeInner() {
     console.log('Alice ID:', alice.id().toString());
     await fundAccount(alice);
 
-    // v0.16 faucets include BasicWallet, so they can receive fee funding.
+    // v0.17 faucets include BasicWallet, so they can receive fee funding.
     const faucet = await createFaucet({
       tokenSymbol: 'MID',
       decimals: 8,
@@ -102,7 +102,7 @@ export default function CreateMintConsume() {
     <MidenProvider
       config={{
         rpcUrl: tutorialNetwork(),
-        prover: 'local',
+        prover: tutorialNetwork(),
         autoSyncInterval: 0,
       }}
     >

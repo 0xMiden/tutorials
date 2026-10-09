@@ -7,7 +7,7 @@ sidebar_position: 12
 
 _Using delegated proving to minimize transaction proving times on computationally constrained devices_
 
-For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
+For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v017-examples).
 
 ## Overview
 
@@ -55,9 +55,9 @@ Keep the generated `[package]` section in `Cargo.toml`, replace its empty `[depe
 [dependencies]
 # Clone tutorials next to this Cargo project (see Rust client setup).
 rust-client = { path = "../tutorials/rust-client" }
-miden-client = { version = "=0.16.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "=0.16.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "=0.16.0" }
+miden-client = { version = "=0.17.2", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "=0.17.2", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "=0.17.1" }
 rand = { version = "0.10" }
 tokio = { version = "1.48", features = ["rt-multi-thread", "net", "macros", "fs"] }
 

@@ -7,7 +7,7 @@ import { CodeSdkTabs } from '@site/src/components';
 
 _Using the Miden client in TypeScript to create several P2ID notes in a single transaction_
 
-:::note v0.16 setup
+:::note v0.17 setup
 
 Follow the [network and fee setup](./setup_guide.md#network-and-fee-setup)
 and copy the shared support files imported by the complete example.
@@ -70,8 +70,8 @@ proving service. This means your browser never has to generate the full ZK proof
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react@0.16.0 @miden-sdk/miden-sdk@0.16.0` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.16.0` },
+  react: { code: `yarn add @miden-sdk/react@0.17.0 @miden-sdk/miden-sdk@0.17.1` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.17.1` },
 }} reactFilename="" tsFilename="" />
 
 The current Next.js template uses Turbopack by default. These SDK examples use the webpack configuration from the setup guide, so update both scripts in `package.json`:
@@ -194,6 +194,7 @@ export default function MultiSendWithDelegatedProver() {
   typescript: { code:`import {
 .MidenClient,
 .NoteVisibility,
+.FaucetType,
 .StorageMode,
 .createP2IDNote,
 .NoteArray,
@@ -262,7 +263,7 @@ console.log('Alice account ID:', alice.id().toString());
 
 // ── Creating new faucet ──────────────────────────────────────────────────────
 const faucet = await client.accounts.create({
-.type: 0, // 0 = FungibleFaucet
+.type: FaucetType.FungibleFaucet,
 .symbol: 'MID',
 .decimals: 8,
 .maxSupply: BigInt(1_000_000),
@@ -463,6 +464,7 @@ export default function MultiSendWithDelegatedProver() {
   typescript: { code: `import {
 .NoteArray,
 .NoteVisibility,
+.FaucetType,
 .StorageMode,
 .createP2IDNote,
 } from '@miden-sdk/miden-sdk/lazy';
@@ -489,7 +491,7 @@ export async function multiSendWithDelegatedProver(): Promise<void> {
 
 .// ── Creating new faucet ────────────────────────────────────────────────────
 .const faucet = await client.accounts.create({
-..type: 0, // 0 = FungibleFaucet
+..type: FaucetType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

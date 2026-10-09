@@ -13,9 +13,9 @@ use miden_client::{
     asset::{AssetAmount, AssetId, FungibleAsset, TokenSymbol},
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
     note::{Note, NoteAssets, NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata},
+    rng::draw_word,
     rpc::{GrpcClient, VerifyingRpcClient},
     transaction::{TransactionId, TransactionRequestBuilder},
     Client, ClientError, Felt,
@@ -204,7 +204,7 @@ async fn main() -> Result<(), ClientError> {
     // `include_str!` resolves at compile time relative to this source file,
     // so the binary is independent of the working directory it is run from.
     let code = include_str!("../../../masm/notes/hash_preimage_note.masm");
-    let serial_num = client.rng().draw_word();
+    let serial_num = draw_word(client.rng());
 
     let note_script = client.code_builder().compile_note_script(code).unwrap();
     let note_storage = NoteStorage::new(digest.to_vec()).unwrap();

@@ -5,7 +5,7 @@ sidebar_position: 5
 
 _Using the Miden client to interact with a custom smart contract_
 
-:::note v0.16 setup
+:::note v0.17 setup
 
 Follow the [network and fee setup](./setup_guide.md#network-and-fee-setup)
 and copy the shared support files imported by the complete example.
@@ -49,7 +49,7 @@ This tutorial assumes you have a basic understanding of Miden assembly. To quick
 
 3. Install the Miden SDK:
    ```bash
-   yarn add @miden-sdk/miden-sdk@0.16.0
+   yarn add @miden-sdk/miden-sdk@0.17.1
    ```
 
 The current Next.js template uses Turbopack by default. These examples use the webpack configuration from the setup guide, so update both scripts in `package.json`:
@@ -229,7 +229,7 @@ export async function incrementCounterContract(): Promise<void> {
     return;
   }
 
-  const client = await createTutorialClient({ proverUrl: 'local' });
+  const client = await createTutorialClient();
   console.log('Current block number: ', (await client.sync()).blockNum());
 
   const counterSlotName = 'miden::tutorials::counter';

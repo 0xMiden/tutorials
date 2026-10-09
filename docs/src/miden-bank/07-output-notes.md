@@ -106,8 +106,8 @@ impl Bank for BankStorage {
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            withdraw_asset.key[3], // faucet_prefix
-            withdraw_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+            withdraw_asset.id.inner[3], // faucet_prefix
+            withdraw_asset.id.inner[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
         ]);
 
         // Get current balance and validate sufficient funds exist.
@@ -131,7 +131,7 @@ impl Bank for BankStorage {
 }
 ```
 
-The withdraw method derives the balance-map key inline by packing `depositor.prefix`, `depositor.suffix`, `withdraw_asset.key[3]`, and `withdraw_asset.key[2]` into a `Word`. In the v0.16 fungible-asset ID layout, `asset.key[3]` is the faucet ID prefix and `asset.key[2]` is the faucet ID suffix with the composition metadata folded into its low byte — so `key[2]` is NOT the raw faucet suffix. `withdraw()` and `deposit()` derive the key the same way so a withdrawal reconstructs the exact key the deposit was recorded under.
+The withdraw method derives the balance-map key inline by packing `depositor.prefix`, `depositor.suffix`, `withdraw_asset.id.inner[3]`, and `withdraw_asset.id.inner[2]` into a `Word`. In the v0.17 fungible-asset ID layout, `asset.id.inner[3]` is the faucet ID prefix and `asset.id.inner[2]` is the faucet ID suffix with the version and composition metadata folded into its low byte — so `id.inner[2]` is NOT the raw faucet suffix. `withdraw()` and `deposit()` derive the key the same way so a withdrawal reconstructs the exact key the deposit was recorded under.
 
 :::danger Critical Security: Balance Validation
 Always validate `current_balance >= withdraw_amount` BEFORE subtraction. Miden uses modular field arithmetic - subtracting a larger value silently wraps to a massive positive number!
@@ -146,7 +146,12 @@ let storage = active_note::get_storage();
 let script_root = Word::from([storage[10], storage[11], storage[12], storage[13]]);
 ```
 
-This design keeps the bank contract version-agnostic: callers embed the P2ID script root they want to use into the note storage when they create the withdraw-request note. The test obtains the correct value at test time with `P2idNote::script_root()` from the `miden_client` crate. In v0.16 `script_root()` returns a `NoteScriptRoot`, so wrap it in `Word::from(...)` before indexing its felts (see the test below).
+This design keeps the P2ID script root configurable: callers embed the root they want to use into the note storage when they create the withdraw-request note. The test obtains the correct value at test time with `P2idNote::script_root()` from the `miden_client` crate. In v0.17 `script_root()` returns a `NoteScriptRoot`, so wrap it in `Word::from(...)` before indexing its felts (see the test below).
+
+P2ID storage in v0.17 contains four elements: `[target_suffix, target_prefix,
+salt_0, salt_1]`. This example uses zero salts, matching `P2idNoteStorage::new`.
+Including only the two target elements would create a note that the standard
+P2ID script cannot consume.
 
 ## Step 3: Implement create_p2id_note
 
@@ -178,7 +183,7 @@ impl BankStorage {
         let note_type = NoteType::from(note_type);
 
         // Compute the recipient hash from serial_num, the P2ID script root, and the
-        // target account ID [suffix, prefix]. This matches the standard P2ID recipient
+        // target account ID and zero salt [suffix, prefix, 0, 0]. This matches the P2ID recipient
         // format used by miden-standards.
         let recipient = note::build_recipient(
             serial_num,
@@ -186,6 +191,8 @@ impl BankStorage {
             vec![
                 recipient_id.suffix,
                 recipient_id.prefix,
+                felt!(0), // salt_0
+                felt!(0), // salt_1
             ],
         );
 
@@ -243,7 +250,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "=0.14.0"
+miden = "=0.15.0"
 ```
 
 ```toml title="contracts/withdraw-request-note/miden-project.toml"
@@ -302,9 +309,9 @@ pub struct Wallet;
 ///
 /// # Note Storage (14 Felts)
 /// [0-3]: withdraw asset, encoded as [amount, 0, faucet_suffix(+metadata), faucet_prefix].
-///        Reconstructed into the v0.16 asset ID [0, 0, storage[2], storage[3]] and value
+///        Reconstructed into the v0.17 asset ID [0, 0, storage[2], storage[3]] and value
 ///        [amount, 0, 0, 0]. `storage[2]` carries the faucet suffix with the asset's metadata
-///        composition bits in its low byte (host side: `FungibleAsset::to_id_word()[2]`), not the raw
+///        version and composition bits in its low byte (host side: `FungibleAsset::to_id_word()[2]`), not the raw
 ///        suffix — so the bank reconstructs exactly the key the depositor's asset had.
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
@@ -327,8 +334,8 @@ impl WithdrawRequestNote {
             "Withdraw request requires exactly 14 storage items"
         );
 
-        // Asset: reconstruct the v0.16 fungible-asset ID/value from the note storage.
-        // key   = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
+        // Asset: reconstruct the v0.17 fungible-asset ID/value from the note storage.
+        // id    = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
         //         byte (low 8 bits) and storage[3] = faucet prefix.
         // value = [amount, 0, 0, 0]
         let withdraw_asset = Asset::new(
@@ -371,7 +378,7 @@ Note Storage (14 Felts):
 ├───────┼────────────────┼───────────────────────────────────────────────────┤
 │ 1     │ 0              │ Reserved (always 0 for fungible)                  │
 ├───────┼────────────────┼───────────────────────────────────────────────────┤
-│ 2     │ faucet_suffix* │ Faucet ID suffix + metadata byte (v0.16 key[2])   │
+│ 2     │ faucet_suffix* │ Faucet suffix + metadata byte (asset ID index 2)  │
 ├───────┼────────────────┼───────────────────────────────────────────────────┤
 │ 3     │ faucet_prefix  │ Faucet ID prefix (identifies asset type)          │
 ├───────┼────────────────┼───────────────────────────────────────────────────┤
@@ -385,7 +392,7 @@ Note Storage (14 Felts):
 └───────┴────────────────┴───────────────────────────────────────────────────┘
 ```
 
-\*Index 2 is the v0.16 fungible-asset ID's `key[2]`: the faucet ID suffix with the composition metadata folded into its low byte, not the raw suffix. The host side encodes it from `FungibleAsset::new(faucet.id(), amount)?.to_id_word()[2]`.
+\*Index 2 is the v0.17 fungible-asset ID's `id.inner[2]`: the faucet ID suffix with the version and composition metadata folded into its low byte, not the raw suffix. The host side encodes it from `FungibleAsset::new(faucet.id(), amount)?.to_id_word()[2]`.
 
 :::note Why the Asset is in Inputs
 Unlike the deposit note which gets its creation-time assets from `active_note::get_initial_assets()`, the withdraw request note doesn't carry assets. Instead, the asset to withdraw is specified in the note inputs. The bank then withdraws from its own vault based on these inputs.
@@ -526,7 +533,7 @@ async fn withdraw_flow(note_type: NoteType) -> anyhow::Result<()> {
 
     // Create a fungible asset to deposit
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
+    let note_assets = NoteAssets::new(vec![Asset::from(fungible_asset)])?;
 
     // Create the deposit note with assets attached
     // The sender becomes the depositor
@@ -570,16 +577,16 @@ async fn withdraw_flow(note_type: NoteType) -> anyhow::Result<()> {
     let note_type_felt = Felt::from(note_type); // Public = 1, Private = 0
 
     // Get the P2ID script root (Poseidon2-hashed MAST root). `script_root()` returns
-    // a `NoteScriptRoot` in v0.16; convert to a `Word` so its felts can be indexed.
+    // a `NoteScriptRoot` in v0.17; convert to a `Word` so its felts can be indexed.
     let p2id_script_root = Word::from(P2idNote::script_root());
 
     // Note storage layout (14 Felts):
-    // [0-3]: withdraw asset encoded as [amount, 0, asset.key[2] (faucet suffix + metadata byte), asset.key[3] (faucet prefix)]
+    // [0-3]: withdraw asset encoded as [amount, 0, asset.id.inner[2] (faucet suffix + metadata byte), asset.id.inner[3] (faucet prefix)]
     // [4-7]: serial_num (random/unique per note)
     // [8]: tag (P2ID note tag for routing)
     // [9]: note_type (1 = Public, 0 = Private)
     // [10-13]: P2ID script_root (MAST root for recipient computation)
-    // In v0.16 the fungible-asset vault key encodes the faucet suffix together with a
+    // In v0.17 the fungible-asset vault key encodes the faucet suffix together with a
     // metadata byte at index [2] (and the faucet prefix at [3]). Encode the asset from the
     // asset's real key word so the bank reconstructs the same key it deposited under.
     let withdraw_asset_key_word = FungibleAsset::new(faucet.id(), withdraw_amount)?.to_id_word();
@@ -815,9 +822,9 @@ pub struct Wallet;
 ///
 /// # Note Storage (14 Felts)
 /// [0-3]: withdraw asset, encoded as [amount, 0, faucet_suffix(+metadata), faucet_prefix].
-///        Reconstructed into the v0.16 asset ID [0, 0, storage[2], storage[3]] and value
+///        Reconstructed into the v0.17 asset ID [0, 0, storage[2], storage[3]] and value
 ///        [amount, 0, 0, 0]. `storage[2]` carries the faucet suffix with the asset's metadata
-///        composition bits in its low byte (host side: `FungibleAsset::to_id_word()[2]`), not the raw
+///        version and composition bits in its low byte (host side: `FungibleAsset::to_id_word()[2]`), not the raw
 ///        suffix — so the bank reconstructs exactly the key the depositor's asset had.
 /// [4-7]: serial_num (random/unique per note)
 /// [8]: tag (P2ID note tag for routing)
@@ -840,8 +847,8 @@ impl WithdrawRequestNote {
             "Withdraw request requires exactly 14 storage items"
         );
 
-        // Asset: reconstruct the v0.16 fungible-asset ID/value from the note storage.
-        // key   = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
+        // Asset: reconstruct the v0.17 fungible-asset ID/value from the note storage.
+        // id    = [0, 0, storage[2], storage[3]] where storage[2] = faucet suffix + metadata
         //         byte (low 8 bits) and storage[3] = faucet prefix.
         // value = [amount, 0, 0, 0]
         let withdraw_asset = Asset::new(

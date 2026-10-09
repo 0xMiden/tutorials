@@ -36,36 +36,36 @@ Part 2:                          Part 3:
 
 ## The Asset Type
 
-Miden splits a fungible `Asset` into a `value` word and a `key` word. The `value`
-holds the amount; the `key` is the vault key word. In protocol v0.16 the fungible
-vault key word has this layout:
+Miden splits a fungible `Asset` into a `value` word and an `id`. The `value`
+holds the amount; `id` is an `AssetId`, whose `inner` field is the vault key word.
+In protocol v0.17 the fungible asset ID word has this layout:
 
 ```text
 Asset value: [amount, 0, 0, 0]
-Asset key:   [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata, faucet_prefix]
+Asset ID:    [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata, faucet_prefix]
                                                  ━━━━━━━━━━━━━━━━━━━━━━━   ━━━━━━━━━━━━━
-                                                        key index 2        key index 3
+                                                         ID index 2         ID index 3
 ```
 
-| Word    | Index | Field                       | Description                                                      |
-| ------- | ----- | --------------------------- | ---------------------------------------------------------------- |
-| `value` | 0     | `amount`                    | The quantity of tokens                                           |
-| `value` | 1     | (reserved)                  | Always 0 for fungible assets                                     |
-| `key`   | 2     | `faucet_suffix \| metadata` | Faucet ID suffix with a metadata byte folded into the low 8 bits |
-| `key`   | 3     | `faucet_prefix`             | First part of the faucet account ID                              |
+| Word       | Index | Field                       | Description                                                      |
+| ---------- | ----- | --------------------------- | ---------------------------------------------------------------- |
+| `value`    | 0     | `amount`                    | The quantity of tokens                                           |
+| `value`    | 1     | (reserved)                  | Always 0 for fungible assets                                     |
+| `id.inner` | 2     | `faucet_suffix \| metadata` | Faucet ID suffix with a metadata byte folded into the low 8 bits |
+| `id.inner` | 3     | `faucet_prefix`             | First part of the faucet account ID                              |
 
-Access the amount through `asset.value` and the faucet ID through `asset.key`:
+Access the amount through `asset.value` and the faucet ID through `asset.id`:
 
 ```rust
-let amount = deposit_asset.value[0];           // The token amount
-let faucet_suffix = deposit_asset.key[2];      // Faucet ID suffix (+ metadata byte)
-let faucet_prefix = deposit_asset.key[3];      // Faucet ID prefix
+let amount = deposit_asset.value[0];          // The token amount
+let faucet_suffix = deposit_asset.id.inner[2]; // Faucet ID suffix (+ metadata byte)
+let faucet_prefix = deposit_asset.id.inner[3]; // Faucet ID prefix
 ```
 
-:::note v0.16 asset-ID layout
-`asset.key[2]` is **not** the raw faucet suffix — the composition metadata is
+:::note v0.17 asset-ID layout
+`asset.id.inner[2]` is **not** the raw faucet suffix — the version and composition metadata is
 folded into its low byte. The callback flag is encoded in the faucet account ID
-in v0.16. Thus `(asset.key[3], asset.key[2])` is a stable per-faucet identifier.
+in v0.17. Thus `(asset.id.inner[3], asset.id.inner[2])` is a stable per-faucet identifier.
 The host-side mirror is `FungibleAsset::to_id_word()` indices `[3]` / `[2]`.
 :::
 
@@ -117,8 +117,8 @@ fn deposit(&mut self, depositor: AccountId, deposit_asset: Asset) {
     let key = Word::from([
         depositor.prefix,
         depositor.suffix,
-        deposit_asset.key[3], // faucet_prefix
-        deposit_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+        deposit_asset.id.inner[3], // faucet_prefix
+        deposit_asset.id.inner[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
     ]);
 
     // Update balance in integer space to avoid modular Felt wraparound.
@@ -154,8 +154,8 @@ composite `Word`:
 let key = Word::from([
     depositor.prefix,      // Who deposited
     depositor.suffix,
-    deposit_asset.key[3],  // Which asset type (faucet ID prefix)
-    deposit_asset.key[2],  // Which asset type (faucet ID suffix + metadata byte)
+    deposit_asset.id.inner[3],  // Which asset type (faucet ID prefix)
+    deposit_asset.id.inner[2],  // Which asset type (faucet ID suffix + metadata byte)
 ]);
 ```
 
@@ -165,7 +165,7 @@ This design allows:
 - **Per-asset tracking**: Different token types are tracked separately
 - **Unique keys**: The combination ensures no collisions
 
-Because `asset.key[2]` carries the v0.16 composition metadata in its low byte (not the
+Because `asset.id.inner[2]` carries the v0.17 version and composition metadata in its low byte (not the
 raw faucet suffix), the host side must derive the _same_ ID from
 `FungibleAsset::to_id_word()` rather than from `faucet.id().suffix()` directly — the
 test below shows this.
@@ -240,8 +240,8 @@ fn withdraw(
     let key = Word::from([
         depositor.prefix,
         depositor.suffix,
-        withdraw_asset.key[3], // faucet_prefix
-        withdraw_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+        withdraw_asset.id.inner[3], // faucet_prefix
+        withdraw_asset.id.inner[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
     ]);
 
     // ========================================================================
@@ -293,7 +293,7 @@ Build the contract:
 
 ```bash title=">_ Terminal"
 cd contracts/bank-account
-miden build
+miden build --release
 ```
 
 ## Try It: Verify Deposits Work
@@ -302,7 +302,7 @@ First, verify your bank-account contract compiles:
 
 ```bash title=">_ Terminal"
 cd contracts/bank-account
-miden build
+miden build --release
 ```
 
 :::note Test Dependencies
@@ -407,7 +407,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create a fungible asset to deposit
     let deposit_amount: u64 = 1000;
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
+    let note_assets = NoteAssets::new(vec![Asset::from(fungible_asset)])?;
 
     // Create the deposit note with assets attached
     // The sender becomes the depositor
@@ -466,10 +466,10 @@ async fn deposit_test() -> anyhow::Result<()> {
     bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Create the key for the depositor (sender) in the storage map.
-    // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
-    // In v0.16 the fungible-asset vault key is
+    // Key format: [depositor_prefix, depositor_suffix, asset.id.inner[3], asset.id.inner[2]].
+    // In v0.17 the fungible-asset vault key is
     // [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix],
-    // so `key[2]` is the faucet suffix combined with composition metadata,
+    // so `id.inner[2]` is the faucet suffix combined with version and composition metadata,
     // not the raw faucet suffix. Derive the read key from the asset's
     // actual key word so it matches the key the contract writes.
     let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_id_word();
@@ -622,8 +622,8 @@ impl Bank for BankStorage {
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3], // faucet_prefix
-            asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+            asset.id.inner[3], // faucet_prefix
+            asset.id.inner[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
         ]);
         self.balances.get(key)
     }
@@ -647,8 +647,8 @@ impl Bank for BankStorage {
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            deposit_asset.key[3], // faucet_prefix
-            deposit_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+            deposit_asset.id.inner[3], // faucet_prefix
+            deposit_asset.id.inner[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
         ]);
 
         // Validate in integer space — Felt addition is modular
@@ -690,8 +690,8 @@ impl Bank for BankStorage {
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            withdraw_asset.key[3], // faucet_prefix
-            withdraw_asset.key[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
+            withdraw_asset.id.inner[3], // faucet_prefix
+            withdraw_asset.id.inner[2], // faucet_suffix (+ metadata byte; see `balances` field docs)
         ]);
 
         // CRITICAL: Validate balance BEFORE subtraction
@@ -741,7 +741,7 @@ impl BankStorage {
 
 ## Key Takeaways
 
-1. **Asset layout**: `value[0]` = amount; `key[2]` = faucet suffix plus composition metadata; `key[3]` = faucet prefix. Mirror it host-side with `FungibleAsset::to_id_word()` indices `[3]`/`[2]`
+1. **Asset layout**: `value[0]` = amount; `id.inner[2]` = faucet suffix plus version and composition metadata; `id.inner[3]` = faucet prefix. Mirror it host-side with `FungibleAsset::to_id_word()` indices `[3]`/`[2]`
 2. **`native_account::add_asset()`** adds assets to the vault
 3. **`native_account::remove_asset()`** removes assets from the vault (Part 7)
 4. **Balance tracking** is application-level logic using `StorageMap`

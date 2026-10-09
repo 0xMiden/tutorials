@@ -111,11 +111,12 @@ async fn main() -> Result<()> {
     wait_for_native_funding(&mut client, sender_account.id(), DEFAULT_DEPOSIT_AMOUNT).await?;
 
     // Deposit native tokens; the sender also needs enough native tokens to pay fees.
+    let header = client.get_latest_block_header().await?;
     let faucet_id = client
-        .get_latest_block_header()
+        .get_protocol_config(header.protocol_config_commitment())
         .await?
-        .fee_parameters()
-        .fee_faucet_id();
+        .fee_asset_id()
+        .faucet_id();
     let deposit_asset = FungibleAsset::new(faucet_id, DEFAULT_DEPOSIT_AMOUNT)?;
     println!(
         "\nCreating deposit note with {} native base units...",

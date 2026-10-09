@@ -42,7 +42,7 @@
 ### Miden Bank (`examples/miden-bank/`)
 Complete banking application built with the Miden Rust compiler. Companion code for the Building a Bank tutorial.
 
-- Build contracts: `cd contracts/<name> && miden build` (build bank-account first, then others)
+- Build contracts: `cd contracts/<name> && miden build --release` (build bank-account first, then others)
 - Run integration tests: `cargo test -p integration`
 - Uses nightly Rust (configured by `rust-toolchain.toml`)
 - Contracts are excluded from the Cargo workspace (compiled with `cargo-miden`)

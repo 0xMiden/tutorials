@@ -134,13 +134,13 @@ Use `StorageMap` when you need to store multiple values indexed by keys.
 
 ```rust
 // Create a key (must be a Word).
-// The bank keys balances per (depositor, faucet): asset.key[3] is the faucet
-// id prefix and asset.key[2] is the faucet id suffix (plus a metadata byte).
+// The bank keys balances per (depositor, faucet): asset.id.inner[3] is the faucet
+// id prefix and asset.id.inner[2] is the faucet id suffix (plus a metadata byte).
 let key = Word::from([
     depositor.prefix,
     depositor.suffix,
-    asset.key[3],
-    asset.key[2],
+    asset.id.inner[3],
+    asset.id.inner[2],
 ]);
 
 // This field is StorageMap<Word, Felt>, so get returns Felt.
@@ -217,8 +217,8 @@ impl BankStorage {
         Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3],
-            asset.key[2],
+            asset.id.inner[3],
+            asset.id.inner[2],
         ])
     }
 
@@ -233,8 +233,8 @@ impl BankStorage {
 }
 ```
 
-:::info v0.16 fungible-asset ID layout
-A fungible asset's ID Word is `[asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. For fungible assets, the asset class is empty. `asset.key[3]` is the faucet ID prefix and `asset.key[2]` is the faucet ID suffix with the composition bits in its low byte, so `key[2]` is **not** the raw faucet suffix. The callback flag is now encoded in the faucet account ID, not in the asset metadata byte. The host-side mirror is `FungibleAsset::to_id_word()` indices `[3]`/`[2]`.
+:::info v0.17 fungible-asset ID layout
+A fungible asset's ID Word is `[asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix]`. For fungible assets, the asset class is empty. `asset.id.inner[3]` is the faucet ID prefix and `asset.id.inner[2]` is the faucet ID suffix with the composition bits in its low byte, so `id.inner[2]` is **not** the raw faucet suffix. The callback flag is now encoded in the faucet account ID, not in the asset metadata byte. The host-side mirror is `FungibleAsset::to_id_word()` indices `[3]`/`[2]`.
 :::
 
 The bank requires initialization before accepting deposits: `require_initialized()` is called at the top of `deposit()` and `withdraw()` (covered in later parts).
@@ -258,12 +258,12 @@ Build your updated account component:
 
 ```bash title=">_ Terminal"
 cd contracts/bank-account
-miden build
+miden build --release
 ```
 
 This compiles the Rust code to Miden Assembly and generates:
 
-- `target/miden/dev/bank-account.masp` - The compiled package
+- `target/miden/release/bank-account.masp` - The compiled package
 - The package embeds the WIT interface used by dependent contracts
 
 ## Optional: Verify Your Code
@@ -475,8 +475,8 @@ impl BankStorage {
         Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3],
-            asset.key[2],
+            asset.id.inner[3],
+            asset.id.inner[2],
         ])
     }
 

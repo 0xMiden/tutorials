@@ -9,7 +9,7 @@ fn standalone_fee_auth_component_compiles() {
             "tutorials::auth",
             include_str!("../../masm/accounts/auth/no_auth.masm"),
         )
-        .expect("the standalone no-auth component must support the v0.16 fee API");
+        .expect("the standalone no-auth component must support the v0.17 fee API");
 }
 
 #[test]

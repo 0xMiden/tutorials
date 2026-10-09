@@ -5,7 +5,7 @@ sidebar_position: 2
 
 # Miden Node Setup Tutorial
 
-The v0.16 client tutorials connect to public Miden testnet by default, so no local
+The v0.17 client tutorials connect to public Miden testnet by default, so no local
 node is required. You can also configure them to use your own network.
 
 ## Connecting to the public networks

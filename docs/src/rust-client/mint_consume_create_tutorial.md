@@ -7,7 +7,7 @@ sidebar_position: 3
 
 _Using the Miden client in Rust to mint, consume, and create notes_
 
-For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
+For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v017-examples).
 
 ## Overview
 

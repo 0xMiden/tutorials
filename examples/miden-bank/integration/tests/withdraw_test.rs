@@ -102,7 +102,7 @@ async fn withdraw_flow(note_type: NoteType) -> anyhow::Result<()> {
 
     // Create a fungible asset to deposit
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
+    let note_assets = NoteAssets::new(vec![Asset::from(fungible_asset)])?;
 
     // Create the deposit note with assets attached
     // The sender becomes the depositor
@@ -146,16 +146,16 @@ async fn withdraw_flow(note_type: NoteType) -> anyhow::Result<()> {
     let note_type_felt = Felt::from(note_type); // Public = 1, Private = 0
 
     // Get the P2ID script root (Poseidon2-hashed MAST root). `script_root()` returns
-    // a `NoteScriptRoot` in v0.16; convert to a `Word` so its felts can be indexed.
+    // a `NoteScriptRoot` in v0.17; convert to a `Word` so its felts can be indexed.
     let p2id_script_root = Word::from(P2idNote::script_root());
 
     // Note storage layout (14 Felts):
-    // [0-3]: withdraw asset encoded as [amount, 0, asset.key[2] (faucet suffix + metadata byte), asset.key[3] (faucet prefix)]
+    // [0-3]: withdraw asset encoded as [amount, 0, asset.id.inner[2] (faucet suffix + metadata byte), asset.id.inner[3] (faucet prefix)]
     // [4-7]: serial_num (random/unique per note)
     // [8]: tag (P2ID note tag for routing)
     // [9]: note_type (1 = Public, 0 = Private)
     // [10-13]: P2ID script_root (MAST root for recipient computation)
-    // In v0.16 the fungible-asset vault key encodes the faucet suffix together with a
+    // In v0.17 the fungible-asset vault key encodes the faucet suffix together with a
     // metadata byte at index [2] (and the faucet prefix at [3]). Encode the asset from the
     // asset's real key word so the bank reconstructs the same key it deposited under.
     let withdraw_asset_key_word = FungibleAsset::new(faucet.id(), withdraw_amount)?.to_id_word();

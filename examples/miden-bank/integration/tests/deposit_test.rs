@@ -30,7 +30,7 @@ fn bank_storage_slots() -> (StorageSlotName, StorageSlotName) {
     (initialized_slot, balances_slot)
 }
 
-/// An NFT can have zero in value[1]; that is not a fungibility check in v0.16.
+/// An NFT can have zero in value[1]; that is not a fungibility check in v0.17.
 #[tokio::test]
 async fn deposit_nft_with_zero_padding_should_fail() -> anyhow::Result<()> {
     let mut builder = MockChain::builder();
@@ -141,7 +141,7 @@ async fn deposit_test() -> anyhow::Result<()> {
     // Create a fungible asset to deposit
     let deposit_amount: u64 = 1000;
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
+    let note_assets = NoteAssets::new(vec![Asset::from(fungible_asset)])?;
 
     // Create the deposit note with assets attached
     // The sender becomes the depositor
@@ -202,10 +202,10 @@ async fn deposit_test() -> anyhow::Result<()> {
     bank_account = mock_chain.committed_account(bank_account.id())?.clone();
 
     // Create the key for the depositor (sender) in the storage map.
-    // Key format: [depositor_prefix, depositor_suffix, asset.key[3], asset.key[2]].
-    // In v0.16 the fungible-asset vault key is
+    // Key format: [depositor_prefix, depositor_suffix, asset.id.inner[3], asset.id.inner[2]].
+    // In v0.17 the fungible-asset vault key is
     // [asset_class_suffix, asset_class_prefix, faucet_suffix | metadata_byte, faucet_prefix],
-    // so `key[2]` is the faucet suffix combined with composition metadata,
+    // so `id.inner[2]` is the faucet suffix combined with composition metadata,
     // not the raw faucet suffix. Derive the read key from the asset's
     // actual key word so it matches the key the contract writes.
     let asset_key_word = FungibleAsset::new(faucet.id(), deposit_amount)?.to_id_word();
@@ -301,7 +301,7 @@ async fn deposit_exceeds_max_should_fail() -> anyhow::Result<()> {
 
     // Create a deposit note with amount exceeding the max
     let fungible_asset = FungibleAsset::new(faucet.id(), large_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
+    let note_assets = NoteAssets::new(vec![Asset::from(fungible_asset)])?;
 
     let deposit_note = create_testing_note_from_package(
         deposit_note_package.clone(),
@@ -411,7 +411,7 @@ async fn deposit_without_init_should_fail() -> anyhow::Result<()> {
     // Create a deposit note
     let deposit_amount: u64 = 1000;
     let fungible_asset = FungibleAsset::new(faucet.id(), deposit_amount)?;
-    let note_assets = NoteAssets::new(vec![Asset::Fungible(fungible_asset)])?;
+    let note_assets = NoteAssets::new(vec![Asset::from(fungible_asset)])?;
 
     let deposit_note = create_testing_note_from_package(
         deposit_note_package.clone(),
