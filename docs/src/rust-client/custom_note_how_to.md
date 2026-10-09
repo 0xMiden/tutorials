@@ -7,7 +7,7 @@ sidebar_position: 7
 
 _Creating notes with custom logic_
 
-For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
+For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v017-examples).
 
 ## Overview
 
@@ -39,7 +39,7 @@ First, we create two basic accounts for the two users:
 The security of the custom note hinges on a secret number. Here, we will:
 
 - Choose a secret number (for example, an array of four integers).
-- Hash the four field elements directly with `miden_protocol::Hasher::hash_elements`, which uses Poseidon2 in v0.16. The MASM `hash` instruction computes the matching digest; do not prepend an extra zero word to the Rust input.
+- Hash the four field elements directly with `miden_protocol::Hasher::hash_elements`, which uses Poseidon2 in v0.17. The MASM `hash` instruction computes the matching digest; do not prepend an extra zero word to the Rust input.
 - Compute the hash of the secret. The resulting hash will be stored in the note’s storage, meaning that the note can only be consumed if the secret number’s hash preimage is provided during consumption.
 
 ### 3. Creating the custom note
@@ -149,9 +149,9 @@ Keep the generated `[package]` section in `Cargo.toml`, replace its empty `[depe
 [dependencies]
 # Clone tutorials next to this Cargo project (see Rust client setup).
 rust-client = { path = "../tutorials/rust-client" }
-miden-client = { version = "=0.16.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "=0.16.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "=0.16.0" }
+miden-client = { version = "=0.17.2", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "=0.17.2", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "=0.17.1" }
 rand = { version = "0.10" }
 tokio = { version = "1.48", features = ["rt-multi-thread", "net", "macros", "fs"] }
 
@@ -182,7 +182,7 @@ use miden_client::{
     asset::{AssetAmount, AssetId, FungibleAsset, TokenSymbol},
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
+    rng::draw_word,
     keystore::{FilesystemKeyStore, Keystore},
     note::{Note, NoteAssets, NoteRecipient, NoteStorage, NoteTag, NoteType, PartialNoteMetadata},
     rpc::{GrpcClient, VerifyingRpcClient},
@@ -371,7 +371,7 @@ async fn main() -> Result<(), ClientError> {
 
     // Read the MASM source from the tutorials repository.
     let code = std::fs::read_to_string("../tutorials/masm/notes/hash_preimage_note.masm").unwrap();
-    let serial_num = client.rng().draw_word();
+    let serial_num = draw_word(client.rng());
 
     let note_script = client.code_builder().compile_note_script(&code).unwrap();
     let note_storage = NoteStorage::new(digest.to_vec()).unwrap();

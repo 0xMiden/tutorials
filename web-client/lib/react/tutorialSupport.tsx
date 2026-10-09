@@ -9,6 +9,7 @@ import {
   type InputNoteRecord,
 } from '@miden-sdk/miden-sdk/lazy';
 import {
+  assertNativeFundingNote,
   requestFundingNote,
   tutorialFeeConfig,
   tutorialNetwork,
@@ -51,18 +52,19 @@ export function useTutorialSupport() {
 
   const fundAccount = async (account: Account) => {
     if (!client) throw new Error('Miden client is not ready');
-    const { faucetId, baseFee } = await tutorialFeeConfig();
-    if (baseFee === 0) return;
     await sync();
+    const { faucetId, baseFee } = await runExclusive(() =>
+      tutorialFeeConfig(client),
+    );
+    if (baseFee === 0) return;
     const updated = await runExclusive(() => client.getAccount(account.id()));
     if (!updated) throw new Error(`Account ${account.id()} is not in the local store`);
     if (updated.vault().getBalance(faucetId) > BigInt(0)) return;
     console.log(`Funding ${account.id()} with native ${tutorialNetwork()} fee tokens`);
-    const minted = await requestFundingNote(account.id(), faucetId);
-    console.log(
-      `Funding note ${minted.note_id}; faucet transaction ${minted.tx_id}`,
-    );
+    const minted = await requestFundingNote(account.id());
+    console.log(`Funding note ${minted.note_id}`);
     const note = await waitForNote(minted.note_id);
+    assertNativeFundingNote(note, faucetId);
     // The first transaction pays its fee from the native asset in the input note.
     await sync();
     const result = await consume({

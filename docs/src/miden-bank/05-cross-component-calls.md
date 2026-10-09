@@ -170,17 +170,17 @@ From the project root, build the account first to inspect its output, then build
 ```bash title=">_ Terminal"
 # 1. Build the account component first
 cd contracts/bank-account
-miden build
+miden build --release
 
 # 2. Then build note scripts that depend on it
 cd ../deposit-note
-miden build
+miden build --release
 
 # 3. Return to the project root
 cd ../..
 ```
 
-If you build a dependent contract directly, compiler 0.10 also builds its path dependencies.
+If you build a dependent contract directly, compiler 0.11 also builds its path dependencies.
 
 ## What Methods Are Available?
 
@@ -267,14 +267,14 @@ After running the builds above, check the bank package from the project root:
 
 ```bash title=">_ Terminal"
 # Check the compiled package (its interface is embedded)
-ls contracts/bank-account/target/miden/dev/bank-account.masp
+ls contracts/bank-account/target/miden/release/bank-account.masp
 ```
 
 <details>
 <summary>Expected output</summary>
 
 ```text
-contracts/bank-account/target/miden/dev/bank-account.masp
+contracts/bank-account/target/miden/release/bank-account.masp
 ```
 
 </details>
@@ -293,7 +293,7 @@ error: cannot find module `bindings`
 
 **Solution**:
 
-1. Build the account: `cd contracts/bank-account && miden build`
+1. Build the account: `cd contracts/bank-account && miden build --release`
 2. Verify the `bank-account` path dependency in `miden-project.toml` points to the account project; remove legacy `wit` overrides
 
 ### "Method not found" Error
@@ -319,7 +319,7 @@ error: dependency 'bank-account' not found
 ## Key Takeaways
 
 1. **Declare the path dependency** - The compiler builds the account package and reads its embedded WIT
-2. **Embedded interface** - Declare the path under `[dependencies]`; compiler 0.10 reads the interface from the compiled dependency. Do not add the legacy `wit` override.
+2. **Embedded interface** - Declare the path under `[dependencies]`; compiler 0.11 reads the interface from the compiled dependency. Do not add the legacy `wit` override.
 3. **Account wrapper pattern** - `#[account(bank_account::Bank)] pub struct Wallet;` exposes the component's methods on the `account` parameter
 4. **Only trait methods** - Methods on the private `impl BankStorage` helpers aren't exposed in bindings
 5. **Note and tx scripts share the pattern** - Both receive the account wrapper as a parameter (Part 6)

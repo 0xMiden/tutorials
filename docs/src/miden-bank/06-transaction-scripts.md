@@ -87,7 +87,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "=0.14.0"
+miden = "=0.15.0"
 ```
 
 Create the `miden-project.toml`:
@@ -528,7 +528,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "=0.14.0"
+miden = "=0.15.0"
 ```
 
 ```toml title="contracts/init-tx-script/miden-project.toml"

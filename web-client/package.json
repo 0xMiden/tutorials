@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@miden-sdk/miden-sdk": "0.16.0",
-    "@miden-sdk/react": "0.16.0",
+    "@miden-sdk/miden-sdk": "0.17.1",
+    "@miden-sdk/react": "0.17.0",
     "next": "15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

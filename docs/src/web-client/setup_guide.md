@@ -16,13 +16,13 @@ This guide covers the configuration required to use the Miden web SDK (`@miden-s
 ## Install the SDK
 
 ```bash
-yarn add @miden-sdk/miden-sdk@0.16.0
+yarn add @miden-sdk/miden-sdk@0.17.1
 ```
 
 For React hook support:
 
 ```bash
-yarn add @miden-sdk/miden-sdk@0.16.0 @miden-sdk/react@0.16.0
+yarn add @miden-sdk/miden-sdk@0.17.1 @miden-sdk/react@0.17.0
 ```
 
 These tutorials use Next.js, so all code examples import from the SDK's `/lazy` subpath — see [Entry points: eager vs lazy](#entry-points-eager-vs-lazy) below for why that's required.
@@ -146,9 +146,19 @@ Never construct wasm-bindgen types (`AccountId`, `Note`, `createP2IDNote`, `Tran
 
 ## Network and fee setup
 
-The v0.16 examples use testnet by default. Run them with `yarn tutorials --web`
+The v0.17 examples use testnet by default. Run them with `yarn tutorials --web`
 from the repository root; add `--web=react:createMintConsume` to select a React example.
 For explicit devnet testing, run `TUTORIAL_NETWORK=devnet yarn tutorials --web`.
+
+Use a fresh browser database when upgrading from 0.16: persisted accounts, notes,
+and scripts are incompatible with 0.17. The examples pair core SDK 0.17.1 with
+React SDK 0.17.0. Fee configuration comes from the node during sync; read the
+native faucet with `await client.feeFaucetId()` after syncing.
+
+The examples use the selected network's remote prover. Browser local proving can
+exceed the 20-block transaction expiry imposed by native-token policies. To try
+local proving on a sufficiently fast device, pass `proverUrl: 'local'` to
+`createTutorialClient`, or `prover: 'local'` to `MidenProvider`.
 
 New accounts need the native fee asset before executing transactions. The examples
 request a public P2ID note from the faucet and consume it as their first transaction,

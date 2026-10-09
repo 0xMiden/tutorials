@@ -8,12 +8,15 @@ Companion code for the **Building a Bank with Miden Rust** tutorial.
 
 Build all contracts:
 
+Use `--release`: compiler 0.11.0 cannot lower the SDK's asset-composition enum
+in this contract's development build (`cf.switch`); release optimization handles it.
+
 ```bash
 miden --version
-(cd contracts/bank-account && miden build)
-(cd contracts/deposit-note && miden build)
-(cd contracts/withdraw-request-note && miden build)
-(cd contracts/init-tx-script && miden build)
+(cd contracts/bank-account && miden build --release)
+(cd contracts/deposit-note && miden build --release)
+(cd contracts/withdraw-request-note && miden build --release)
+(cd contracts/init-tx-script && miden build --release)
 ```
 
 Run integration tests:
@@ -26,6 +29,10 @@ cargo test -p integration
 
 - Rust (nightly, configured via `rust-toolchain.toml`)
 - [Miden CLI](https://docs.miden.xyz/builder/get-started/) (`midenup`)
+
+The workspace selects Miden toolchain 0.17.0 (compiler 0.11.0), contract SDK
+`miden` 0.15.0, and protocol/client 0.17. Use a fresh client database and rebuilt
+contract packages when upgrading from 0.16.
 
 ## Testnet and fees
 

@@ -7,7 +7,7 @@ sidebar_position: 13
 
 _Using the Pragma oracle to get on chain price data_
 
-For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
+For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v017-examples).
 
 ## Overview
 
@@ -22,11 +22,15 @@ We will use a script to call the `get_price` procedure in our reader account, wh
 
 ## Prerequisites
 
-:::warning Deployment required
+:::note v0.17 deployment
 
 Pragma's [published deployment table](https://github.com/astraly-labs/pragma-miden#deployments)
-lists Miden v0.15 testnet only. Running this example requires a compatible v0.16
-testnet deployment, its account ID, `get_median` procedure root, and pair identifiers.
+lists a Miden v0.17 testnet oracle at `mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm`.
+Use the current deployment's account ID, `get_median` procedure root, and pair identifiers.
+The procedure root must match the deployed code, which Pragma can upgrade.
+
+The [run commands below](#step-3-run-the-program) include the deployment and
+procedure root verified against testnet on October 8, 2026.
 
 The reader assumes the named slots `pragma::oracle::next_publisher_index`,
 `pragma::oracle::publishers`, and `pragma::publisher::entries`. Check these slots,
@@ -55,9 +59,9 @@ Add the following dependencies to your `Cargo.toml` file:
 [dependencies]
 # Clone tutorials next to this Cargo project (see Rust client setup).
 rust-client = { path = "../tutorials/rust-client" }
-miden-client = { version = "=0.16.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "=0.16.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "=0.16.0" }
+miden-client = { version = "=0.17.2", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "=0.17.2", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "=0.17.1" }
 rand = { version = "0.10" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
@@ -198,12 +202,12 @@ async fn main() -> Result<(), ClientError> {
     // -------------------------------------------------------------------------
     // Pass a compatible oracle account ID and its `get_median` procedure root as CLI
     // arguments (or through the matching environment variables). This tutorial remains skipped
-    // by the runner until Pragma publishes a deployment for the current protocol release.
+    // by default because its procedure root depends on the external deployment.
     let oracle_bech32 = std::env::args()
         .nth(1)
         .or_else(|| std::env::var("MIDEN_ORACLE_ACCOUNT_ID").ok())
         .ok_or_else(|| ClientError::Observer(Box::new(std::io::Error::other(
-            "Oracle deployment is required: set MIDEN_ORACLE_ACCOUNT_ID and MIDEN_ORACLE_GET_MEDIAN_ROOT for the selected network. Use a compatible v0.16 deployment on the selected network.",
+            "Oracle deployment is required: set MIDEN_ORACLE_ACCOUNT_ID and MIDEN_ORACLE_GET_MEDIAN_ROOT for the selected network. Use a compatible v0.17 deployment on the selected network.",
         ))))?;
     let get_median_proc_root = std::env::args()
         .nth(2)
@@ -220,7 +224,7 @@ async fn main() -> Result<(), ClientError> {
         "oracle account must match the selected tutorial network"
     );
 
-    // BTC/USD was identified by the faucet ID pair `1:0` in the previous deployment. Override
+    // The published v0.17 deployment identifies BTC/USD by the pair `1:0`. Override
     // either value with the optional third and fourth CLI arguments for the selected deployment.
     // The faucet ID word is laid out as [0, 0, suffix, prefix].
     let pair_prefix: u64 = std::env::args()
@@ -332,7 +336,7 @@ async fn main() -> Result<(), ClientError> {
 
 The following section explains the two MASM templates loaded by the Rust example.
 
-In the code above, a compatible testnet oracle account ID and `get_median` procedure root are required inputs. The BTC/USD price feed used prefix `1` and suffix `0` in Pragma's earlier deployment; the optional third and fourth arguments let you supply the pair identifiers published for a new deployment. The `get_oracle_foreign_accounts` function returns every `ForeignAccount` needed to execute the transaction. Since Pragma's oracle aggregates data from multiple publishers, the function reads the on-chain publisher registry and requests the storage proofs needed by the nested FPI calls.
+In the code above, a compatible testnet oracle account ID and `get_median` procedure root are required inputs. The BTC/USD price feed uses prefix `1` and suffix `0` in Pragma's v0.17 deployment; the optional third and fourth arguments let you supply other published pair identifiers. The `get_oracle_foreign_accounts` function returns every `ForeignAccount` needed to execute the transaction. Since Pragma's oracle aggregates data from multiple publishers, the function reads the on-chain publisher registry and requests the storage proofs needed by the nested FPI calls.
 
 ## Step 2: Build the price reader smart contract and script
 
@@ -431,14 +435,21 @@ end
 
 ## Step 3: Run the program
 
-Compile-check the standalone program with `cargo check`. To execute it once a compatible deployment is available, set `MIDEN_ORACLE_ACCOUNT_ID` and `MIDEN_ORACLE_GET_MEDIAN_ROOT` in your shell, then run:
+Compile-check the standalone program with `cargo check`. The following configuration was verified on testnet on October 8, 2026. If Pragma upgrades its deployment, update the account ID and procedure root before running:
+
+```bash
+export MIDEN_ORACLE_ACCOUNT_ID=mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm
+export MIDEN_ORACLE_GET_MEDIAN_ROOT=0xf719938d260c27f237216077dfa15125678bbdbc3a00e631a8e6abecc9d20d97
+```
+
+Then run the standalone program:
 
 ```bash
 TUTORIAL_NETWORK=testnet cargo run --release -- \
   "$MIDEN_ORACLE_ACCOUNT_ID" "$MIDEN_ORACLE_GET_MEDIAN_ROOT"
 ```
 
-The command defaults to pair prefix `1` and suffix `0`. Append the deployment's pair prefix and suffix as the third and fourth arguments when those values differ. Do not assume the old pair identifies BTC/USD on a new deployment.
+The command defaults to the BTC/USD pair prefix `1` and suffix `0`. Append the deployment's pair prefix and suffix as the third and fourth arguments when querying another pair.
 
 With a compatible deployment, the output includes:
 

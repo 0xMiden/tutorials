@@ -15,12 +15,12 @@ use miden_client::{
     asset::{AssetAmount, AssetId, FungibleAsset, TokenSymbol},
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
         Note, NoteAssets, NoteDetails, NoteRecipient, NoteStorage, NoteTag, NoteType,
         PartialNoteMetadata,
     },
+    rng::draw_word,
     rpc::{GrpcClient, VerifyingRpcClient},
     transaction::{TransactionId, TransactionRequestBuilder},
     Client, ClientError, Felt,
@@ -229,7 +229,7 @@ async fn main() -> Result<(), ClientError> {
     // `include_str!` resolves at compile time relative to this source file,
     // so the binary is independent of the working directory it is run from.
     let code = include_str!("../../../masm/notes/iterative_output_note.masm");
-    let serial_num = client.rng().draw_word();
+    let serial_num = draw_word(client.rng());
 
     // Create note metadata and tag
     let tag = NoteTag::new(0);

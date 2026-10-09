@@ -17,7 +17,7 @@ export async function incrementCounterContract(): Promise<void> {
     return;
   }
 
-  const client = await createTutorialClient({ proverUrl: 'local' });
+  const client = await createTutorialClient();
   console.log('Current block number: ', (await client.sync()).blockNum());
 
   const counterSlotName = 'miden::tutorials::counter';

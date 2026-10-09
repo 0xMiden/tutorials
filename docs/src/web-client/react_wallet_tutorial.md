@@ -34,7 +34,7 @@ By the end of this tutorial, you will have a working wallet that can:
 - Familiarity with React and TypeScript
 - `yarn`
 
-:::note v0.16 testnet and fees
+:::note v0.17 testnet and fees
 
 A new wallet needs native fee tokens before sending assets. Request and claim a
 funding note from the testnet faucet, as described in the
@@ -61,13 +61,13 @@ First, create a new Vite + React project and install the Miden React SDK.
 2. Install the Miden React SDK:
 
    ```bash
-   yarn add @miden-sdk/miden-sdk@0.16.0 @miden-sdk/react@0.16.0
+   yarn add @miden-sdk/miden-sdk@0.17.1 @miden-sdk/react@0.17.0
    ```
 
-3. Install the Vite integration and update `vite.config.ts`. The Miden plugin v0.16 supports Vite 5 and 6, so pin Vite 6 and its compatible React plugin even if the generator installed newer versions:
+3. Install the Vite integration and update `vite.config.ts`. The Miden plugin v0.17 supports Vite 5 and 6, so pin Vite 6 and its compatible React plugin even if the generator installed newer versions:
 
    ```bash
-   yarn add -D vite@^6 @vitejs/plugin-react@^4 @miden-sdk/vite-plugin@0.16.0 vite-plugin-wasm vite-plugin-top-level-await
+   yarn add -D vite@^6 @vitejs/plugin-react@^4 @miden-sdk/vite-plugin@0.17.0 vite-plugin-wasm
    ```
 
    ```ts
@@ -75,17 +75,19 @@ First, create a new Vite + React project and install the Miden React SDK.
    import react from '@vitejs/plugin-react';
    import { midenVitePlugin } from '@miden-sdk/vite-plugin';
    import wasm from 'vite-plugin-wasm';
-   import topLevelAwait from 'vite-plugin-top-level-await';
 
    export default defineConfig({
-     plugins: [react(), midenVitePlugin({ crossOriginIsolation: false }), wasm(), topLevelAwait()],
-     worker: { format: 'es', plugins: () => [wasm(), topLevelAwait()] },
+     plugins: [react(), midenVitePlugin({ crossOriginIsolation: false }), wasm()],
+     worker: { format: 'es', plugins: () => [wasm()] },
    });
    ```
 
+   `midenVitePlugin` targets `esnext`, so modern browsers handle top-level await
+   directly. A separate top-level-await transform is unnecessary.
+
    This Vite tutorial uses the main SDK entries throughout. Para and Turnkey import
    `SignerContext` from `@miden-sdk/react`; mixing it with `/lazy` creates separate
-   contexts in v0.16. Keep providers and hooks on the same entry.
+   contexts in v0.17. Keep providers and hooks on the same entry.
 
 4. Configure the `MidenProvider` in your `main.tsx` file. The provider initializes the Miden client and makes it available to all child components:
 
@@ -101,7 +103,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <MidenProvider
       config={{
         rpcUrl: 'testnet',
-        prover: 'local',
+        prover: 'testnet',
       }}
     >
       <App />
@@ -487,7 +489,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <MidenProvider
       config={{
         rpcUrl: 'testnet',
-        prover: 'local',
+        prover: 'testnet',
       }}
     >
       <App />
@@ -685,7 +687,7 @@ function Wallet({ accountId }: { accountId: string }) {
 ## Running the Example
 
 The complete upstream wallet example lives in
-[`packages/react-sdk/examples/wallet` in the web-sdk v0.16.0 release](https://github.com/0xMiden/web-sdk/tree/v0.16.0/packages/react-sdk/examples/wallet).
+[`packages/react-sdk/examples/wallet` in the web-sdk v0.17.0 release](https://github.com/0xMiden/web-sdk/tree/v0.17.0/packages/react-sdk/examples/wallet).
 Follow that example's README for its workspace setup and select testnet in its
 provider configuration.
 
@@ -703,8 +705,8 @@ own accounts; the wallet UI above starts with an empty wallet that needs funding
 ### Resetting the MidenClientDB
 
 The Miden client stores account and note data in the browser's IndexedDB.
-Upgrading from v0.15 automatically recreates the Miden store; export private
-notes and any other local data you need before upgrading. To manually reset only
+Use a fresh store when upgrading from v0.16 to v0.17; persisted accounts, notes,
+and scripts are incompatible across these releases. To manually reset only
 Miden databases on the current origin, stop the current client, close other tabs using it, and run:
 
 ```javascript
@@ -763,16 +765,16 @@ This unified interface means your wallet UI code works the same regardless of wh
 
 ---
 
-### External signer sessions in v0.16
+### External signer sessions in v0.17
 
 The Para and Turnkey examples below import an **existing public testnet account**
 controlled by the selected signer. Pass its ID as `existingAccountId`. This uses
 `importAccountId` to avoid the new-account authentication-enum mismatch in React
-SDK v0.16.0. An API key or organization ID alone does not create that account.
+SDK v0.17.0. An API key or organization ID alone does not create that account.
 
 Use this shared wrapper in `SignerSession.tsx`. It mounts `MidenProvider` after
 connection and unmounts it on disconnect, so reconnecting creates a fresh client
-instead of calling v0.16.0's unavailable `setSignCb` method. Replace the original
+instead of calling v0.17.0's unavailable `setSignCb` method. Replace the original
 provider wrapper in `main.tsx` with the selected signer example; do not nest two
 `MidenProvider` instances.
 
@@ -797,14 +799,14 @@ export function SignerSession({ children }: { children: ReactNode }) {
 
 [Para](https://docs.getpara.com/v2/introduction/welcome) provides a modal-based authentication flow that allows users to sign in with their EVM wallets (MetaMask, WalletConnect, etc.).
 
-Use `@miden-sdk/para-react@0.16.0` with the 0.16 SDK packages.
+Use `@miden-sdk/para-react@0.17.0` with the 0.17 SDK packages.
 Provide a Para API key for the selected environment.
 
 Install the adapter and its peer dependencies:
 
 ```bash
-yarn add @miden-sdk/para-react@0.16.0 @miden-sdk/para@0.16.0 @getpara/react-sdk-lite@^2.11.0 @getpara/web-sdk@^2.11.0 @tanstack/react-query@^5
-yarn add -D vite-plugin-node-polyfills@^0.22.0
+yarn add @miden-sdk/para-react@0.17.0 @miden-sdk/para@0.17.0 @getpara/react-sdk-lite@^3.18.0 @getpara/web-sdk@^3.18.0 @tanstack/react-query@^5
+yarn add -D vite-plugin-node-polyfills@^0.24.0
 ```
 
 In `vite.config.ts`, import `paraVitePlugin` from `@miden-sdk/para-react/vite`
@@ -859,13 +861,13 @@ function Wallet() {
 
 [Turnkey](https://turnkey.com/) provides programmatic key management, giving your application full control over the authentication flow.
 
-Use `@miden-sdk/turnkey-react@0.16.0` with the 0.16 SDK packages.
+Use `@miden-sdk/turnkey-react@0.17.0` with the 0.17 SDK packages.
 Create a Turnkey organization and pass its ID in `config`.
 
 Install the adapter and its peer dependencies:
 
 ```bash
-yarn add @miden-sdk/turnkey-react@0.16.0 @miden-sdk/turnkey@0.16.0 @turnkey/core@^1.8.2 @turnkey/react-wallet-kit@^1.6.2 @turnkey/sdk-browser@^5.13.4
+yarn add @miden-sdk/turnkey-react@0.17.0 @miden-sdk/turnkey@0.17.0 @turnkey/core@^1.8.2 @turnkey/react-wallet-kit@^1.6.2 @turnkey/sdk-browser@^5.13.4
 ```
 
 **Integration:**
@@ -919,7 +921,7 @@ The `useTurnkeySigner()` hook is available for advanced use cases where you need
 **Installation:**
 
 ```bash
-yarn add @miden-sdk/miden-wallet-adapter-react@0.16.0 @miden-sdk/miden-wallet-adapter-base@0.16.0
+yarn add @miden-sdk/miden-wallet-adapter-react@0.17.0 @miden-sdk/miden-wallet-adapter-base@0.17.0
 ```
 
 **Usage:**
@@ -978,16 +980,16 @@ and a callback that signs the SDK's serialized signing inputs. The callback must
 verify the requested public key before signing. Account creation and deployment
 belong to the signing service in this example: `importAccountId` imports that
 account instead of rebuilding it with a new seed. This also avoids the new-account
-auth-enum mismatch in the published React SDK v0.16.0.
+auth-enum mismatch in the published React SDK v0.17.0.
 
 Keep a non-null context while disconnected so `useSigner()` can expose `connect`
-and `MidenProvider` waits for the signer. In v0.16, `accountConfig` is only read
+and `MidenProvider` waits for the signer. In v0.17, `accountConfig` is only read
 when connected, although its TypeScript type is non-nullable; the assertion below
 reflects that runtime guard. Import WASM classes from the core SDK and await
 `MidenClient.ready()` before constructing them.
 
 The keyed fragment remounts the child `MidenProvider` after each connection.
-This avoids v0.16.0's reconnect path, which calls an unavailable `setSignCb`
+This avoids v0.17.0's reconnect path, which calls an unavailable `setSignCb`
 method. The account-specific store name stays the same, preserving local data.
 
 ```tsx
@@ -1047,7 +1049,7 @@ export function CustomSignerProvider({
 
   const signerContext = useMemo<SignerContextValue>(() => ({
     signCb,
-    // v0.16 only reads this field when isConnected is true.
+    // v0.17 only reads this field when isConnected is true.
     accountConfig: accountConfig!,
     storeName: accountConfig ? `custom_${accountConfig.importAccountId}` : 'custom',
     name: 'CustomSigner',
@@ -1083,5 +1085,5 @@ The `SignerContextValue` interface requires:
 Now that you've built a React wallet, explore these related topics:
 
 - [Creating Multiple Notes in a Single Transaction](./creating_multiple_notes_tutorial.md) - Learn about batch operations
-- [Miden React SDK Reference](https://github.com/0xMiden/web-sdk/tree/v0.16.0/packages/react-sdk) - Full API documentation
+- [Miden React SDK Reference](https://github.com/0xMiden/web-sdk/tree/v0.17.0/packages/react-sdk) - Full API documentation
 - [Miden Documentation](https://docs.miden.xyz/) - Core Miden concepts

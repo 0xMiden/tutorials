@@ -4,7 +4,7 @@
  *
  * @throws {Error} If the function cannot be executed in a browser environment
  */
-import { NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { FaucetType, NoteVisibility, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import {
   consumeAllFeeAware,
   createTutorialClient,
@@ -16,9 +16,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   // Ensure this runs only in a browser context
   if (typeof window === 'undefined') return console.warn('Run in browser');
 
-  const client = await createTutorialClient({
-    proverUrl: 'local',
-  });
+  const client = await createTutorialClient();
 
   console.log('Latest block:', (await client.sync()).blockNum());
 
@@ -41,7 +39,7 @@ export async function unauthenticatedNoteTransfer(): Promise<void> {
   }
 
   const faucet = await client.accounts.create({
-    type: 0, // 0 = FungibleFaucet
+    type: FaucetType.FungibleFaucet,
     symbol: 'MID',
     decimals: 8,
     maxSupply: BigInt(1_000_000),

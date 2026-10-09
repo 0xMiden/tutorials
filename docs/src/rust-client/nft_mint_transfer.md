@@ -7,7 +7,7 @@ sidebar_position: 3.5
 
 _Using the Miden client in Rust to mint a non-fungible asset and transfer it between wallets_
 
-For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
+For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v017-examples).
 
 ## Overview
 
@@ -24,7 +24,7 @@ As in [Mint, Consume, and Create Notes](./mint_consume_create_tutorial.md), rece
 
 ## Prerequisites
 
-Follow the [v0.16 Rust setup](./index.md#running-the-v016-examples) in a clone of this repository. This tutorial uses its pinned dependencies and shared client helpers. Testnet is the verified network for this example.
+Follow the [v0.17 Rust setup](./index.md#running-the-v017-examples) in a clone of this repository. This tutorial uses its pinned dependencies and shared client helpers. Testnet is the verified network for this example.
 
 The following snippets walk through `rust-client/src/bin/nft_mint_transfer.rs` in execution order. They belong inside the same `main()` function and share its variables; the [complete example](#summary) includes the imports and function wrapper.
 
@@ -75,7 +75,7 @@ let (alice, bob) = (wallets[0], wallets[1]);
 
 The collection's name and symbol describe its faucet. Configure the standard NFT component and token policies, then compose the account with authentication, authority, and pause-management components.
 
-The faucet also needs `BasicWallet` to receive native fee funding and `CodeInspection` so the production MINT note can identify its faucet kind. Its `allow_all` mint policy accepts the example's value, while `AuthSingleSig` still requires the faucet's signature. No custom MASM is needed.
+The faucet also needs `BasicWallet` to receive native fee funding. `NonFungibleFaucet` already exposes the code-inspection procedure that the production MINT script uses to identify its faucet kind. Its `allow_all` mint policy accepts the example's value, while `AuthSingleSig` still requires the faucet's signature. No custom MASM is needed.
 
 ```rust ignore
 let mut seed = [0_u8; 32];
@@ -90,7 +90,7 @@ let policies = TokenPolicyManager::builder()
     .active_burn_policy(BurnPolicy::allow_all())
     .build();
 // These are the user-faucet factory's standard components, plus BasicWallet
-// for fee funding and CodeInspection for the production MINT note.
+// for fee funding. NonFungibleFaucet already exposes code inspection for MINT.
 let faucet = AccountBuilder::new(seed)
     .account_type(AccountType::Public)
     .with_component(AuthSingleSig::from_public_key(key.public_key()))
@@ -100,7 +100,6 @@ let faucet = AccountBuilder::new(seed)
     .with_component(Pausable::unpaused())
     .with_component(PausableManager)
     .with_component(BasicWallet)
-    .with_component(CodeInspection)
     .build()?;
 client.add_account(&faucet, false).await?;
 keystore.add_key(&key, faucet.id()).await?;
@@ -117,7 +116,7 @@ Use `NonFungibleFaucet::compute_asset_commitment(metadata, salt)` to hash the ex
 
 ```rust ignore
 let metadata = br#"{"name":"Recipe NFT #1","description":"A mint-and-transfer example"}"#;
-let salt = client.rng().draw_word();
+let salt = draw_word(client.rng());
 let commitment = NonFungibleFaucet::compute_asset_commitment(metadata, salt);
 let nft = NonFungibleAsset::from_parts(faucet.id(), commitment);
 let asset = Asset::from(nft);
@@ -144,19 +143,28 @@ let alice_note: Note = P2idNote::builder()
     .build()?
     .into();
 let minted_note_id = alice_note.id();
-let mint_storage = MintNoteStorage::new_non_fungible_public(
+let mint_storage = MintNoteStorage::new_public(
     alice_note.recipient().clone(),
     nft,
     alice_note.metadata().tag(),
 )?;
-let mint_request: Note = MintNote::builder()
-    .sender(alice)
-    .mint_storage(mint_storage)
-    .generate_serial_number(client.rng())
-    .build()?
-    .into();
+// MintNote::builder() routes public faucets through network execution in v0.17.
+// This user faucet signs its own consumption transaction, so use the standard
+// MINT script and storage without a NetworkAccountTarget attachment.
+let mint_request = Note::new(
+    NoteAssets::default(),
+    PartialNoteMetadata::new(alice, NoteType::Public)
+        .with_tag(NoteTag::with_account_target(faucet.id())),
+    NoteRecipient::new(
+        draw_word(client.rng()),
+        MintNote::script(),
+        mint_storage.into(),
+    ),
+);
 let request_note_id = mint_request.id();
 ```
+
+In v0.17, `MintNote::builder()` adds a network-account target attachment for public faucets. This example uses a user faucet authenticated by a signature, so it constructs the request with the standard MINT script and storage without that attachment. Otherwise, publishing the request attempts to query a network fee policy that this user faucet does not have.
 
 Alice signs a transaction publishing the MINT request. Track the future P2ID note and wait for the request to commit before the faucet consumes it. The faucet signs that second transaction and creates Alice's NFT-bearing note:
 
@@ -287,15 +295,17 @@ use miden_client::{
             Authority, BasicWallet, BurnPolicy, MintPolicy, NonFungibleFaucet, Pausable,
             PausableManager, TokenName, TokenPolicyManager,
         },
-        standards::inspection::CodeInspection,
         AccountBuilder, AccountType,
     },
     asset::{Asset, NonFungibleAsset, TokenSymbol},
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
     keystore::{FilesystemKeyStore, Keystore},
-    note::{MintNote, MintNoteStorage, Note, NoteType, P2idNote},
+    note::{
+        MintNote, MintNoteStorage, Note, NoteAssets, NoteRecipient, NoteTag, NoteType, P2idNote,
+        PartialNoteMetadata,
+    },
+    rng::draw_word,
     rpc::{GrpcClient, VerifyingRpcClient},
     transaction::{PaymentNoteDescription, TransactionRequestBuilder},
 };
@@ -355,7 +365,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .active_burn_policy(BurnPolicy::allow_all())
         .build();
     // These are the user-faucet factory's standard components, plus BasicWallet
-    // for fee funding and CodeInspection for the production MINT note.
+    // for fee funding. NonFungibleFaucet already exposes code inspection for MINT.
     let faucet = AccountBuilder::new(seed)
         .account_type(AccountType::Public)
         .with_component(AuthSingleSig::from_public_key(key.public_key()))
@@ -365,7 +375,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_component(Pausable::unpaused())
         .with_component(PausableManager)
         .with_component(BasicWallet)
-        .with_component(CodeInspection)
         .build()?;
     client.add_account(&faucet, false).await?;
     keystore.add_key(&key, faucet.id()).await?;
@@ -378,7 +387,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // 3. Compute the NFT value off-chain. Keep the exact bytes and salt if a
     // recipient will later verify this convention; the faucet checks neither.
     let metadata = br#"{"name":"Recipe NFT #1","description":"A mint-and-transfer example"}"#;
-    let salt = client.rng().draw_word();
+    let salt = draw_word(client.rng());
     let commitment = NonFungibleFaucet::compute_asset_commitment(metadata, salt);
     let nft = NonFungibleAsset::from_parts(faucet.id(), commitment);
     let asset = Asset::from(nft);
@@ -394,17 +403,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build()?
         .into();
     let minted_note_id = alice_note.id();
-    let mint_storage = MintNoteStorage::new_non_fungible_public(
+    let mint_storage = MintNoteStorage::new_public(
         alice_note.recipient().clone(),
         nft,
         alice_note.metadata().tag(),
     )?;
-    let mint_request: Note = MintNote::builder()
-        .sender(alice)
-        .mint_storage(mint_storage)
-        .generate_serial_number(client.rng())
-        .build()?
-        .into();
+    // MintNote::builder() routes public faucets through network execution in v0.17.
+    // This user faucet signs its own consumption transaction, so use the standard
+    // MINT script and storage without a NetworkAccountTarget attachment.
+    let mint_request = Note::new(
+        NoteAssets::default(),
+        PartialNoteMetadata::new(alice, NoteType::Public)
+            .with_tag(NoteTag::with_account_target(faucet.id())),
+        NoteRecipient::new(
+            draw_word(client.rng()),
+            MintNote::script(),
+            mint_storage.into(),
+        ),
+    );
     let request_note_id = mint_request.id();
 
     // 4. Alice publishes an assetless MINT request. The faucet must consume

@@ -13,9 +13,9 @@ use miden_client::{
     },
     auth::{AuthSecretKey, AuthSingleSig, NoAuth},
     builder::ClientBuilder,
-    crypto::{FeltRng, RandomCoin},
     keystore::{FilesystemKeyStore, Keystore},
     note::{Note, NoteAssets, NoteScript, NoteTag, NoteType},
+    rng::draw_word,
     rpc::{Endpoint, GrpcClient},
     transaction::TransactionScript,
     utils::Deserializable,
@@ -24,7 +24,7 @@ use miden_client::{
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_protocol::assembly::Package;
 use miden_standards::testing::note::NoteBuilder;
-use rand::Rng;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 /// Test setup configuration containing initialized client and keystore
 pub struct ClientSetup {
@@ -118,7 +118,7 @@ pub fn build_tx_script_from_package(package: &Package) -> Result<TransactionScri
 
 /// Configuration for creating an account with a custom component.
 pub struct AccountCreationConfig {
-    /// The account type to create. In protocol v0.16 this also encodes the
+    /// The account type to create. In protocol v0.17 this also encodes the
     /// storage visibility (`AccountType::Public` / `AccountType::Private`).
     pub account_type: AccountType,
     /// Initial component storage data keyed by storage slot schema.
@@ -139,7 +139,7 @@ pub fn account_component_from_package(
     package: Arc<Package>,
     config: &AccountCreationConfig,
 ) -> Result<AccountComponent> {
-    AccountComponent::from_package(package.as_ref(), &config.init_storage_data)
+    AccountComponent::from_package((*package).clone(), &config.init_storage_data)
         .context("Failed to create account component from package")
 }
 
@@ -230,11 +230,11 @@ pub fn create_note_from_package(
 ) -> Result<Note> {
     let note_script = NoteScript::from_package(package.as_ref())
         .context("Failed to build note script from package")?;
-    let serial_num = client.rng().draw_word();
+    let serial_num = draw_word(client.rng());
 
     NoteBuilder::new(
         sender_id,
-        &mut RandomCoin::new(Word::from(note_script.root())),
+        &mut StdRng::from_seed(Word::from(note_script.root()).as_bytes()),
     )
     .package((*package).clone())
     .note_type(config.note_type)
@@ -259,7 +259,7 @@ pub fn create_testing_note_from_package(
 ) -> Result<Note> {
     let note_script = NoteScript::from_package(package.as_ref())
         .context("Failed to build note script from package")?;
-    let mut rng = RandomCoin::new(Word::from(note_script.root()));
+    let mut rng = StdRng::from_seed(Word::from(note_script.root()).as_bytes());
 
     NoteBuilder::new(sender_id, &mut rng)
         .package((*package).clone())
@@ -345,14 +345,16 @@ pub async fn wait_for_native_funding(
     amount_to_spend: u64,
 ) -> Result<()> {
     use miden_client::{
-        asset::{Asset, FungibleAsset},
-        note::P2idNote,
-        transaction::TransactionRequestBuilder,
+        asset::FungibleAsset, note::P2idNote, transaction::TransactionRequestBuilder,
     };
 
     client.sync_state().await?;
     let header = client.get_latest_block_header().await?;
-    let faucet_id = header.fee_parameters().fee_faucet_id();
+    let faucet_id = client
+        .get_protocol_config(header.protocol_config_commitment())
+        .await?
+        .fee_asset_id()
+        .faucet_id();
     if amount_to_spend == 0 && header.fee_parameters().verification_base_fee() == 0 {
         return Ok(());
     }
@@ -376,9 +378,11 @@ pub async fn wait_for_native_funding(
         let funding = notes.into_iter().find(|(record, _)| {
             record.is_committed()
                 && record.details().script().root() == P2idNote::script_root()
-                && record.details().assets().iter().any(|asset| {
-                    matches!(asset, Asset::Fungible(asset) if asset.faucet_id() == faucet_id)
-                })
+                && record
+                    .details()
+                    .assets()
+                    .iter()
+                    .any(|asset| asset.id() == native_id)
         });
         if let Some((record, _)) = funding {
             let request =

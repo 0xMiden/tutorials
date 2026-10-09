@@ -41,13 +41,19 @@ Environment:
 
 Midenup:
 - midenup + miden version: 1.0.0.
-- active toolchain version: 0.16.0.
+- active toolchain version: 0.17.0.
 - ...
 ```
 
 </details>
 
 ## Step 1: Create the Project
+
+This tutorial uses Miden toolchain 0.17.0 (compiler 0.11.0), `miden` SDK 0.15.0,
+and the pinned `nightly-2026-09-01` Rust toolchain. Build the contracts with
+`miden build --release`: the development build of compiler 0.11.0 fails to lower
+the SDK's asset-composition enum in the completed bank (`cf.switch`). The
+companion integration tests already use release contract builds.
 
 Create a new Miden project using the CLI:
 
@@ -101,10 +107,10 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-miden = "0.14"
+miden = "=0.15.0"
 
 [build-dependencies]
-miden-sdk-build-script-support = "0.14"
+miden-sdk-build-script-support = "=0.15.0"
 ```
 
 Next, create `contracts/bank-account/miden-project.toml`. This is the Miden-specific project manifest that tells the compiler what kind of artifact to build and which package namespace to export:
@@ -209,8 +215,8 @@ impl Bank for BankStorage {
         let key = Word::from([
             depositor.prefix,
             depositor.suffix,
-            asset.key[3], // faucet id prefix
-            asset.key[2], // faucet id suffix (folds in the asset metadata byte)
+            asset.id.inner[3], // faucet id prefix
+            asset.id.inner[2], // faucet id suffix (folds in the asset metadata byte)
         ]);
         self.balances.get(key)
     }
@@ -281,7 +287,7 @@ use miden_client::account::{
     AccountBuilder, AccountComponent, AccountType, StorageSlotName,
 };
 use miden_client::{utils::Deserializable, Word};
-use miden_mast_package::Package;
+use miden_protocol::assembly::Package;
 use miden_standards::account::auth::NoAuth;
 use std::path::Path;
 
@@ -304,7 +310,7 @@ fn test_bank_account_loads() -> anyhow::Result<()> {
         StorageValueName::from_slot_name(&initialized_slot),
         Word::default(),
     )?;
-    let bank_component = AccountComponent::from_package(&bank_package, &init_storage_data)?;
+    let bank_component = AccountComponent::from_package(bank_package, &init_storage_data)?;
     assert_eq!(bank_component.procedures().count(), 2);
 
     let bank_account = AccountBuilder::new([3u8; 32])

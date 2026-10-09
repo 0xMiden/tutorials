@@ -54,7 +54,7 @@ async fn main() -> Result<(), ClientError> {
     // compile time relative to this source file.
     let account_code = include_str!("../../../masm/accounts/mapping_example_contract.masm");
 
-    // Storage slots are named in v0.16; the component only needs its mapping slot.
+    // Storage slots are named in v0.17; the component only needs its mapping slot.
     let storage_map = StorageMap::new();
     let map_slot_name =
         StorageSlotName::new("miden::tutorials::mapping::map").expect("valid slot name");

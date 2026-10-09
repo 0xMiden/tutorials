@@ -24,7 +24,7 @@ Copy `.env.example` to `.env` and supply the required values:
 | Variable                     | Required     | Description                                                                                                       |
 | ---------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `VITE_RAINBOWKIT_PROJECT_ID` | yes          | WalletConnect Cloud project id from <https://cloud.walletconnect.com/>.                                           |
-| `VITE_ALLOCATOR_URL`         | yes          | An Epoch allocator compatible with v0.16 on the selected Miden network.                                           |
+| `VITE_ALLOCATOR_URL`         | yes          | An Epoch allocator compatible with v0.17 on the selected Miden network.                                           |
 | `VITE_MIDEN_NETWORK`         | no           | `testnet` (default), `devnet`, or `local`; selects the wallet network and RPC/prover defaults.                    |
 | `VITE_MIDEN_RPC_URL`         | no           | Override Miden RPC; must match the selected wallet network.                                                       |
 | `VITE_MIDEN_PROVER`          | no           | Override the prover; `local` uses local proving.                                                                  |

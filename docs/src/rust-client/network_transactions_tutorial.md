@@ -7,7 +7,7 @@ sidebar_position: 6
 
 _Using the Miden client in Rust to deploy and interact with smart contracts using network transactions_
 
-For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v016-examples).
+For toolchain requirements and shared fee helpers, see the [Rust client setup](./index.md#running-the-v017-examples).
 
 ## Overview
 
@@ -15,7 +15,7 @@ In this tutorial, we will explore Network Transactions (NTXs) on Miden - a power
 
 We'll build a public network counter using the same MASM code as the regular counter. `AuthNetworkAccount` configures the note scripts that the network transaction builder may execute, and a fee policy prices those notes. The increment note also carries a `NetworkAccountTarget` attachment identifying its target. See the [account changes migration guide](https://docs.miden.xyz/builder/migration/account-changes).
 
-Deployment and subsequent updates are different operations. On a fee-enabled network, consuming the initial native-asset funding note publishes the new network account with count **0**. After publication, the public RPC rejects user-submitted transactions that directly update an existing network account. Alice must publish an increment note from her own account; the network transaction builder consumes it and changes the counter to **1**. This restriction is enforced by the [node's submission handler](https://github.com/0xMiden/node/blob/v0.16.0/crates/rpc/src/server/api/submit_proven_tx.rs#L94).
+Deployment and subsequent updates are different operations. On a fee-enabled network, consuming the initial native-asset funding note publishes the new network account with count **0**. After publication, the public RPC rejects user-submitted transactions that directly update an existing network account. Alice must publish an increment note from her own account; the network transaction builder consumes it and changes the counter to **1**. This restriction is enforced by the [node's submission handler](https://github.com/0xMiden/node/blob/v0.17.0/crates/rpc/src/server/api/submit_proven_tx.rs#L118).
 
 ## What we'll cover
 
@@ -57,9 +57,9 @@ Add the following dependencies to your `Cargo.toml` file:
 [dependencies]
 # Clone tutorials next to this Cargo project (see Rust client setup).
 rust-client = { path = "../tutorials/rust-client" }
-miden-client = { version = "=0.16.0", features = ["testing", "tonic"] }
-miden-client-sqlite-store = { version = "=0.16.0", package = "miden-client-sqlite-store" }
-miden-protocol = { version = "=0.16.0" }
+miden-client = { version = "=0.17.2", features = ["testing", "tonic"] }
+miden-client-sqlite-store = { version = "=0.17.2", package = "miden-client-sqlite-store" }
+miden-protocol = { version = "=0.17.1" }
 rand = { version = "0.10" }
 tokio = { version = "1.48", features = ["rt-multi-thread", "net", "macros", "fs"] }
 
@@ -188,7 +188,7 @@ use miden_client::{
     asset::AssetAmount,
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
+    rng::draw_word,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
         NetworkAccountTarget, Note, NoteAssets, NoteAttachments, NoteError, NoteExecutionHint,
@@ -419,7 +419,7 @@ println!("\n[STEP 4] Creating a network note for network counter contract");
 
 // Create and submit the network note that will increment the counter
 // Generate a random serial number for the note
-let serial_num = client.rng().draw_word();
+let serial_num = draw_word(client.rng());
 
 // Reuse the `note_script` compiled in STEP 2 (its root is allowlisted on the
 // account, so the network transaction builder will execute this note).
@@ -527,7 +527,7 @@ use miden_client::{
     asset::AssetAmount,
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
-    crypto::FeltRng,
+    rng::draw_word,
     keystore::{FilesystemKeyStore, Keystore},
     note::{
         NetworkAccountTarget, Note, NoteAssets, NoteAttachments, NoteError, NoteExecutionHint,
@@ -709,7 +709,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create and submit the network note that will increment the counter
     // Generate a random serial number for the note
-    let serial_num = client.rng().draw_word();
+    let serial_num = draw_word(client.rng());
 
     // Reuse the `note_script` compiled in STEP 2 (its root is allowlisted on the
     // account, so the network transaction builder will execute this note).

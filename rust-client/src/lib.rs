@@ -4,7 +4,7 @@ use std::{env, fmt::Display, time::Duration};
 
 use miden_client::{
     account::{AccountId, Address},
-    address::{AddressId, NetworkId},
+    address::NetworkId,
     note::{Note, NoteConsumability, NoteId, TxFeeNote},
     rpc::Endpoint,
     store::{InputNoteRecord, TransactionFilter},
@@ -201,7 +201,11 @@ impl FeeConfig {
 
         Ok(Self {
             network,
-            fee_faucet_id: parameters.fee_faucet_id(),
+            fee_faucet_id: client
+                .get_protocol_config(header.protocol_config_commitment())
+                .await?
+                .fee_asset_id()
+                .faucet_id(),
             verification_base_fee: parameters.verification_base_fee(),
         })
     }
@@ -257,17 +261,16 @@ where
         account_id.to_hex()
     );
 
-    let (note_id, faucet_transaction_id, amount) = request_fee_note(
+    let (note_id, amount) = request_fee_note(
         &api_url,
         api_key.as_deref(),
         account_id,
         requested_amount,
-        fee_config.fee_faucet_id,
         fee_config.network.network_id(),
     )
     .await?;
     println!(
-        "Faucet transaction {faucet_transaction_id} accepted; waiting for public note {} with {amount} native fee units",
+        "Funding request accepted; waiting for public note {} with {amount} native fee units",
         note_id.to_hex()
     );
     let retries = env_u32("MIDEN_FEE_SYNC_RETRIES", DEFAULT_SYNC_RETRIES)?;
@@ -290,9 +293,22 @@ where
 
     let note_record = note_record.ok_or_else(|| {
         tutorial_error(format!(
-            "native fee note {note_id_hex} from faucet transaction {faucet_transaction_id} was not committed after {retries} sync attempts"
+            "native fee note {note_id_hex} was not committed after {retries} sync attempts"
         ))
     })?;
+    // The faucet metadata identifies the funding wallet in v0.17, not the asset issuer.
+    // Validate the committed note against the chain's native fee asset instead.
+    let native_asset_id = miden_client::asset::AssetId::new_fungible(fee_config.fee_faucet_id);
+    if !note_record
+        .details()
+        .assets()
+        .iter()
+        .any(|asset| asset.id() == native_asset_id)
+    {
+        return Err(tutorial_error(format!(
+            "funding note {note_id_hex} does not contain the native fee asset {native_asset_id}"
+        )));
+    }
     let input_note = note_record.try_into()?;
 
     let request = TransactionRequestBuilder::new().build_consume_notes(vec![input_note])?;
@@ -339,7 +355,6 @@ struct PowResponse {
 #[derive(Debug, Deserialize)]
 struct MintResponse {
     note_id: String,
-    tx_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -353,9 +368,8 @@ async fn request_fee_note(
     api_key: Option<&str>,
     account_id: AccountId,
     requested_amount: Option<u64>,
-    expected_faucet_id: AccountId,
     expected_network_id: NetworkId,
-) -> Result<(NoteId, String, u64), ClientError> {
+) -> Result<(NoteId, u64), ClientError> {
     let http = reqwest::Client::builder()
         .timeout(REQUEST_TIMEOUT)
         .build()
@@ -377,7 +391,7 @@ async fn request_fee_note(
             "failed to decode faucet metadata response: {error}"
         ))
     })?;
-    let (actual_network_id, address) = Address::decode(&metadata.id).map_err(|error| {
+    let (actual_network_id, _) = Address::decode(&metadata.id).map_err(|error| {
         tutorial_error(format!(
             "faucet metadata returned an invalid address `{}`: {error}",
             metadata.id
@@ -386,22 +400,6 @@ async fn request_fee_note(
     if actual_network_id != expected_network_id {
         return Err(tutorial_error(format!(
             "faucet {api_url} is for {actual_network_id:?}, but the tutorial is using {expected_network_id:?}"
-        )));
-    }
-    let actual_faucet_id = match address.id() {
-        AddressId::AccountId(account_id) => account_id,
-        _ => {
-            return Err(tutorial_error(format!(
-                "faucet metadata address `{}` is not account-based",
-                metadata.id
-            )));
-        }
-    };
-    if actual_faucet_id != expected_faucet_id {
-        return Err(tutorial_error(format!(
-            "faucet {api_url} issues asset {}, but the selected chain requires native fee asset {}",
-            actual_faucet_id.to_hex(),
-            expected_faucet_id.to_hex()
         )));
     }
     let amount = requested_amount.unwrap_or(metadata.base_amount);
@@ -461,7 +459,7 @@ async fn request_fee_note(
 
     let note_id = NoteId::try_from_hex(&mint.note_id)
         .map_err(|error| tutorial_error(format!("faucet returned an invalid note ID: {error}")))?;
-    Ok((note_id, mint.tx_id, amount))
+    Ok((note_id, amount))
 }
 
 async fn checked_response(

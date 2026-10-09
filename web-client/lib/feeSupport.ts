@@ -22,7 +22,6 @@ type FaucetPowResponse = {
 
 type FaucetMintResponse = {
   note_id: string;
-  tx_id: string;
 };
 
 type FaucetMetadata = {
@@ -93,12 +92,14 @@ function accountId(account: ExecutingAccount): AccountId {
 }
 
 /** Read the native fee asset and activation from the selected chain. */
-export async function tutorialFeeConfig() {
+export async function tutorialFeeConfig(client: {
+  feeFaucetId(): Promise<AccountId>;
+}) {
   const endpoint =
     tutorialNetwork() === 'devnet' ? Endpoint.devnet() : Endpoint.testnet();
   const header = await new RpcClient(endpoint).getBlockHeaderByNumber();
   return {
-    faucetId: header.feeFaucetId(),
+    faucetId: await client.feeFaucetId(),
     baseFee: header.verificationBaseFee(),
   };
 }
@@ -183,7 +184,6 @@ async function fetchJson<T>(url: URL | string, operation: string): Promise<T> {
 
 export async function requestFundingNote(
   recipient: AccountId,
-  expectedFaucet: AccountId,
   requestedAmount?: number,
 ): Promise<FaucetMintResponse> {
   const baseUrl = faucetUrl();
@@ -191,13 +191,10 @@ export async function requestFundingNote(
     `${baseUrl}/get_metadata`,
     'Reading faucet metadata',
   );
-  const actualFaucet = metadata.id.startsWith('0x')
-    ? AccountId.fromHex(metadata.id)
-    : AccountId.fromBech32(metadata.id);
-  if (actualFaucet.toString() !== expectedFaucet.toString()) {
-    throw new Error(
-      `Configured faucet ${actualFaucet} does not issue ${tutorialNetwork()}'s native fee asset ${expectedFaucet}`,
-    );
+  // In v0.17 metadata.id names the funding wallet, not the native asset issuer.
+  const expectedPrefix = tutorialNetwork() === 'devnet' ? 'mdev1' : 'mtst1';
+  if (!metadata.id.startsWith(expectedPrefix)) {
+    throw new Error(`Configured faucet does not serve ${tutorialNetwork()}`);
   }
 
   const configuredAmount = process.env.NEXT_PUBLIC_MIDEN_FEE_AMOUNT?.trim();
@@ -231,7 +228,6 @@ export async function requestFundingNote(
 async function waitForFundingNote(
   client: MidenClient,
   noteId: string,
-  faucetTxId: string,
 ): Promise<InputNoteRecord> {
   for (let attempt = 0; attempt < FUNDING_NOTE_POLL_ATTEMPTS; attempt += 1) {
     await client.sync();
@@ -245,7 +241,7 @@ async function waitForFundingNote(
   }
 
   throw new Error(
-    `Fee-funding note ${noteId} from faucet transaction ${faucetTxId} was not found after ${FUNDING_NOTE_POLL_ATTEMPTS} sync attempts`,
+    `Fee-funding note ${noteId} was not found after ${FUNDING_NOTE_POLL_ATTEMPTS} sync attempts`,
   );
 }
 
@@ -259,11 +255,11 @@ export async function fundAccountForFees(
   account: ExecutingAccount,
   amount?: number,
 ): Promise<void> {
-  const { faucetId: feeFaucet, baseFee } = await tutorialFeeConfig();
+  await client.sync();
+  const { faucetId: feeFaucet, baseFee } = await tutorialFeeConfig(client);
   if (baseFee === 0) return;
 
   const id = accountId(account);
-  await client.sync();
   // Read the native fee balance from the synchronized account vault.
   const updated = await client.accounts.get(id);
   if (!updated) throw new Error(`Account ${id} is not in the local store`);
@@ -271,11 +267,10 @@ export async function fundAccountForFees(
   if (balance > BigInt(0)) return;
 
   console.log(`Funding ${id} with ${tutorialNetwork()} fee tokens…`);
-  const mint = await requestFundingNote(id, feeFaucet, amount);
-  console.log(
-    `Faucet transaction ${mint.tx_id} accepted; waiting for note ${mint.note_id}…`,
-  );
-  const note = await waitForFundingNote(client, mint.note_id, mint.tx_id);
+  const mint = await requestFundingNote(id, amount);
+  console.log(`Funding request accepted; waiting for note ${mint.note_id}…`);
+  const note = await waitForFundingNote(client, mint.note_id);
+  assertNativeFundingNote(note, feeFaucet);
   await client.sync();
   const { txId } = await client.transactions.consume({
     account,
@@ -285,4 +280,21 @@ export async function fundAccountForFees(
   });
   await client.sync();
   console.log(`Fee funding submitted: ${txId.toHex()}`);
+}
+
+/** Verify the actual on-chain asset before consuming a funding-service note. */
+export function assertNativeFundingNote(
+  note: InputNoteRecord,
+  faucetId: AccountId,
+): void {
+  const hasNativeAsset = note
+    .details()
+    .assets()
+    .fungibleAssets()
+    .some((asset) => asset.faucetId().toString() === faucetId.toString());
+  if (!hasNativeAsset) {
+    throw new Error(
+      `Funding note does not contain the native fee asset ${faucetId}`,
+    );
+  }
 }

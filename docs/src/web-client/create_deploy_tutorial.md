@@ -7,7 +7,7 @@ import { CodeSdkTabs } from '@site/src/components';
 
 _Using the Miden client in TypeScript to create accounts and deploy faucets_
 
-:::note v0.16 setup
+:::note v0.17 setup
 
 Follow the [network and fee setup](./setup_guide.md#network-and-fee-setup)
 and copy the shared support files imported by the complete example.
@@ -65,8 +65,8 @@ It is useful to think of notes on Miden as "cryptographic cashier's checks" that
 3. Install the Miden SDK:
 
 <CodeSdkTabs example={{
-  react: { code: `yarn add @miden-sdk/react@0.16.0 @miden-sdk/miden-sdk@0.16.0` },
-  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.16.0` },
+  react: { code: `yarn add @miden-sdk/react@0.17.0 @miden-sdk/miden-sdk@0.17.1` },
+  typescript: { code: `yarn add @miden-sdk/miden-sdk@0.17.1` },
 }} reactFilename="" tsFilename="" />
 
 The current Next.js template uses Turbopack by default. These SDK examples use the webpack configuration from the setup guide, so update both scripts in `package.json`:
@@ -122,13 +122,13 @@ function CreateMintConsumeInner() {
 
 export default function CreateMintConsume() {
 .return (
-..<MidenProvider config={{ rpcUrl: 'testnet', prover: 'local' }}>
+..<MidenProvider config={{ rpcUrl: 'testnet', prover: 'testnet' }}>
 ...<CreateMintConsumeInner />
 ..</MidenProvider>
 .);
 }`},
   typescript: { code:`// lib/createMintConsume.ts
-import { MidenClient, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { FaucetType, MidenClient, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
@@ -140,9 +140,9 @@ export async function createMintConsume(): Promise<void> {
 .// wasm-bindgen type (see setup_guide.md "Entry points: eager vs lazy").
 .await MidenClient.ready();
 
-.// Connect to Miden testnet with local proving
+.// Connect to Miden testnet with delegated proving
 .const client = await MidenClient.createTestnet({
-..proverUrl: 'local',
+..proverUrl: 'https://tx-prover.testnet.miden.io',
 .});
 
 .// 1. Sync with the latest blockchain state
@@ -230,7 +230,7 @@ react: { code: `const run = async () => {
 .console.log('Alice ID:', alice.id().toString());
 };` },
 typescript: { code: `// lib/createMintConsume.ts
-import { MidenClient, StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { FaucetType, MidenClient, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 
 export async function createMintConsume(): Promise<void> {
 .if (typeof window === 'undefined') {
@@ -243,7 +243,7 @@ export async function createMintConsume(): Promise<void> {
 .await MidenClient.ready();
 
 .const client = await MidenClient.createTestnet({
-..proverUrl: 'local',
+..proverUrl: 'https://tx-prover.testnet.miden.io',
 .});
 
 .// 1. Sync with the latest blockchain state
@@ -283,7 +283,7 @@ console.log('Setup complete.');`},
 // A faucet is an account that can mint new tokens
 console.log('Creating faucet…');
 const faucet = await client.accounts.create({
-.type: 0, // 0 = FungibleFaucet: can mint divisible tokens
+.type: FaucetType.FungibleFaucet, // Can mint divisible tokens
 .symbol: 'MID', // Token symbol (like ETH, BTC, etc.)
 .decimals: 8, // Decimals (8 means 1 MID = 100,000,000 base units)
 .maxSupply: BigInt(1_000_000), // Max supply: total tokens that can ever be minted
@@ -298,7 +298,7 @@ console.log('Setup complete.');` },
 ### Understanding Faucet Parameters:
 
 - **Storage**: We use `StorageMode.Public` so anyone can verify the faucet's minting operations
-- **Faucet selection**: In the TypeScript facade a fungible faucet is selected with `type: 0`; the React SDK exposes this directly via `createFaucet`
+- **Faucet selection**: In the TypeScript facade a fungible faucet is selected with `type: FaucetType.FungibleFaucet`; the React SDK exposes this directly via `createFaucet`
 - **Token Symbol**: A short identifier for your token (e.g., "MID", "USDC", "DAI")
 - **Decimals**: Determines the smallest unit of your token. With 8 decimals, 1 MID = 10^8 base units
 - **Max Supply**: The maximum number of tokens that can ever exist
@@ -352,7 +352,7 @@ function CreateMintConsumeInner() {
 ..console.log('Alice ID:', alice.id().toString());
 ..await fundAccount(alice);
 
-..// v0.16 faucets include BasicWallet, so they can receive fee funding.
+..// v0.17 faucets include BasicWallet, so they can receive fee funding.
 ..const faucet = await createFaucet({
 ...tokenSymbol: 'MID',
 ...decimals: 8,
@@ -380,7 +380,7 @@ export default function CreateMintConsume() {
 ..<MidenProvider
 ...config={{
 ....rpcUrl: tutorialNetwork(),
-....prover: 'local',
+....prover: tutorialNetwork(),
 ....autoSyncInterval: 0,
 ...}}
 ..>
@@ -389,7 +389,7 @@ export default function CreateMintConsume() {
 .);
 }`},
   typescript: { code: `// lib/createMintConsume.ts
-import { StorageMode } from '@miden-sdk/miden-sdk/lazy';
+import { FaucetType, StorageMode } from '@miden-sdk/miden-sdk/lazy';
 import {
 .createTutorialClient,
 .fundAccountForFees,
@@ -401,9 +401,7 @@ export async function createMintConsume(): Promise<void> {
 ..return;
 .}
 
-.const client = await createTutorialClient({
-..proverUrl: 'local',
-.});
+.const client = await createTutorialClient();
 
 .// 1. Sync with the latest blockchain state
 .const state = await client.sync();
@@ -416,11 +414,11 @@ export async function createMintConsume(): Promise<void> {
 .});
 .console.log('Alice ID:', alice.id().toString());
 
-.// 3. Create our own fungible faucet. SDK v0.16 includes BasicWallet,
+.// 3. Create our own fungible faucet. SDK v0.17 includes BasicWallet,
 .// allowing both accounts to consume native fee funding before minting MID.
 .console.log('Creating faucet…');
 .const faucet = await client.accounts.create({
-..type: 0, // 0 = FungibleFaucet
+..type: FaucetType.FungibleFaucet,
 ..symbol: 'MID',
 ..decimals: 8,
 ..maxSupply: BigInt(1_000_000),

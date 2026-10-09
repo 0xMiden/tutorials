@@ -16,7 +16,7 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-The tutorials use v0.16 on testnet. Run `yarn playwright test` to execute them.
+The tutorials use v0.17 on testnet. Run `yarn playwright test` to execute them.
 See the [setup guide](../docs/src/web-client/setup_guide.md) for fee funding.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.

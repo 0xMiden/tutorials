@@ -2,6 +2,13 @@
 
 The goal of this repository is to provide clear and practical examples for interacting with the **Miden Rollup**. These examples are designed to ensure a smooth onboarding experience for developers exploring Miden's capabilities.
 
+The tutorials target **Miden v0.17**: Rust client 0.17.2, protocol 0.17.1,
+Web SDK 0.17.1, and React SDK 0.17.0. Run `yarn tutorials` against testnet,
+or `TUTORIAL_NETWORK=devnet yarn tutorials` against devnet. Start with fresh
+client databases when upgrading from v0.16. The bank example uses Miden
+toolchain 0.17.0 and contract SDK `miden` 0.15.0; see its
+[build instructions](examples/miden-bank/README.md).
+
 This repository is organized into several parts:
 
 1. **docs**, contains the README files for the tutorials and guides.

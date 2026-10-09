@@ -27,7 +27,7 @@ const params = {
   bindingAttachmentFelts: [1n, 2n, 3n, 4n, 5n],
 };
 
-describe('Epoch collateral with the real v0.16 SDK', () => {
+describe('Epoch collateral with the real v0.17 SDK', () => {
   it('builds and serializes a public P2IDE note without publishing it', () => {
     const note = createEpochCollateralNote(params);
     expect(note.serialize().length).toBeGreaterThan(0);

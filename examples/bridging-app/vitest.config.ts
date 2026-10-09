@@ -5,6 +5,8 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    // The v0.17 wallet adapters publish an ESM `module` entry without `main`.
+    mainFields: ["module", "main"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
