@@ -271,7 +271,7 @@ cd contracts/bank-account
 miden build --release
 ```
 
-## Optional: Verify Constraints Work
+## Optional: Verify Constraint Setup
 
 :::note
 This is an optional self-check. If you create this test file, you can run it to verify the contract compiles with the constraint logic. The main runnable tests begin in Part 4.
