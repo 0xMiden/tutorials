@@ -17,21 +17,13 @@ use miden_client::{
     keystore::{FilesystemKeyStore, Keystore},
     note::{Note, NoteType, P2idNote},
     rpc::{GrpcClient, VerifyingRpcClient},
-    transaction::{TransactionId, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     utils::{Deserializable, Serializable},
     Client, ClientError,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_protocol::transaction::InputNote;
 use rust_client::{fund_account_for_fees, FeeConfig, TutorialNetwork};
-
-/// Waits for a specific transaction to be committed.
-async fn wait_for_tx(
-    client: &mut Client<FilesystemKeyStore>,
-    tx_id: TransactionId,
-) -> Result<(), ClientError> {
-    rust_client::wait_for_transaction(client, tx_id).await
-}
 
 #[tokio::main]
 async fn main() -> Result<(), ClientError> {
@@ -176,7 +168,6 @@ async fn main() -> Result<(), ClientError> {
     println!("Minted tokens. TX: {:?}", tx_id);
 
     // Wait for mint transaction to be committed
-    wait_for_tx(&mut client, tx_id).await?;
 
     // Get the minted note and consume it
     let consumable_notes = client
@@ -194,7 +185,6 @@ async fn main() -> Result<(), ClientError> {
         println!("Consumed minted note. TX: {:?}", consume_tx_id);
 
         // Wait for consumption to complete
-        wait_for_tx(&mut client, consume_tx_id).await?;
     }
 
     //------------------------------------------------------------

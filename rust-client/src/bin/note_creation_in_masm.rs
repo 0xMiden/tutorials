@@ -22,7 +22,7 @@ use miden_client::{
     },
     rng::draw_word,
     rpc::{GrpcClient, VerifyingRpcClient},
-    transaction::{TransactionId, TransactionRequestBuilder},
+    transaction::TransactionRequestBuilder,
     Client, ClientError, Felt,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
@@ -117,14 +117,6 @@ async fn wait_for_notes(
             account_id.id()
         ),
     ))))
-}
-
-/// Waits for a specific transaction to be committed.
-async fn wait_for_tx(
-    client: &mut Client<FilesystemKeyStore>,
-    tx_id: TransactionId,
-) -> Result<(), ClientError> {
-    rust_client::wait_for_transaction(client, tx_id).await
 }
 
 #[tokio::main]
@@ -306,8 +298,6 @@ async fn main() -> Result<(), ClientError> {
         network.explorer_url(),
         tx_id
     );
-
-    wait_for_tx(&mut client, tx_id).await?;
 
     // The SDK verifies expected recipients; also check the actual successor's assets and metadata.
     let successor = client

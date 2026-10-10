@@ -19,21 +19,13 @@ use miden_client::{
     },
     rng::draw_word,
     rpc::{GrpcClient, VerifyingRpcClient},
-    transaction::{ExpirationTransactionScript, TransactionId, TransactionRequestBuilder},
+    transaction::{ExpirationTransactionScript, TransactionRequestBuilder},
     Client, ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use rand::Rng;
 use rust_client::{fund_account_for_fees, FeeConfig, TutorialNetwork};
 use tokio::time::{sleep, Duration};
-
-/// Waits for a specific transaction to be committed.
-async fn wait_for_tx(
-    client: &mut Client<FilesystemKeyStore>,
-    tx_id: TransactionId,
-) -> Result<(), ClientError> {
-    rust_client::wait_for_transaction(client, tx_id).await
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -235,7 +227,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("network increment note creation tx submitted, waiting for onchain commitment");
 
     // Wait for the note transaction to be committed
-    wait_for_tx(&mut client, note_tx_id).await.unwrap();
 
     // Waiting for network note to be picked up by the network transaction builder
     sleep(Duration::from_secs(6)).await;
