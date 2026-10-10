@@ -1,4 +1,5 @@
 use external_contract::count_reader_contract
+use external_contract::counter_contract
 use miden::core::sys
 
 #! Copies a public counter through the reader account.
@@ -15,14 +16,14 @@ pub proc main(args: word)
     dropw
     # => [pad(16)]
 
-    push.{get_count_proc_hash}
-    # => [GET_COUNT_HASH, pad(16)]
+    procref.counter_contract::get_count
+    # => [GET_COUNT_ROOT, pad(16)]
 
     push.{account_id_prefix}
-    # => [account_id_prefix, GET_COUNT_HASH, pad(16)]
+    # => [account_id_prefix, GET_COUNT_ROOT, pad(16)]
 
     push.{account_id_suffix}
-    # => [account_id_suffix, account_id_prefix, GET_COUNT_HASH, pad(16)]
+    # => [account_id_suffix, account_id_prefix, GET_COUNT_ROOT, pad(16)]
 
     call.count_reader_contract::copy_count
     # => [pad(22)]
