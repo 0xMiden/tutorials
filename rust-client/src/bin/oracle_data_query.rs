@@ -248,7 +248,5 @@ async fn main() -> Result<(), ClientError> {
         tx_id
     );
 
-    client.sync_state().await.unwrap();
-
     Ok(())
 }
